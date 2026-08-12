@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "SahiGadget",
   tagline: "সঠিক দাম, সঠিক গ্যাজেট",
   brandPromise: "আসল পণ্য • দ্রুত ডেলিভারি • সারা দেশে সেবা",
-  url: "https://sahigadget.shop",
+  url: "https://sahi-gatget.vercel.app",
   established: 2019,
   location: {
     address: "Araihazar, Narayanganj, Bangladesh – 1460",

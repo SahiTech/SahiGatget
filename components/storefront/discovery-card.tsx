@@ -1,0 +1,14 @@
+/* eslint-disable @next/next/no-img-element */
+
+import Link from 'next/link'
+import { ArrowUpRight, Layers3 } from 'lucide-react'
+
+import type { StorefrontBrand, StorefrontCategory } from '@/lib/services/storefront'
+
+export function BrandCard({ brand }: { brand: StorefrontBrand }) {
+  return <Link href={`/products?brand=${encodeURIComponent(brand.slug)}`} className="group rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-900/8 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"><div className="flex items-center justify-between gap-4"><div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-lg font-black text-emerald-300">{brand.logo_url ? <><span className="sr-only">{brand.name} logo</span><img src={brand.logo_url} alt={`${brand.name} logo`} className="h-full w-full object-contain bg-white p-2" /></> : brand.name.slice(0, 2).toUpperCase()}</div><ArrowUpRight className="h-5 w-5 text-slate-300 transition-colors group-hover:text-emerald-600" aria-hidden="true" /></div><h2 className="mt-5 text-lg font-black tracking-tight text-slate-950">{brand.name}</h2><p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{brand.description || 'Explore published products from this brand.'}</p><span className="mt-4 inline-flex text-xs font-bold uppercase tracking-[0.15em] text-emerald-700">Browse products</span></Link>
+}
+
+export function CategoryCard({ category }: { category: StorefrontCategory }) {
+  return <Link href={`/products?category=${encodeURIComponent(category.slug)}`} className="group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-950 p-6 text-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-900/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"><div className="absolute -right-8 -top-10 h-32 w-32 rounded-full bg-emerald-400/15 blur-2xl transition-transform duration-300 group-hover:scale-125" /><div className="relative flex min-h-36 flex-col justify-between"><div className="flex items-center justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-sm font-black text-emerald-300">{category.image_url ? <><img src={category.image_url} alt={`${category.name} category`} className="h-full w-full rounded-2xl object-cover" /></> : <Layers3 className="h-5 w-5" aria-hidden="true" />}</span><ArrowUpRight className="h-5 w-5 text-slate-500 transition-colors group-hover:text-emerald-300" aria-hidden="true" /></div><div><h2 className="mt-6 text-lg font-black tracking-tight">{category.name}</h2><p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-400">{category.description || 'Discover products in this catalogue category.'}</p></div></div></Link>
+}

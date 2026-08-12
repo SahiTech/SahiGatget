@@ -1,143 +1,34 @@
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { ArrowRight, BadgeCheck, Headphones, ShieldCheck, Truck, Zap } from 'lucide-react'
+
 import { siteConfig } from '@/config/site'
-import { ShieldCheck, Truck, Headphones, Smartphone, CheckCircle2, Lock } from 'lucide-react'
+import { BrandCard, CategoryCard } from '@/components/storefront/discovery-card'
+import { ProductGrid } from '@/components/product/product-card'
+import { getBrands, getCategories, getDeliverySummary, getFeaturedProducts, getStorefrontPolicySummary, getStorefrontSettings } from '@/lib/services/storefront'
 
-export default function HomePage() {
-  return (
-    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-      {/* Header / Announcement bar */}
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center space-x-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-xl">
-              SG
-            </span>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900">
-                {siteConfig.name}
-              </h1>
-              <p className="text-xs text-slate-500 font-medium">
-                {siteConfig.tagline}
-              </p>
-            </div>
-          </div>
-          <nav className="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-600">
-            <Link href="/products" className="hover:text-blue-600 transition-colors">Products</Link>
-            <Link href="/brands" className="hover:text-blue-600 transition-colors">Brands</Link>
-            <Link href="/categories" className="hover:text-blue-600 transition-colors">Categories</Link>
-            <Link href="/track-order" className="hover:text-blue-600 transition-colors">Track Order</Link>
-          </nav>
-          <div className="flex items-center space-x-3">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/admin/login">Admin Portal</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/products">Shop Now</Link>
-            </Button>
-          </div>
+export default async function HomePage() {
+  const [featuredProducts, brands, categories, settings] = await Promise.all([getFeaturedProducts(4), getBrands(), getCategories(), getStorefrontSettings()])
+  return <main className="flex-1">
+    <section className="relative overflow-hidden bg-slate-950 text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(16,185,129,0.2),transparent_28%),radial-gradient(circle_at_10%_100%,rgba(14,165,233,0.16),transparent_30%)]" />
+      <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-28">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-emerald-300"><Zap className="h-3.5 w-3.5" />Bangladesh mobile & gadget shop</div>
+          <h1 className="mt-7 max-w-3xl text-5xl font-black leading-[0.98] tracking-[-0.06em] sm:text-7xl">Shop with clarity.<br /><span className="text-emerald-300">Choose with confidence.</span></h1>
+          <p className="mt-7 max-w-xl text-base leading-8 text-slate-300 sm:text-lg">{siteConfig.tagline}. {siteConfig.brandPromise}. Explore the live public catalogue with transparent pricing, customer-safe availability, and the information you need before you order.</p>
+          <div className="mt-9 flex flex-wrap gap-3"><Link href="/products" className="inline-flex h-12 items-center gap-2 rounded-full bg-emerald-400 px-6 text-sm font-black text-slate-950 transition-colors hover:bg-emerald-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200">Browse catalogue <ArrowRight className="h-4 w-4" /></Link><Link href="/categories" className="inline-flex h-12 items-center rounded-full border border-slate-700 px-6 text-sm font-bold text-white transition-colors hover:border-slate-400 hover:bg-white/5">Explore categories</Link></div>
+          <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-slate-400"><span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-emerald-300" />Published catalogue</span><span className="flex items-center gap-2"><Truck className="h-4 w-4 text-emerald-300" />{getDeliverySummary(settings)}</span><span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-300" />{getStorefrontPolicySummary(settings)}</span></div>
         </div>
-      </header>
+        <div className="relative mx-auto w-full max-w-md lg:ml-auto"><div className="absolute -inset-5 rounded-[2.5rem] bg-emerald-300/10 blur-3xl" /><div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/30 backdrop-blur"><div className="flex items-center justify-between border-b border-white/10 pb-5"><div><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Store snapshot</p><p className="mt-2 text-2xl font-black">{siteConfig.name}</p></div><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-400 font-black text-slate-950">SG</span></div><div className="mt-6 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-white/[0.06] p-4"><p className="text-3xl font-black text-white">{featuredProducts.length}</p><p className="mt-1 text-xs text-slate-400">Featured products</p></div><div className="rounded-2xl bg-white/[0.06] p-4"><p className="text-3xl font-black text-white">{brands.length}</p><p className="mt-1 text-xs text-slate-400">Active brands</p></div><div className="rounded-2xl bg-white/[0.06] p-4"><p className="text-3xl font-black text-white">{categories.length}</p><p className="mt-1 text-xs text-slate-400">Shop categories</p></div><div className="rounded-2xl bg-emerald-400 p-4 text-slate-950"><p className="text-sm font-black">{siteConfig.location.city}</p><p className="mt-1 text-xs font-semibold text-slate-700">Serving Bangladesh</p></div></div><div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4"><p className="text-sm font-bold text-emerald-200">{siteConfig.brandPromise}</p><p className="mt-2 text-xs leading-6 text-slate-400">Clear information, practical discovery, and a storefront designed for real mobile shoppers.</p></div></div></div>
+      </div>
+    </section>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-blue-900 via-blue-800 to-slate-900 text-white py-20 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-5xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-200 ring-1 ring-inset ring-blue-400/30 mb-6">
-            <ShieldCheck className="h-4 w-4 text-blue-400" />
-            {siteConfig.brandPromise}
-          </div>
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl mb-6">
-            Official Mobile Phones & Gadgets in Bangladesh
-          </h1>
-          <p className="mx-auto max-w-2xl text-lg text-slate-300 mb-10">
-            Established in {siteConfig.established}. Delivering authentic mobile phones and premium smart gadgets across Bangladesh with trusted warranty support.
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8">
-              <Link href="/products">Browse Catalog</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="border-slate-600 text-white hover:bg-white/10">
-              <Link href="/track-order">Track Your Order</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
+    <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Live catalogue</p><h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-slate-950">Featured products</h2><p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">Only published catalogue records are shown here. When the database is empty, we keep the storefront honest.</p></div><Link href="/products" className="inline-flex items-center gap-2 text-sm font-black text-slate-950 transition-colors hover:text-emerald-700">View all products <ArrowRight className="h-4 w-4" /></Link></div><div className="mt-8">{featuredProducts.length ? <ProductGrid products={featuredProducts} /> : <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-12 text-center"><p className="text-lg font-black text-slate-950">The catalogue is being prepared</p><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">No featured products have been published yet. The storefront will update automatically as the live catalogue is populated.</p><Link href="/products" className="mt-6 inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-600 hover:text-slate-950">Open catalogue</Link></div>}</div></section>
 
-      {/* Feature Highlights */}
-      <section className="py-16 bg-white border-y border-slate-200">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="flex items-start space-x-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                <Smartphone className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900">100% Official Products</h3>
-                <p className="mt-1 text-sm text-slate-600">Authentic mobile phones with official brand warranty.</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                <Truck className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900">Nationwide Delivery</h3>
-                <p className="mt-1 text-sm text-slate-600">Fast delivery (Dhaka ৳{siteConfig.delivery.dhakaCharge}, Outside ৳{siteConfig.delivery.outsideDhakaCharge}).</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900">Warranty Protection</h3>
-                <p className="mt-1 text-sm text-slate-600">{siteConfig.warranty.defaultPolicy}</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                <Headphones className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900">Dedicated Support</h3>
-                <p className="mt-1 text-sm text-slate-600">Call us at {siteConfig.contact.phone} for expert assistance.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+    <section className="border-y border-slate-200 bg-white"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Find your fit</p><h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-slate-950">Browse by category</h2></div><Link href="/categories" className="hidden items-center gap-2 text-sm font-black text-slate-950 hover:text-emerald-700 sm:inline-flex">All categories <ArrowRight className="h-4 w-4" /></Link></div><div className="mt-8">{categories.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{categories.slice(0, 6).map((category) => <CategoryCard key={category.id} category={category} />)}</div> : <div className="rounded-[1.5rem] border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">Categories will appear here as soon as they are added to the live catalogue.</div>}</div></div></section>
 
-      {/* Phase 1 Architecture Notice */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto text-center">
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-8 shadow-sm">
-          <div className="inline-flex items-center justify-center rounded-full bg-blue-600 text-white p-3 mb-4">
-            <CheckCircle2 className="h-6 w-6" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-3">
-            Phase 1 Clean Production Foundation Active
-          </h2>
-          <p className="text-slate-600 text-sm leading-relaxed mb-6">
-            The Next.js App Router architecture, TypeScript configuration, Tailwind CSS, shadcn/ui components, Supabase client/server boundaries, security enforcement, and robust error handling are successfully established in repository <code className="bg-blue-100 px-1.5 py-0.5 rounded text-blue-700 font-mono">SahiTech/SahiGatget</code>.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3 text-xs font-semibold text-blue-700 bg-white/80 py-3 px-4 rounded-lg border border-blue-100">
-            <span className="flex items-center gap-1"><Lock className="h-3.5 w-3.5" /> Secure Server Boundary</span>
-            <span>•</span>
-            <span>PostgreSQL Ready</span>
-            <span>•</span>
-            <span>Vercel Optimized</span>
-          </div>
-        </div>
-      </section>
+    <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Shop by maker</p><h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-slate-950">Popular brands</h2></div><Link href="/brands" className="hidden items-center gap-2 text-sm font-black text-slate-950 hover:text-emerald-700 sm:inline-flex">All brands <ArrowRight className="h-4 w-4" /></Link></div><div className="mt-8">{brands.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{brands.slice(0, 8).map((brand) => <BrandCard key={brand.id} brand={brand} />)}</div> : <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">Brands will appear here as soon as they are added to the live catalogue.</div>}</div></section>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200 bg-white py-8 text-center text-sm text-slate-500">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <p>&copy; {new Date().getFullYear()} {siteConfig.name} ({siteConfig.location.address}). All rights reserved.</p>
-          <p className="mt-1 text-xs text-slate-400">
-            Contact: {siteConfig.contact.publicEmail} | Phone: {siteConfig.contact.phone}
-          </p>
-        </div>
-      </footer>
-    </div>
-  )
+    <section className="bg-emerald-400"><div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-3 lg:px-8"><div className="flex gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-emerald-300"><ShieldCheck className="h-5 w-5" /></div><div><h3 className="font-black text-slate-950">Clear warranty context</h3><p className="mt-1 text-sm leading-6 text-slate-800">{getStorefrontPolicySummary(settings)}. Manufacturer terms apply where applicable.</p></div></div><div className="flex gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-emerald-300"><Truck className="h-5 w-5" /></div><div><h3 className="font-black text-slate-950">Transparent delivery guide</h3><p className="mt-1 text-sm leading-6 text-slate-800">{getDeliverySummary(settings)}. Final calculation comes during checkout in a later phase.</p></div></div><div className="flex gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-emerald-300"><Headphones className="h-5 w-5" /></div><div><h3 className="font-black text-slate-950">Local support</h3><p className="mt-1 text-sm leading-6 text-slate-800">Questions? Call {siteConfig.contact.phone}. We are based in {siteConfig.location.city}.</p></div></div></div></section>
+  </main>
 }

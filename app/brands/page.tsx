@@ -1,39 +1,13 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { ArrowLeft, Layers } from 'lucide-react'
 
-export default function Page() {
-  return (
-    <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center justify-between">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" /> Back to Home
-            </Link>
-          </Button>
-          <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-            Foundation Route
-          </span>
-        </div>
+import { BrandCard } from '@/components/storefront/discovery-card'
+import { PageIntro } from '@/components/storefront/page-intro'
+import { getBrands } from '@/lib/services/storefront'
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600 mb-4">
-            <Layers className="h-8 w-8" />
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Brands Directory
-          </h1>
-          <p className="mt-2 text-slate-600 max-w-lg mx-auto text-sm">
-            Browse official mobile phone brands like Samsung, Apple, Xiaomi, OnePlus, and more.
-          </p>
-          <div className="mt-6">
-            <Button asChild>
-              <Link href="/">Return to Home</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+export const metadata: Metadata = { title: 'Browse brands', description: 'Explore active mobile phone and gadget brands available through the SahiGadget catalogue.', alternates: { canonical: '/brands' } }
+
+export default async function BrandsPage() {
+  const brands = await getBrands()
+  return <main className="flex-1"><PageIntro eyebrow="Shop by maker" title="Browse brands" description="Explore active brands from the live catalogue. Brand content is shown only when it exists in the public data layer." /><div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">{brands.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{brands.map((brand) => <BrandCard key={brand.id} brand={brand} />)}</div> : <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white px-6 py-16 text-center"><p className="text-xl font-black text-slate-950">No brands published yet</p><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Brands will appear here as soon as active records are added to the live catalogue.</p><Link href="/products" className="mt-6 inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-600 hover:text-slate-950">Browse products</Link></div>}</div></main>
 }
