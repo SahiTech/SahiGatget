@@ -16,8 +16,8 @@ function variantLabel(variant: StorefrontProduct['variants'][number]) {
 }
 
 function availability(variant: StorefrontProduct['variants'][number]) {
-  if (variant.stock_quantity <= 0) return { label: 'Out of stock', tone: 'out' as const }
-  if (variant.stock_quantity <= variant.low_stock_threshold) return { label: 'Low stock', tone: 'low' as const }
+  if (!variant.is_in_stock) return { label: 'Out of stock', tone: 'out' as const }
+  if (variant.is_low_stock) return { label: 'Low stock', tone: 'low' as const }
   return { label: 'In stock', tone: 'in' as const }
 }
 
