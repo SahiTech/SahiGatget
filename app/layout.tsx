@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import { Geist, Geist_Mono } from 'next/font/google'
 
 import { siteConfig } from '@/config/site'
-import { SiteFooter } from '@/components/layout/site-footer'
-import { SiteHeader } from '@/components/layout/site-header'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -19,6 +19,6 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 }
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
-  return <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}><body className="min-h-full bg-slate-50 text-slate-950"><SiteHeader />{children}<SiteFooter /></body></html>
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}><body className="min-h-full bg-slate-50 text-slate-950"><Toaster position="top-right" richColors />{children}</body></html>
 }
