@@ -94,5 +94,12 @@ export type TrackingSummary = {
   createdAt: string
   paymentMethod: 'COD'
   paymentStatus: string
+  subtotal: number
+  discountTotal: number
+  deliveryCharge: number
+  grandTotal: number
+  warrantyPolicy: string | null
+  canDownloadInvoice: boolean
+  timeline: Array<{ status: string; createdAt: string }>
   items: Array<{ productName: string; variantTitle: string; quantity: number }>
 }

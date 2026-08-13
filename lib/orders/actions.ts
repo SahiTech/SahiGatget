@@ -204,20 +204,22 @@ export async function lookupGuestOrder(input: unknown): Promise<ActionResult<Tra
   const admin = createAdminClient()
   const { data: order, error } = await admin
     .from('orders')
-    .select('id,order_number,order_status,created_at,payment_method,payment_status')
+    .select('id,order_number,order_status,created_at,payment_method,payment_status,subtotal,discount_total,delivery_charge,grand_total')
     .eq('order_number', parsed.data.orderNumber.toUpperCase())
     .eq('customer_phone_snapshot', normalizePhone(parsed.data.phone))
     .maybeSingle()
   if (error || !order) return { ok: false, message: 'We could not find a matching order. Check the order number and mobile number, then try again.' }
 
-  const { data: items, error: itemsError } = await admin
-    .from('order_items')
-    .select('product_name_snapshot,variant_title_snapshot,quantity')
-    .eq('order_id', (order as { id: string }).id)
-    .order('created_at')
-  if (itemsError) return { ok: false, message: 'We found the order but could not load its status safely. Please try again.' }
+  const orderId = (order as { id: string }).id
+  const [{ data: items, error: itemsError }, { data: history, error: historyError }] = await Promise.all([
+    admin.from('order_items').select('product_name_snapshot,variant_title_snapshot,quantity,warranty_policy_snapshot').eq('order_id', orderId).order('created_at'),
+    admin.from('order_status_history').select('new_status,created_at').eq('order_id', orderId).order('created_at'),
+  ])
+  if (itemsError || historyError) return { ok: false, message: 'We found the order but could not load its status safely. Please try again.' }
 
   const safeOrder = order as unknown as Record<string, unknown>
+  const safeItems = (items ?? []) as Array<Record<string, unknown>>
+  const safeHistory = (history ?? []) as Array<Record<string, unknown>>
   return {
     ok: true,
     data: {
@@ -226,7 +228,14 @@ export async function lookupGuestOrder(input: unknown): Promise<ActionResult<Tra
       createdAt: String(safeOrder.created_at),
       paymentMethod: 'COD',
       paymentStatus: String(safeOrder.payment_status),
-      items: ((items ?? []) as Array<Record<string, unknown>>).map((item) => ({
+      subtotal: Number(safeOrder.subtotal),
+      discountTotal: Number(safeOrder.discount_total),
+      deliveryCharge: Number(safeOrder.delivery_charge),
+      grandTotal: Number(safeOrder.grand_total),
+      warrantyPolicy: safeItems.map((item) => item.warranty_policy_snapshot ? String(item.warranty_policy_snapshot) : '').find(Boolean) ?? null,
+      canDownloadInvoice: true,
+      timeline: safeHistory.map((item) => ({ status: String(item.new_status), createdAt: String(item.created_at) })),
+      items: safeItems.map((item) => ({
         productName: String(item.product_name_snapshot),
         variantTitle: String(item.variant_title_snapshot),
         quantity: Number(item.quantity),
