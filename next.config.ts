@@ -10,6 +10,7 @@ const cspHeader = `
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';
+    frame-src 'self' https://www.openstreetmap.org;
     connect-src 'self' https://cckgkieqnyhgdtsstwmz.supabase.co https://ncknpaezdhsqiicdjtgr.supabase.co;
     upgrade-insecure-requests;
 `.replace(/\s{2,}/g, ' ').trim();
