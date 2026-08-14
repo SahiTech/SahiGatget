@@ -6,8 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, Save, X, RefreshCw, Trash2 } from 'lucide-react'
 
 import { bannerSchema } from '@/lib/admin/schema'
-import { createHomepageBanner, updateHomepageBanner } from '@/lib/admin/homepage-actions'
-import { createClient as createBrowserClient } from '@/lib/supabase/client'
+import { createHomepageBanner, updateHomepageBanner, uploadBannerImageAction } from '@/lib/admin/homepage-actions'
 
 const inputClass = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100'
 const labelClass = 'mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-600'
@@ -69,7 +68,6 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
     const file = event.target.files?.[0]
     if (!file) return
 
-    // Validate file type & size (5MB max)
     if (!file.type.startsWith('image/')) {
       alert('Please select a valid image file.')
       return
@@ -85,13 +83,13 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
       if (desktopFile && desktopPreview.startsWith('blob:')) URL.revokeObjectURL(desktopPreview)
       setDesktopFile(file)
       setDesktopPreview(objectUrl)
-      form.setValue('desktopImageUrl', objectUrl) // temporary for validation
+      form.setValue('desktopImageUrl', objectUrl)
       form.clearErrors('desktopImageUrl')
     } else {
       if (mobileFile && mobilePreview.startsWith('blob:')) URL.revokeObjectURL(mobilePreview)
       setMobileFile(file)
       setMobilePreview(objectUrl)
-      form.setValue('mobileImageUrl', objectUrl) // temporary for validation
+      form.setValue('mobileImageUrl', objectUrl)
       form.clearErrors('mobileImageUrl')
     }
 
@@ -116,41 +114,34 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
     startTransition(async () => {
       try {
         setMessage('Uploading images & saving banner...')
-        const supabase = createBrowserClient()
 
         let finalDesktopUrl = values.desktopImageUrl
         let finalMobileUrl = values.mobileImageUrl
 
-        // Upload new desktop file client-side if selected
+        // Upload desktop file via Server Action (secure service role / authenticated admin context)
         if (desktopFile) {
-          const path = `banners/desktop-${Date.now()}-${desktopFile.name}`
-          const { data, error } = await supabase.storage
-            .from('homepage-banners')
-            .upload(path, desktopFile, { upsert: true })
+          const formData = new FormData()
+          formData.append('file', desktopFile)
+          formData.append('type', 'desktop')
 
-          if (error) throw new Error(`Desktop image upload failed: ${error.message}`)
-          
-          const { data: { publicUrl } } = supabase.storage
-            .from('homepage-banners')
-            .getPublicUrl(data.path)
-          
-          finalDesktopUrl = publicUrl
+          const res = await uploadBannerImageAction(formData)
+          if (!res.success || !res.url) {
+            throw new Error(res.error || 'Desktop image upload failed.')
+          }
+          finalDesktopUrl = res.url
         }
 
-        // Upload new mobile file client-side if selected
+        // Upload mobile file via Server Action
         if (mobileFile) {
-          const path = `banners/mobile-${Date.now()}-${mobileFile.name}`
-          const { data, error } = await supabase.storage
-            .from('homepage-banners')
-            .upload(path, mobileFile, { upsert: true })
+          const formData = new FormData()
+          formData.append('file', mobileFile)
+          formData.append('type', 'mobile')
 
-          if (error) throw new Error(`Mobile image upload failed: ${error.message}`)
-          
-          const { data: { publicUrl } } = supabase.storage
-            .from('homepage-banners')
-            .getPublicUrl(data.path)
-          
-          finalMobileUrl = publicUrl
+          const res = await uploadBannerImageAction(formData)
+          if (!res.success || !res.url) {
+            throw new Error(res.error || 'Mobile image upload failed.')
+          }
+          finalMobileUrl = res.url
         }
 
         if (!finalDesktopUrl || !finalMobileUrl) {

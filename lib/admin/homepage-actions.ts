@@ -19,6 +19,43 @@ export async function getHomepageBanners() {
   return data as HomepageBanner[]
 }
 
+export async function uploadBannerImageAction(formData: FormData) {
+  try {
+    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    const file = formData.get('file') as File
+    const type = formData.get('type') as string
+
+    if (!file || !file.size) {
+      return { success: false, error: 'No valid file provided.' }
+    }
+
+    const supabase = await createClient()
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const filename = `banners/${type}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+
+    const { data, error } = await supabase.storage
+      .from('homepage-banners')
+      .upload(filename, buffer, {
+        contentType: file.type || 'image/jpeg',
+        upsert: true,
+      })
+
+    if (error) {
+      console.error('Storage upload action error:', error)
+      return { success: false, error: error.message }
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('homepage-banners')
+      .getPublicUrl(data.path)
+
+    return { success: true, url: publicUrl }
+  } catch (err: any) {
+    console.error('Server action upload error:', err)
+    return { success: false, error: err.message || 'Server upload failed.' }
+  }
+}
+
 export async function createHomepageBanner(payload: Omit<HomepageBanner, 'id' | 'created_at' | 'updated_at'>) {
   const session = await requireAdmin(['OWNER', 'ADMIN'])
   const supabase = await createClient()
