@@ -112,14 +112,14 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
                     key={variant.id}
                     type="button"
                     onClick={() => setSelectedId(variant.id)}
-                    className={`flex items-center justify-between rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${selected?.id === variant.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-400'}`}
+                    className={`flex items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${selected?.id === variant.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-400'}`}
                     aria-pressed={selected?.id === variant.id}
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-bold text-slate-950">{getVariantLabel(variant)}</span>
-                      <span className="mt-1 block truncate text-[10px] text-slate-500 sm:text-xs">{formatPrice(variant.price)} · {variant.sku}</span>
+                      <span className="mt-1 block truncate text-[10px] text-slate-500 sm:text-xs">{formatPrice(variant.price)} · <span className="break-all">{variant.sku}</span></span>
                     </span>
-                    <span className={`ml-3 shrink-0 text-[9px] font-black uppercase tracking-[0.12em] sm:text-[10px] ${variantStatus.tone === 'in' ? 'text-emerald-700' : variantStatus.tone === 'low' ? 'text-amber-700' : 'text-slate-400'}`}>
+                    <span className={`shrink-0 text-[9px] font-black uppercase tracking-[0.12em] sm:text-[10px] ${variantStatus.tone === 'in' ? 'text-emerald-700' : variantStatus.tone === 'low' ? 'text-amber-700' : 'text-slate-400'}`}>
                       {variantStatus.label}
                     </span>
                   </button>
@@ -164,18 +164,18 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
         {selected && (
           <dl className="mt-8 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-200 pt-6 text-sm sm:gap-x-6">
             {attributes.map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">{label}</dt>
-                <dd className="mt-1 font-bold text-slate-950">{value}</dd>
+              <div key={label} className="min-w-0">
+                <dt className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">{label}</dt>
+                <dd className="mt-1 break-words font-bold text-slate-950">{value}</dd>
               </div>
             ))}
-            <div>
-              <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">SKU</dt>
+            <div className="min-w-0">
+              <dt className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">SKU</dt>
               <dd className="mt-1 break-all font-bold text-slate-950">{selected.sku}</dd>
             </div>
-            <div>
-              <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">Availability</dt>
-              <dd className={`mt-1 font-bold ${status.tone === 'in' ? 'text-emerald-700' : status.tone === 'low' ? 'text-amber-700' : 'text-slate-500'}`}>
+            <div className="min-w-0">
+              <dt className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">Availability</dt>
+              <dd className={`mt-1 truncate font-bold ${status.tone === 'in' ? 'text-emerald-700' : status.tone === 'low' ? 'text-amber-700' : 'text-slate-500'}`}>
                 {status.label}
               </dd>
             </div>

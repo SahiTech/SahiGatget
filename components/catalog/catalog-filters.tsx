@@ -50,7 +50,12 @@ export function CatalogFilters({ brands, categories, productTypes, filters }: { 
         </div>
         <button type="submit" className="h-11 rounded-xl bg-slate-950 px-5 text-sm font-bold text-white transition-colors hover:bg-emerald-600 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200">Apply filters</button>
       </div>
-      {(filters.category || filters.brand || filters.productType || filters.minPrice !== undefined || filters.maxPrice !== undefined || filters.availability && filters.availability !== 'all' || filters.sort && filters.sort !== 'newest') && <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500"><span>Filters are reflected in the URL so this view is shareable.</span><Link href="/products" className="font-bold text-slate-900 underline underline-offset-4 hover:text-emerald-700">Clear filters</Link></div>}
+      {(filters.category || filters.brand || filters.productType || filters.minPrice !== undefined || filters.maxPrice !== undefined || filters.availability && filters.availability !== 'all' || filters.sort && filters.sort !== 'newest') && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs text-slate-500">
+          <span className="min-w-0 flex-1">Filters are reflected in the URL so this view is shareable.</span>
+          <Link href="/products" className="shrink-0 font-bold text-slate-900 underline underline-offset-4 hover:text-emerald-700">Clear filters</Link>
+        </div>
+      )}
       {filters.query && <input type="hidden" name="q" value={filters.query} />}
       {filters.page && filters.page > 1 && <input type="hidden" name="page" value="1" />}
     </form>

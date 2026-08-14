@@ -10,7 +10,7 @@ import { getBrands, getCategories, getDeliverySummary, getFeaturedProducts, getS
 export default async function HomePage() {
   const [featuredProducts, brands, categories, settings] = await Promise.all([getFeaturedProducts(4), getBrands(), getCategories(), getStorefrontSettings()])
   return (
-    <main className="flex-1 overflow-x-hidden">
+    <main className="flex-1">
       <section className="relative overflow-hidden bg-slate-950 text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(16,185,129,0.2),transparent_28%),radial-gradient(circle_at_10%_100%,rgba(14,165,233,0.16),transparent_30%)]" />
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-28">

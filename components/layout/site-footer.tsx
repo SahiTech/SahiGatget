@@ -9,7 +9,7 @@ export async function SiteFooter() {
   const settings = await getStorefrontSettings()
   return (
     <footer className="border-t border-slate-200 bg-slate-950 text-white">
-      <div className="mx-auto grid max-w-7xl gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.8fr_0.8fr_1fr] lg:px-8">
+      <div className="mx-auto grid max-w-7xl gap-x-8 gap-y-12 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.8fr_0.8fr_1fr] lg:px-8">
         <div>
           <div className="flex items-center gap-3">
             <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-slate-900 shadow-md">
@@ -58,7 +58,7 @@ export async function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-slate-800">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5 lg:px-8">
           <p>© {new Date().getFullYear()} {siteConfig.name}. All rights reserved.</p>
           <p className="flex items-center gap-1">Built for Bangladesh <ArrowUpRight className="h-3 w-3" /></p>
         </div>

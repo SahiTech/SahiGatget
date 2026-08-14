@@ -38,9 +38,9 @@ export function ProductCard({ product }: { product: StorefrontProduct }) {
         <ProductMedia product={product} />
       </Link>
       <div className="flex flex-1 flex-col px-2 pb-2 pt-5">
-        <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-          <span>{product.brand?.name || 'SahiGadget'}</span>
-          {product.is_featured && <span className="text-emerald-600">Featured</span>}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+          <span className="min-w-0 flex-1 truncate">{product.brand?.name || 'SahiGadget'}</span>
+          {product.is_featured && <span className="shrink-0 text-emerald-600">Featured</span>}
         </div>
         <Link href={`/products/${product.slug}`} className="mt-2 block focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200">
           <h2 className="line-clamp-2 text-base font-black leading-6 tracking-tight text-slate-950 transition-colors group-hover:text-emerald-700">{product.name}</h2>
@@ -51,8 +51,10 @@ export function ProductCard({ product }: { product: StorefrontProduct }) {
             <span className="text-lg font-black tracking-tight text-slate-950">{priceRange ? `From ${priceRange}` : 'Price on request'}</span>
             {compareAt && <span className="text-xs font-medium text-slate-400 line-through">{formatPrice(compareAt)}</span>}
           </div>
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <AvailabilityPill product={product} />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="shrink-0">
+              <AvailabilityPill product={product} />
+            </div>
             <Link href={`/products/${product.slug}`} className="inline-flex items-center gap-1 text-xs font-bold text-slate-900 transition-colors hover:text-emerald-700" aria-label={`View details for ${product.name}`}>Details <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
           </div>
         </div>
