@@ -39,6 +39,7 @@ export async function SiteFooter() {
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Customer care</p>
           <nav className="mt-5 grid gap-3 text-sm text-slate-300">
             <Link href="/track-order" className="transition-colors hover:text-white">Track an order</Link>
+            <Link href="/help" className="transition-colors hover:text-white">Help & Policies</Link>
             <Link href="/order" className="transition-colors hover:text-white">Order information</Link>
             <Link href="/admin/login" className="transition-colors hover:text-white">Admin portal</Link>
           </nav>
