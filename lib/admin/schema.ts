@@ -86,6 +86,39 @@ export const orderStatusSchema = z.object({
   notes: z.string().trim().max(1000).optional().or(z.literal('')),
 })
 
+const socialUrl = (platform: string) => z.string().trim().url().max(2048).refine((value) => {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase().replace(/^www\./, '')
+    const allowed: Record<string, string[]> = {
+      facebook: ['facebook.com', 'm.facebook.com'],
+      tiktok: ['tiktok.com'],
+      instagram: ['instagram.com'],
+      x: ['x.com', 'twitter.com'],
+      youtube: ['youtube.com', 'youtu.be'],
+    }
+    return (allowed[platform] ?? []).some((domain) => hostname === domain || hostname.endsWith(`.${domain}`))
+  } catch {
+    return false
+  }
+}, `Enter a valid ${platform} URL.`)
+
+const optionalSocialUrl = (platform: string) => z.union([socialUrl(platform), z.literal('')])
+
+export const footerConfigSchema = z.object({
+  social: z.object({
+    facebook: optionalSocialUrl('facebook'),
+    tiktok: optionalSocialUrl('tiktok'),
+    instagram: optionalSocialUrl('instagram'),
+    x: optionalSocialUrl('x'),
+    youtube: optionalSocialUrl('youtube'),
+  }),
+  payments: z.object({
+    cash_on_delivery: z.boolean(),
+    visa: z.boolean(),
+    mastercard: z.boolean(),
+  }),
+})
+
 export const settingsSchema = z.object({
   deliveryCharges: z.object({
     dhaka: z.coerce.number().finite().min(0).max(100000),

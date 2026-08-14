@@ -16,6 +16,7 @@ import {
   orderStatusSchema,
   productSchema,
   settingsSchema,
+  footerConfigSchema,
   stockAdjustmentSchema,
   variantSchema,
 } from '@/lib/admin/schema'
@@ -276,6 +277,27 @@ export async function saveOperationalSettings(input: unknown): Promise<AdminActi
     await writeAdminAuditLog({ actorUserId: session.userId, action: 'OPERATIONAL_SETTINGS_UPDATED', entityType: 'settings', details: { keys: 'delivery_charges,business_policy' } })
     refreshAdminRoutes()
     return { ok: true, message: 'Delivery and warranty settings saved.' }
+  } catch (error) {
+    return actionFailure(error)
+  }
+}
+
+export async function saveFooterSettings(input: unknown): Promise<AdminActionResult> {
+  try {
+    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    const parsed = footerConfigSchema.parse(input)
+    const db = createAdminClient()
+    const { error } = await db.from('settings').upsert({
+      key: 'footer_config',
+      value: parsed,
+      description: 'Public footer social destinations and active payment-method display configuration',
+    }, { onConflict: 'key' })
+    if (error) throw new Error(error.message)
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'FOOTER_SETTINGS_UPDATED', entityType: 'settings', details: { keys: 'footer_config', socialPlatforms: Object.entries(parsed.social).filter(([, value]) => Boolean(value)).map(([key]) => key), payments: parsed.payments } })
+    refreshAdminRoutes()
+    revalidatePath('/')
+    revalidatePath('/contact')
+    return { ok: true, message: 'Footer settings saved.' }
   } catch (error) {
     return actionFailure(error)
   }

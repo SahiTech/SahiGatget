@@ -123,7 +123,7 @@ export async function getSettingsData() {
   const { data, error } = await db
     .from('settings')
     .select('key, value, description, updated_at')
-    .in('key', ['delivery_charges', 'business_policy', 'store_profile', 'return_refund_policy'])
+    .in('key', ['delivery_charges', 'business_policy', 'store_profile', 'return_refund_policy', 'footer_config'])
     .limit(10)
   assertNoError(error)
 

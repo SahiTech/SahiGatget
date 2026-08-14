@@ -6,7 +6,7 @@ import {
   getStartingPrice,
 } from './storefront-utils'
 import type {
-  StorefrontProduct,
+  FooterConfig,
   StorefrontVariant,
   StorefrontBrand,
   StorefrontCategory,
@@ -150,16 +150,33 @@ export async function getCategories() {
   return (data ?? []) as StorefrontCategory[]
 }
 
+const defaultFooterConfig = {
+  social: { facebook: 'https://www.facebook.com/sahigadgetbd', tiktok: '', instagram: '', x: '', youtube: '' },
+  payments: { cash_on_delivery: true, visa: false, mastercard: false },
+}
+
 export async function getStorefrontSettings(): Promise<StorefrontSettings> {
   const supabase = await createClient()
-  const { data, error } = await supabase.from('storefront_settings').select('config').maybeSingle()
-  if (error || !data) {
+  const { data, error } = await supabase.from('settings').select('key, value').in('key', ['delivery_charges', 'business_policy', 'footer_config']).limit(3)
+  if (error) {
     return {
       delivery: { dhakaCharge: 80, outsideDhakaCharge: 130 },
-      warranty: { guaranteeDays: 7, serviceWarrantyYears: 1, policyText: 'Standard 1 Year Brand Warranty' }
+      warranty: { guaranteeDays: 7, serviceWarrantyYears: 1, policyText: 'Standard 1 Year Brand Warranty' },
+      footer: defaultFooterConfig,
     }
   }
-  return data.config as unknown as StorefrontSettings
+  const settings = Object.fromEntries((data ?? []).map((item) => [item.key, item.value])) as {
+    delivery_charges?: { dhaka?: number; outside_dhaka?: number }
+    business_policy?: { guarantee_days?: number; service_warranty_years?: number; policy_text?: string }
+    footer_config?: Partial<FooterConfig> & { social?: Partial<FooterConfig['social']>; payments?: Partial<FooterConfig['payments']> }
+  }
+  const delivery = settings.delivery_charges ?? { dhaka: 80, outside_dhaka: 130 }
+  const policy = settings.business_policy ?? { guarantee_days: 7, service_warranty_years: 1, policy_text: 'Standard 1 Year Brand Warranty' }
+  return {
+    delivery: { dhakaCharge: Number(delivery.dhaka ?? 80), outsideDhakaCharge: Number(delivery.outside_dhaka ?? 130) },
+    warranty: { guaranteeDays: Number(policy.guarantee_days ?? 7), serviceWarrantyYears: Number(policy.service_warranty_years ?? 1), policyText: String(policy.policy_text ?? 'Standard 1 Year Brand Warranty') },
+    footer: { ...defaultFooterConfig, ...(settings.footer_config ?? {}), social: { ...defaultFooterConfig.social, ...(settings.footer_config?.social ?? {}) }, payments: { ...defaultFooterConfig.payments, ...(settings.footer_config?.payments ?? {}) } },
+  }
 }
 
 export async function getProductTypes() {

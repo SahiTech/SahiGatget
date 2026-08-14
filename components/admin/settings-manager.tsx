@@ -6,16 +6,16 @@ import { useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { FileText, Save, ShieldCheck, Store, Truck } from 'lucide-react'
 
-import { saveAdminUser, saveOperationalSettings, saveOwnerSettings } from '@/lib/admin/actions'
-import { adminUserSchema, settingsSchema } from '@/lib/admin/schema'
+import { saveAdminUser, saveFooterSettings, saveOperationalSettings, saveOwnerSettings } from '@/lib/admin/actions'
+import { adminUserSchema, footerConfigSchema, settingsSchema } from '@/lib/admin/schema'
 
 const inputClass = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100'
 const labelClass = 'mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-600'
 
 export function SettingsManager({ settings, auditLogs, admins, isOwner }: { settings: Record<string, any>; auditLogs: any[]; admins: any[]; isOwner: boolean }) {
-  const [tab, setTab] = useState<'operational' | 'business' | 'audit' | 'access'>('operational')
-  const tabs = [['operational', 'Delivery & warranty'], ...(isOwner ? [['business', 'Store & returns'], ['audit', 'Audit activity'], ['access', 'Access control']] as const : [])] as const
-  return <div><div className="mb-5 flex gap-2 overflow-x-auto pb-1">{tabs.map(([value, label]) => <button key={value} type="button" onClick={() => setTab(value)} className={`h-9 shrink-0 rounded-full px-4 text-sm font-semibold ${tab === value ? 'bg-slate-950 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{label}</button>)}</div>{tab === 'operational' ? <OperationalSettings initial={settings} /> : null}{tab === 'business' && isOwner ? <OwnerSettings initial={settings} /> : null}{tab === 'audit' && isOwner ? <AuditLog logs={auditLogs} /> : null}{tab === 'access' && isOwner ? <AdminAccess admins={admins} /> : null}</div>
+  const [tab, setTab] = useState<'operational' | 'footer' | 'business' | 'audit' | 'access'>('operational')
+  const tabs = [['operational', 'Delivery & warranty'], ['footer', 'Footer & social'], ...(isOwner ? [['business', 'Store & returns'], ['audit', 'Audit activity'], ['access', 'Access control']] as const : [])] as const
+  return <div><div className="mb-5 flex gap-2 overflow-x-auto pb-1">{tabs.map(([value, label]) => <button key={value} type="button" onClick={() => setTab(value)} className={`h-9 shrink-0 rounded-full px-4 text-sm font-semibold ${tab === value ? 'bg-slate-950 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{label}</button>)}</div>{tab === 'operational' ? <OperationalSettings initial={settings} /> : null}{tab === 'footer' ? <FooterSettings initial={settings.footer_config} /> : null}{tab === 'business' && isOwner ? <OwnerSettings initial={settings} /> : null}{tab === 'audit' && isOwner ? <AuditLog logs={auditLogs} /> : null}{tab === 'access' && isOwner ? <AdminAccess admins={admins} /> : null}</div>
 }
 
 function Notice({ message }: { message: string | null }) { return message ? <p role="status" className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{message}</p> : null }
@@ -40,4 +40,48 @@ function AdminAccess({ admins }: { admins: any[] }) {
   const [message, setMessage] = useState<string | null>(null); const [isPending, startTransition] = useTransition()
   const form = useForm<any>({ resolver: zodResolver(adminUserSchema), defaultValues: { userId: '', fullName: '', email: '', role: 'STAFF', isActive: true } })
   return <div className="grid gap-6 xl:grid-cols-[.7fr_1.3fr]"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Grant or update access</h2><p className="mt-1 text-sm leading-6 text-slate-500">The user must first have an existing verified Supabase Auth identity. This form does not create passwords or transmit credentials.</p><form className="mt-5 space-y-4" onSubmit={form.handleSubmit((values: any) => startTransition(async () => { const result = await saveAdminUser(values); setMessage(result.message); if (result.ok) form.reset() }))}><div><label className={labelClass}>Supabase Auth user ID</label><input className={inputClass} {...form.register('userId')} /></div><div><label className={labelClass}>Full name</label><input className={inputClass} {...form.register('fullName')} /></div><div><label className={labelClass}>Email</label><input type="email" className={inputClass} {...form.register('email')} /></div><div><label className={labelClass}>Role</label><select className={inputClass} {...form.register('role')}><option value="STAFF">STAFF</option><option value="ADMIN">ADMIN</option><option value="OWNER">OWNER</option></select></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" {...form.register('isActive')} /> Active access</label><button disabled={isPending} className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white"><ShieldCheck className="h-4 w-4" />Save access record</button></form><Notice message={message} /></section><section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-semibold">Approved administration records</h2></div><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Status</th></tr></thead><tbody>{admins.map((admin) => <tr key={admin.id} className="border-t border-slate-100"><td className="px-5 py-3 font-semibold">{admin.full_name}</td><td className="px-5 py-3 text-slate-600">{admin.email}</td><td className="px-5 py-3"><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{admin.role}</span></td><td className="px-5 py-3 text-slate-600">{admin.is_active ? 'Active' : 'Inactive'}</td></tr>)}</tbody></table></div>{!admins.length ? <p className="p-6 text-sm text-slate-500">No owner or administration records exist yet. Create and verify the intended Supabase Auth account before assigning a role.</p> : null}</section></div>
+}
+
+
+const defaultFooterConfig = {
+  social: { facebook: 'https://www.facebook.com/sahigadgetbd', tiktok: '', instagram: '', x: '', youtube: '' },
+  payments: { cash_on_delivery: true, visa: false, mastercard: false },
+}
+
+function FooterSettings({ initial }: { initial: Record<string, any> | null | undefined }) {
+  const [message, setMessage] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const current = initial ?? defaultFooterConfig
+  const form = useForm<any>({ resolver: zodResolver(footerConfigSchema), defaultValues: current })
+  const socialFields = [
+    { name: 'social.facebook', label: 'Facebook URL', Icon: FacebookMark, placeholder: 'https://www.facebook.com/…' },
+    { name: 'social.tiktok', label: 'TikTok URL', Icon: TikTokMark, placeholder: 'https://www.tiktok.com/@…' },
+    { name: 'social.instagram', label: 'Instagram URL', Icon: InstagramMark, placeholder: 'https://www.instagram.com/…' },
+    { name: 'social.x', label: 'X / Twitter URL', Icon: XMark, placeholder: 'https://x.com/…' },
+    { name: 'social.youtube', label: 'YouTube URL', Icon: YoutubeMark, placeholder: 'https://www.youtube.com/@…' },
+  ] as const
+  return <form className="space-y-6" onSubmit={form.handleSubmit((values) => startTransition(async () => { const result = await saveFooterSettings(values); setMessage(result.message) }))}>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4"><div><h2 className="font-semibold">Social media destinations</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">Each icon is rendered only when its own platform URL is configured. Empty fields stay hidden on the live footer, so no fake or mismatched destinations are published.</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Admin-managed</span></div>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        {socialFields.map(({ name, label, Icon, placeholder }) => <div key={name}><label className={labelClass}>{label}</label><div className="relative"><Icon className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" /><input className={`${inputClass} pl-10`} placeholder={placeholder} {...form.register(name)} /></div></div>)}
+      </div>
+    </section>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div><h2 className="font-semibold">Payment methods shown in the footer</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">Only enable a badge when the corresponding payment method is actually active in checkout. Cash on Delivery is enabled by default; Visa and Mastercard remain off until online card payments are operational.</p></div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        {([['payments.cash_on_delivery', 'Cash on Delivery'], ['payments.visa', 'Visa'], ['payments.mastercard', 'Mastercard']] as const).map(([name, label]) => <label key={name} className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 accent-emerald-600" {...form.register(name)} />{label}</label>)}
+      </div>
+    </section>
+    <div><button disabled={isPending} className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white"><Save className="h-4 w-4" />{isPending ? 'Saving…' : 'Save footer settings'}</button><Notice message={message} /></div>
+  </form>
+}
+
+function FacebookMark({ className }: { className?: string }) { return <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true"><path d="M14 8h3V4h-3c-2.8 0-5 2.2-5 5v2H6v4h3v5h4v-5h3.2l.8-4H13V9c0-.6.4-1 1-1Z" /></svg> }
+function InstagramMark({ className }: { className?: string }) { return <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg> }
+function YoutubeMark({ className }: { className?: string }) { return <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true"><path d="M21 8.2a2.8 2.8 0 0 0-2-2C17.2 5.7 12 5.7 12 5.7s-5.2 0-7 .5a2.8 2.8 0 0 0-2 2A29 29 0 0 0 2.7 12 29 29 0 0 0 3 15.8a2.8 2.8 0 0 0 2 2c1.8.5 7 .5 7 .5s5.2 0 7-.5a2.8 2.8 0 0 0 2-2 29 29 0 0 0 .3-3.8 29 29 0 0 0-.3-3.8ZM10 15V9l5 3-5 3Z" /></svg> }
+function XMark({ className }: { className?: string }) { return <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true"><path d="M5.2 4h4.1l3.7 5 4.3-5h2l-5.4 6.2L20 20h-4.1l-4-5.4L7.2 20h-2l5.9-6.8L5.2 4Zm3.1 1.7H6.9l8.9 12.6h1.4L8.3 5.7Z" /></svg> }
+
+function TikTokMark({ className }: { className?: string }) {
+  return <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true"><path d="M15.3 3c.4 1.9 1.5 3.2 3.4 3.4v3a8 8 0 0 1-3.4-1v6.2a5.4 5.4 0 1 1-4.7-5.3v3.1a2.3 2.3 0 1 0 1.6 2.2V3h3.1Z" /></svg>
 }

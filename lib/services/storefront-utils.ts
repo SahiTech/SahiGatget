@@ -31,9 +31,15 @@ export type StorefrontProduct = Pick<ProductRow, 'id' | 'name' | 'slug' | 'short
   images: StorefrontProductImage[]
 }
 
+export type FooterConfig = {
+  social: { facebook: string; tiktok: string; instagram: string; x: string; youtube: string }
+  payments: { cash_on_delivery: boolean; visa: boolean; mastercard: boolean }
+}
+
 export type StorefrontSettings = {
   delivery: { dhakaCharge: number; outsideDhakaCharge: number }
   warranty: { guaranteeDays: number; serviceWarrantyYears: number; policyText: string }
+  footer: FooterConfig
 }
 
 export type HomepageBanner = {
