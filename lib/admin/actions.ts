@@ -74,6 +74,22 @@ export async function signInAdmin(input: unknown): Promise<AdminActionResult> {
   return { ok: true, message: 'Signed in successfully.' }
 }
 
+export async function requestPasswordReset(input: unknown): Promise<AdminActionResult> {
+  const parsed = adminLoginSchema.pick({ email: true }).safeParse(input)
+  if (!parsed.success) {
+    return { ok: true, message: 'If an account exists for this email address, a password reset link has been sent.' }
+  }
+
+  const client = await createClient()
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.sahigadget.shop'
+
+  await client.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${siteUrl}/auth/reset-password`,
+  })
+
+  return { ok: true, message: 'If an account exists for this email address, a password reset link has been sent.' }
+}
+
 export async function signOutAdmin() {
   const client = await createClient()
   await client.auth.signOut()

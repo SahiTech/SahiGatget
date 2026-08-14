@@ -1,40 +1,6 @@
-INSERT INTO auth.users (
-  id,
-  instance_id,
-  aud,
-  role,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  recovery_sent_at,
-  last_sign_in_at,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  created_at,
-  updated_at,
-  confirmation_token,
-  email_change,
-  email_change_token_new,
-  recovery_token
-) VALUES (
-  '00000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000000',
-  'authenticated',
-  'authenticated',
-  'helpline.sahitech@gmail.com',
-  crypt('ProductionOwner2026#Secure', gen_salt('bf')),
-  now(),
-  now(),
-  now(),
-  '{"provider":"email","providers":["email"]}',
-  '{"name":"Production Owner"}',
-  now(),
-  now(),
-  '',
-  '',
-  '',
-  ''
-) ON CONFLICT (id) DO NOTHING;
+-- Placeholder initialization script for Supabase Auth Owner account.
+-- NOTE: Plaintext initial credentials have been removed for security hardening.
+-- Production owner account is managed securely via Supabase Auth dashboard and password reset.
 
 INSERT INTO public.admin_users (
   user_id,

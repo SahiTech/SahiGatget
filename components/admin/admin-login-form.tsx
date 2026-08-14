@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { LockKeyhole, Loader2 } from 'lucide-react'
 
 import { signInAdmin } from '@/lib/admin/actions'
@@ -35,7 +36,10 @@ export function AdminLoginForm() {
         <input id="admin-email" name="email" type="email" autoComplete="email" required disabled={isPending} placeholder="name@company.com" className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed" />
       </div>
       <div className="space-y-2">
-        <label htmlFor="admin-password" className="text-sm font-semibold text-slate-800">Password</label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="admin-password" className="text-sm font-semibold text-slate-800">Password</label>
+          <Link href="/admin/forgot-password" tabIndex={-1} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline">Forgot password?</Link>
+        </div>
         <input id="admin-password" name="password" type="password" autoComplete="current-password" required disabled={isPending} className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed" />
       </div>
       {message ? <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{message}</p> : null}
