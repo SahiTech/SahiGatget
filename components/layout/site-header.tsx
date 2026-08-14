@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, Search, X, Sparkles, ArrowRight, Loader2 } from 'lucide-react'
+import { Menu, Search, X, Sparkles, ArrowRight, Loader2, ShieldCheck } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 
 import { siteConfig } from '@/config/site'
@@ -57,7 +57,7 @@ export function SiteHeader() {
         const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`)
         const data = await res.json()
         setSuggestions(data.products || [])
-      } catch (err) {
+      } catch {
         setSuggestions([])
       } finally {
         setIsSearching(false)
@@ -186,13 +186,13 @@ export function SiteHeader() {
       </div>
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
-          <Link href="/" className="group flex shrink-0 items-center gap-2.5 sm:gap-3" aria-label={`${siteConfig.name} home`}>
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950 shadow-lg shadow-slate-900/10 transition-transform group-hover:-rotate-3 sm:h-11 sm:w-11 sm:rounded-2xl">
+          <Link href="/" className="group flex min-w-0 shrink-0 items-center gap-2.5 sm:gap-3" aria-label={`${siteConfig.name} home`}>
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950 shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5 transition-transform duration-200 group-hover:-rotate-3 sm:h-11 sm:w-11 sm:rounded-2xl">
               <Image src="/logo.png" alt="SahiGadget Logo" width={44} height={44} className="h-full w-full object-cover" />
             </div>
-            <div>
-              <span className="block text-sm font-black tracking-tight text-slate-950 sm:text-base">{siteConfig.name}</span>
-              <span className="hidden sm:block text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Mobile & gadgets</span>
+            <div className="min-w-0">
+              <span className="block truncate text-[15px] font-black leading-tight tracking-[-0.02em] text-slate-950 sm:text-base">{siteConfig.name}</span>
+              <span className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:block">Mobile & gadgets</span>
             </div>
           </Link>
 
@@ -210,7 +210,7 @@ export function SiteHeader() {
           <div ref={searchRef} className="relative hidden min-w-0 max-w-md flex-1 items-center md:block md:mx-4">
             <form onSubmit={submitSearch} role="search">
               <label className="sr-only" htmlFor="desktop-search">Search the catalogue</label>
-              <div className="flex w-full items-center rounded-full border border-slate-200 bg-slate-50 px-4 transition-colors focus-within:border-slate-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
+              <div className="flex w-full items-center rounded-full border border-slate-200 bg-slate-50 px-4 transition-colors focus-within:border-emerald-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100/80">
                 <Search className="mr-2 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                 <input 
                   id="desktop-search" 
@@ -222,7 +222,7 @@ export function SiteHeader() {
                   onFocus={() => setShowDropdown(true)}
                   autoComplete="off"
                   placeholder="Search phones, gadgets, or SKU" 
-                  className="h-10 min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" 
+                  className="h-10 min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:outline-none"
                 />
                 {query && (
                   <button 
@@ -234,13 +234,17 @@ export function SiteHeader() {
                     <X className="h-4 w-4" />
                   </button>
                 )}
-                <button type="submit" className="border-l border-slate-200 pl-3 text-xs font-bold text-slate-500 transition-colors hover:text-slate-950">Search</button>
+                <button type="submit" className="border-l border-slate-200 pl-3 text-xs font-bold text-slate-500 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2">Search</button>
               </div>
             </form>
             <SearchDropdown />
           </div>
 
           <div className="flex items-center gap-2">
+            <Link href="/admin" className="hidden items-center gap-1.5 rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 lg:inline-flex" aria-label="Open Admin Portal">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              Admin Portal
+            </Link>
             <Link href="/track-order" className="hidden text-sm font-semibold text-slate-500 transition-colors hover:text-slate-950 lg:block">Track order</Link>
             <Button asChild className="hidden rounded-full bg-emerald-500 text-slate-950 hover:bg-emerald-400 md:inline-flex">
               <Link href="/products">Shop now</Link>
@@ -254,7 +258,7 @@ export function SiteHeader() {
         {menuOpen && (
           <div id="mobile-navigation" className="border-t border-slate-200 bg-white px-4 py-5 md:hidden shadow-xl">
             <div ref={mobileSearchRef} className="relative mb-4">
-              <form onSubmit={submitSearch} className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-slate-400 focus-within:ring-4 focus-within:ring-emerald-100" role="search">
+                <form onSubmit={submitSearch} className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 transition-colors focus-within:border-emerald-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100/80" role="search">
                 <label className="sr-only" htmlFor="mobile-search">Search the catalogue</label>
                 <Search className="mr-2 h-4 w-4 text-slate-400" aria-hidden="true" />
                 <input 
@@ -267,14 +271,14 @@ export function SiteHeader() {
                   onFocus={() => setShowDropdown(true)}
                   autoComplete="off"
                   placeholder="Search phones, gadgets, SKU" 
-                  className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none" 
+                  className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400 focus-visible:outline-none"
                 />
                 {query && (
                   <button type="button" onClick={() => { setQuery(''); setSuggestions([]) }} className="mr-2 text-slate-400">
                     <X className="h-4 w-4" />
                   </button>
                 )}
-                <button type="submit" className="border-l border-slate-200 pl-2 text-xs font-bold text-slate-950">Search</button>
+                <button type="submit" className="border-l border-slate-200 pl-2 text-xs font-bold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2">Search</button>
               </form>
               <SearchDropdown isMobile />
             </div>
@@ -283,6 +287,10 @@ export function SiteHeader() {
               <Link href="/" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Home</Link>
               {navItems.map((item) => <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">{item.label}</Link>)}
               <Link href="/track-order" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Track order</Link>
+              <Link href="/admin" onClick={() => setMenuOpen(false)} className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" aria-label="Open Admin Portal">
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                Admin Portal
+              </Link>
             </nav>
           </div>
         )}
