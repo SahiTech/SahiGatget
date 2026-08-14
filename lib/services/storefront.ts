@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import type { Database } from '@/lib/types/database'
 import {
   normalizeProduct,
   normalizeVariant,
@@ -14,30 +13,13 @@ import type {
   BrandRow,
   CategoryRow,
   ProductRow,
-  ProductImageRow
+  ProductImageRow,
+  ProductFilters,
+  ProductListResult,
+  StorefrontSettings
 } from './storefront-utils'
 
 export * from './storefront-utils'
-
-export type StorefrontSettings = {
-  delivery: { dhakaCharge: number; outsideDhakaCharge: number }
-  warranty: { guaranteeDays: number; serviceWarrantyYears: number; policyText: string }
-}
-
-export type ProductFilters = {
-  query?: string
-  category?: string
-  brand?: string
-  availability?: 'all' | 'in-stock' | 'low-stock'
-  productType?: string
-  minPrice?: number
-  maxPrice?: number
-  sort?: 'newest' | 'price-asc' | 'price-desc' | 'featured'
-  page?: number
-  pageSize?: number
-}
-
-export type ProductListResult = { products: StorefrontProduct[]; total: number; page: number; pageSize: number; pageCount: number }
 
 type RawProduct = ProductRow & { 
   brand?: BrandRow | null; 
@@ -177,4 +159,11 @@ export async function getStorefrontSettings(): Promise<StorefrontSettings> {
     }
   }
   return data.config as unknown as StorefrontSettings
+}
+
+export async function getProductTypes() {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('products').select('product_type').eq('is_published', true).order('product_type').limit(100)
+  if (error) throw new Error('Unable to load product types.')
+  return Array.from(new Set((data ?? []).map((row) => row.product_type)))
 }

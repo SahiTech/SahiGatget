@@ -4,7 +4,7 @@ import { ArrowRight, BadgeCheck, Headphones, ShieldCheck, Truck, Zap } from 'luc
 import { siteConfig } from '@/config/site'
 import { BrandCard, CategoryCard } from '@/components/storefront/discovery-card'
 import { ProductGrid } from '@/components/product/product-card'
-import { getBrands, getCategories, getDeliverySummary, getFeaturedProducts, getStorefrontPolicySummary, getStorefrontSettings } from '@/lib/services/storefront'
+import { getBrands, getCategories, getDeliverySummary, getFeaturedProducts, getStorefrontPolicySummary, getStorefrontSettings, type StorefrontBrand, type StorefrontCategory } from '@/lib/services/storefront'
 
 export default async function HomePage() {
   const [featuredProducts, brands, categories, settings] = await Promise.all([getFeaturedProducts(4), getBrands(), getCategories(), getStorefrontSettings()])
@@ -111,7 +111,7 @@ export default async function HomePage() {
           <div className="mt-8">
             {categories.length ? (
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {categories.slice(0, 6).map((category) => <CategoryCard key={category.id} category={category} />)}
+                {categories.slice(0, 6).map((category: StorefrontCategory) => <CategoryCard key={category.id} category={category} />)}
               </div>
             ) : (
               <div className="rounded-[1.5rem] border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">Categories will appear here as soon as they are added to the live catalogue.</div>
@@ -131,7 +131,7 @@ export default async function HomePage() {
         <div className="mt-8">
           {brands.length ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {brands.slice(0, 8).map((brand) => <BrandCard key={brand.id} brand={brand} />)}
+              {brands.slice(0, 8).map((brand: StorefrontBrand) => <BrandCard key={brand.id} brand={brand} />)}
             </div>
           ) : (
             <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">Brands will appear here as soon as they are added to the live catalogue.</div>

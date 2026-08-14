@@ -31,6 +31,26 @@ export type StorefrontProduct = Pick<ProductRow, 'id' | 'name' | 'slug' | 'short
   images: StorefrontProductImage[]
 }
 
+export type StorefrontSettings = {
+  delivery: { dhakaCharge: number; outsideDhakaCharge: number }
+  warranty: { guaranteeDays: number; serviceWarrantyYears: number; policyText: string }
+}
+
+export type ProductListResult = { products: StorefrontProduct[]; total: number; page: number; pageSize: number; pageCount: number }
+
+export type ProductFilters = {
+  query?: string
+  category?: string
+  brand?: string
+  availability?: 'all' | 'in-stock' | 'low-stock'
+  productType?: string
+  minPrice?: number
+  maxPrice?: number
+  sort?: 'newest' | 'price-asc' | 'price-desc' | 'featured'
+  page?: number
+  pageSize?: number
+}
+
 type RawProduct = ProductRow & { 
   brand?: BrandRow | null; 
   category?: CategoryRow | null;
@@ -174,4 +194,91 @@ export function getProductVariantSummary(product: StorefrontProduct) {
   const colors = Array.from(new Set(product.variants.map(v => v.color).filter(Boolean)))
   const storage = Array.from(new Set(product.variants.map(v => v.storage).filter(Boolean)))
   return [...colors, ...storage]
+}
+
+export function getProductPath(slug: string) { return `/products/${slug}` }
+export function getBrandPath(slug: string) { return `/products?brand=${encodeURIComponent(slug)}` }
+export function getCategoryPath(slug: string) { return `/products?category=${encodeURIComponent(slug)}` }
+export function getSearchPath(query: string) { return `/search?q=${encodeURIComponent(query)}` }
+
+export function getPaginationPages(page: number, pageCount: number) { 
+  const start = Math.max(1, page - 2); 
+  const end = Math.min(pageCount, page + 2); 
+  return pageCount > 1 ? Array.from({ length: end - start + 1 }, (_, index) => start + index) : [] 
+}
+
+export function getProductTypeLabel(value: string) { 
+  return value.replace(/[-_]/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase()) 
+}
+
+export function getProductImagePlaceholder(product: StorefrontProduct) { 
+  return product.name.slice(0, 2).toUpperCase() 
+}
+
+export function parsePage(value: string | undefined) { 
+  const page = Number(value); 
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1 
+}
+
+export function parsePrice(value: string | undefined) { 
+  const price = Number(value); 
+  return value && Number.isFinite(price) && price >= 0 ? price : undefined 
+}
+
+export function getStorefrontPolicySummary(settings: StorefrontSettings) { 
+  return `${settings.warranty.guaranteeDays} Days Guarantee · ${settings.warranty.serviceWarrantyYears} Year Service Warranty` 
+}
+
+export function getDeliverySummary(settings: StorefrontSettings) { 
+  return `Dhaka ${formatPrice(settings.delivery.dhakaCharge)} · Outside Dhaka ${formatPrice(settings.delivery.outsideDhakaCharge)}` 
+}
+
+export function getProductAvailabilityCopy(product: StorefrontProduct) { 
+  return getProductAvailability(product).label 
+}
+
+export function getProductDiscountLabel(product: StorefrontProduct) { 
+  const discount = getProductDiscount(product); 
+  return discount ? `Save ${discount}%` : null 
+}
+
+export function getProductDescription(product: StorefrontProduct) { 
+  return product.description || product.short_description || 'Product information will be updated soon.' 
+}
+
+export function getCatalogQuery(filters: ProductFilters) { 
+  const params = new URLSearchParams(); 
+  if (filters.category) params.set('category', filters.category); 
+  if (filters.brand) params.set('brand', filters.brand); 
+  if (filters.availability && filters.availability !== 'all') params.set('availability', filters.availability); 
+  if (filters.productType) params.set('type', filters.productType); 
+  if (filters.minPrice !== undefined) params.set('min', String(filters.minPrice)); 
+  if (filters.maxPrice !== undefined) params.set('max', String(filters.maxPrice)); 
+  if (filters.sort && filters.sort !== 'newest') params.set('sort', filters.sort); 
+  if (filters.page && filters.page > 1) params.set('page', String(filters.page)); 
+  return params.toString() 
+}
+
+export function getStorefrontDescription() { 
+  return `${siteConfig.brandPromise}. Shop mobile phones and gadgets in Bangladesh with clear pricing, delivery information, and warranty context.` 
+}
+
+export function getBrandMetaTitle(brand: StorefrontBrand) { 
+  return brand.meta_title || `${brand.name} mobile phones | ${siteConfig.name}` 
+}
+
+export function getCategoryMetaTitle(category: StorefrontCategory) { 
+  return category.meta_title || `${category.name} | ${siteConfig.name}` 
+}
+
+export function getBrandDescription(brand: StorefrontBrand) { 
+  return brand.description || `Explore ${brand.name} products from ${siteConfig.name}.` 
+}
+
+export function getCategoryDescription(category: StorefrontCategory) { 
+  return category.description || `Explore ${category.name} from ${siteConfig.name}.` 
+}
+
+export function getOrderBoundaryCopy() { 
+  return 'Checkout and order submission will be available in a later phase.' 
 }
