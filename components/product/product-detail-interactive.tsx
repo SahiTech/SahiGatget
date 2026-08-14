@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { Check, PackageCheck, Phone, ShieldCheck } from 'lucide-react'
 
 import type { StorefrontProduct } from '@/lib/services/storefront'
+import { getProductImageAlt, getProductImageUrl, getProductDiscount } from '@/lib/services/storefront'
 import { siteConfig } from '@/config/site'
 
 function formatPrice(value: number | null) {
@@ -24,20 +25,60 @@ function availability(variant: StorefrontProduct['variants'][number]) {
 
 export function ProductDetailInteractive({ product, warranty, phone }: { product: StorefrontProduct; warranty: string; phone: string }) {
   const [selectedId, setSelectedId] = useState(product.variants[0]?.id || '')
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
+
   const selected = useMemo(() => product.variants.find((variant) => variant.id === selectedId) || product.variants[0] || null, [product.variants, selectedId])
   const status = selected ? availability(selected) : { label: 'Price on request', tone: 'out' as const }
   const discount = selected?.compare_at_price && selected.compare_at_price > selected.price ? Math.round(((selected.compare_at_price - selected.price) / selected.compare_at_price) * 100) : null
   const attributes = selected ? [selected.ram && ['RAM', selected.ram], selected.storage && ['Storage', selected.storage], selected.color && ['Colour', selected.color]].filter(Boolean) as string[][] : []
 
+  const activeImage = product.images[activeImageIndex] || product.images[0]
+  const imageUrl = activeImage?.image_url || getProductImageUrl(product)
+
   return (
     <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
       <div>
-        <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_50%_35%,#ffffff_0%,#eef5f2_42%,#d8e7e1_100%)]">
-          <div className="flex h-32 w-32 items-center justify-center rounded-[2rem] bg-slate-950 text-4xl font-black tracking-[-0.08em] text-emerald-300 shadow-2xl shadow-slate-950/20 sm:h-36 sm:w-36 sm:rounded-[2.5rem] sm:text-5xl">
-            {product.name.slice(0, 2).toUpperCase()}
-          </div>
-          <p className="absolute bottom-6 text-[9px] font-bold uppercase tracking-[0.22em] text-slate-400 sm:text-[10px]">Product image coming soon</p>
+        <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_50%_35%,#ffffff_0%,#eef5f2_42%,#d8e7e1_100%)] p-8 shadow-sm border border-slate-200">
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img 
+              src={imageUrl} 
+              alt={activeImage?.alt_text || getProductImageAlt(product)} 
+              className="h-full w-full object-contain transition-transform duration-300" 
+            />
+          ) : (
+            <div className="text-center">
+              <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-[2rem] bg-slate-950 text-4xl font-black tracking-[-0.08em] text-emerald-300 shadow-2xl shadow-slate-950/20 sm:h-36 sm:w-36 sm:rounded-[2.5rem] sm:text-5xl">
+                {product.name.slice(0, 2).toUpperCase()}
+              </div>
+              <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400 sm:text-[11px]">Product image coming soon</p>
+            </div>
+          )}
+          {getProductDiscount(product) && (
+            <span className="absolute left-6 top-6 rounded-full bg-slate-950 px-3.5 py-1.5 text-xs font-black text-emerald-300 shadow-lg">
+              -{getProductDiscount(product)}%
+            </span>
+          )}
         </div>
+
+        {/* Thumbnail gallery */}
+        {product.images.length > 1 && (
+          <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+            {product.images.map((img, idx) => (
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => setActiveImageIndex(idx)}
+                className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-2 bg-white transition-all ${activeImageIndex === idx ? 'border-emerald-600 ring-2 ring-emerald-100' : 'border-slate-200 hover:border-slate-400'}`}
+                aria-label={`View image ${idx + 1}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.image_url} alt={img.alt_text || product.name} className="h-full w-full object-contain p-2" />
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
             <ShieldCheck className="mx-auto h-5 w-5 text-emerald-600" />
