@@ -39,15 +39,15 @@ export function SiteHeader() {
         </div>
       </div>
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="group flex shrink-0 items-center gap-3" aria-label={`${siteConfig.name} home`}>
-            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-lg shadow-slate-900/10 transition-transform group-hover:-rotate-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
+          <Link href="/" className="group flex shrink-0 items-center gap-2.5 sm:gap-3" aria-label={`${siteConfig.name} home`}>
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950 shadow-lg shadow-slate-900/10 transition-transform group-hover:-rotate-3 sm:h-11 sm:w-11 sm:rounded-2xl">
               <Image src="/logo.png" alt="SahiGadget Logo" width={44} height={44} className="h-full w-full object-cover" />
             </div>
-            <span className="hidden sm:block">
-              <span className="block text-base font-black tracking-tight text-slate-950">{siteConfig.name}</span>
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Mobile & gadgets</span>
-            </span>
+            <div>
+              <span className="block text-sm font-black tracking-tight text-slate-950 sm:text-base">{siteConfig.name}</span>
+              <span className="hidden sm:block text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Mobile & gadgets</span>
+            </div>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
@@ -61,7 +61,7 @@ export function SiteHeader() {
             })}
           </nav>
 
-          <form onSubmit={submitSearch} className="ml-auto hidden min-w-0 max-w-sm flex-1 items-center md:flex" role="search">
+          <form onSubmit={submitSearch} className="hidden min-w-0 max-w-sm flex-1 items-center md:flex md:mx-4" role="search">
             <label className="sr-only" htmlFor="desktop-search">Search the catalogue</label>
             <div className="flex w-full items-center rounded-full border border-slate-200 bg-slate-50 px-4 transition-colors focus-within:border-slate-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
               <Search className="mr-2 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
@@ -70,13 +70,15 @@ export function SiteHeader() {
             </div>
           </form>
 
-          <Link href="/track-order" className="hidden text-sm font-semibold text-slate-500 transition-colors hover:text-slate-950 lg:block">Track order</Link>
-          <Button asChild className="hidden rounded-full bg-emerald-500 text-slate-950 hover:bg-emerald-400 md:inline-flex">
-            <Link href="/products">Shop now</Link>
-          </Button>
-          <button type="button" className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 transition-colors hover:bg-slate-100 md:hidden" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-controls="mobile-navigation" aria-label={menuOpen ? 'Close menu' : 'Open menu'}>
-            {menuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link href="/track-order" className="hidden text-sm font-semibold text-slate-500 transition-colors hover:text-slate-950 lg:block">Track order</Link>
+            <Button asChild className="hidden rounded-full bg-emerald-500 text-slate-950 hover:bg-emerald-400 md:inline-flex">
+              <Link href="/products">Shop now</Link>
+            </Button>
+            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 transition-colors hover:bg-slate-100 md:hidden" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-controls="mobile-navigation" aria-label={menuOpen ? 'Close menu' : 'Open menu'}>
+              {menuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+            </button>
+          </div>
         </div>
 
         {menuOpen && (
