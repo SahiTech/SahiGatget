@@ -23,8 +23,8 @@ export default async function HomePage() {
     getStorefrontBanners(),
   ])
 
-  const featuredProducts = featuredResult
   const allProducts = allProductsResult.products
+  const featuredProducts = featuredResult.length > 0 ? featuredResult : allProducts.slice(0, 8)
   const bestDeals = allProducts.filter((p) => p.variants.some((v) => v.compare_at_price && v.compare_at_price > v.price)).slice(0, 4)
 
   return (
