@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight, BadgeCheck, Headphones, ShieldCheck, Truck, Zap } from 'lucide-react'
+import Image from 'next/image'
 
 import { siteConfig } from '@/config/site'
 import { BrandCard, CategoryCard } from '@/components/storefront/discovery-card'
@@ -46,7 +47,9 @@ export default async function HomePage() {
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300 sm:text-xs">Store snapshot</p>
                   <p className="mt-2 text-2xl font-black">{siteConfig.name}</p>
                 </div>
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-400 font-black text-slate-950">SG</span>
+                <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-slate-900 shadow-md">
+                  <Image src="/logo.png" alt="SahiGadget Logo" width={44} height={44} className="h-full w-full object-cover" />
+                </div>
               </div>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-white/[0.06] p-4">

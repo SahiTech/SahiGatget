@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { Archive, Boxes, ClipboardList, LayoutDashboard, LogOut, Menu, PackageSearch, Settings2, ShieldCheck, Store, UsersRound } from 'lucide-react'
 
 import { signOutAdmin } from '@/lib/admin/actions'
@@ -32,7 +33,7 @@ export function AdminShell({ session, children }: { session: AdminSession; child
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-slate-950 p-5 text-white md:flex">
-        <Link href="/admin" className="mb-9 flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400 text-slate-950"><Store className="h-5 w-5" /></span><span><span className="block text-sm font-bold tracking-wide">SahiGadget</span><span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300">Operations</span></span></Link>
+        <Link href="/admin" className="mb-9 flex items-center gap-3"><div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-slate-900 shadow-md"><Image src="/logo.png" alt="SahiGadget Logo" width={40} height={40} className="h-full w-full object-cover" /></div><span><span className="block text-sm font-bold tracking-wide">SahiGadget</span><span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300">Operations</span></span></Link>
         <NavigationLinks session={session} />
         <div className="mt-auto border-t border-slate-800 pt-4"><div className="mb-3 rounded-xl bg-slate-900 p-3"><p className="truncate text-sm font-semibold">{session.fullName}</p><p className="mt-1 text-xs font-bold uppercase tracking-wider text-emerald-300">{session.role}</p></div><SignOutControl /></div>
       </aside>

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { Menu, Search, X } from 'lucide-react'
 import { useState } from 'react'
@@ -40,9 +41,9 @@ export function SiteHeader() {
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="group flex shrink-0 items-center gap-3" aria-label={`${siteConfig.name} home`}>
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-sm font-black tracking-tight text-emerald-300 shadow-lg shadow-slate-900/10 transition-transform group-hover:-rotate-3">
-              SG
-            </span>
+            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-lg shadow-slate-900/10 transition-transform group-hover:-rotate-3">
+              <Image src="/logo.png" alt="SahiGadget Logo" width={44} height={44} className="h-full w-full object-cover" />
+            </div>
             <span className="hidden sm:block">
               <span className="block text-base font-black tracking-tight text-slate-950">{siteConfig.name}</span>
               <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Mobile & gadgets</span>

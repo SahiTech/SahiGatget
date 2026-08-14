@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { ShieldCheck, Store } from 'lucide-react'
 
@@ -16,7 +17,7 @@ export default async function AdminLoginPage() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#d1fae5,_transparent_32%),linear-gradient(135deg,_#0f172a,_#14532d)] px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-5xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-slate-950/30 lg:grid-cols-[1.08fr_.92fr]">
         <section className="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
-          <div className="flex items-center gap-3 text-sm font-semibold tracking-wide text-emerald-300"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400 text-slate-950"><Store className="h-5 w-5" /></span>SAHIGADGET OPERATIONS</div>
+          <div className="flex items-center gap-3 text-sm font-semibold tracking-wide text-emerald-300"><div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-slate-900 shadow-md"><Image src="/logo.png" alt="SahiGadget Logo" width={40} height={40} className="h-full w-full object-cover" /></div>SAHIGADGET OPERATIONS</div>
           <div>
             <p className="mb-4 text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">Restricted workspace</p>
             <h1 className="max-w-md text-4xl font-semibold leading-tight">Run the store with clear controls and durable records.</h1>

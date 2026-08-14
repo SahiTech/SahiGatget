@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowUpRight, Globe2, MapPin, Phone, Mail } from 'lucide-react'
 
 import { siteConfig } from '@/config/site'
@@ -11,7 +12,9 @@ export async function SiteFooter() {
       <div className="mx-auto grid max-w-7xl gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.8fr_0.8fr_1fr] lg:px-8">
         <div>
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-400 font-black text-slate-950">SG</span>
+            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-slate-900 shadow-md">
+              <Image src="/logo.png" alt="SahiGadget Logo" width={44} height={44} className="h-full w-full object-cover" />
+            </div>
             <div>
               <p className="font-black tracking-tight">{siteConfig.name}</p>
               <p className="text-xs text-slate-400">{siteConfig.tagline}</p>
