@@ -87,8 +87,8 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
           <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base sm:leading-8">{product.short_description}</p>
         )}
         
-        <div className="mt-7 flex flex-wrap items-end gap-3">
-          <p className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{selected ? formatPrice(selected.price) : 'Price on request'}</p>
+        <div className="mt-7 flex flex-wrap items-baseline gap-3">
+          <p className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl break-words">{selected ? formatPrice(selected.price) : 'Price on request'}</p>
           {selected?.compare_at_price && selected.compare_at_price > selected.price && (
             <>
               <p className="text-sm text-slate-400 line-through">{formatPrice(selected.compare_at_price)}</p>
@@ -112,12 +112,12 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
                     key={variant.id}
                     type="button"
                     onClick={() => setSelectedId(variant.id)}
-                    className={`flex items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${selected?.id === variant.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-400'}`}
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${selected?.id === variant.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-400'}`}
                     aria-pressed={selected?.id === variant.id}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-slate-950">{getVariantLabel(variant)}</span>
-                      <span className="mt-1 block truncate text-[10px] text-slate-500 sm:text-xs">{formatPrice(variant.price)} · <span className="break-all">{variant.sku}</span></span>
+                      <span className="block font-bold text-slate-950 break-words">{getVariantLabel(variant)}</span>
+                      <span className="mt-1 block text-[10px] text-slate-500 sm:text-xs break-all">{formatPrice(variant.price)} · {variant.sku}</span>
                     </span>
                     <span className={`shrink-0 text-[9px] font-black uppercase tracking-[0.12em] sm:text-[10px] ${variantStatus.tone === 'in' ? 'text-emerald-700' : variantStatus.tone === 'low' ? 'text-amber-700' : 'text-slate-400'}`}>
                       {variantStatus.label}
