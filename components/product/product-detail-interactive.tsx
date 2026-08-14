@@ -4,32 +4,17 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { Check, PackageCheck, Phone, ShieldCheck } from 'lucide-react'
 
-import type { StorefrontProduct } from '@/lib/services/storefront'
-import { getProductImageAlt, getProductImageUrl, getProductDiscount } from '@/lib/services/storefront'
+import type { StorefrontProduct } from '@/lib/services/storefront-utils'
+import { getProductImageAlt, getProductImageUrl, getProductDiscount, formatPrice, getVariantLabel, getPublicAvailability } from '@/lib/services/storefront-utils'
 import { siteConfig } from '@/config/site'
-
-function formatPrice(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return 'Price on request'
-  return `${siteConfig.currency.symbol}${new Intl.NumberFormat('en-BD', { maximumFractionDigits: 0 }).format(value)}`
-}
-
-function variantLabel(variant: StorefrontProduct['variants'][number]) {
-  return [variant.ram, variant.storage, variant.color].filter(Boolean).join(' · ') || variant.variant_title
-}
-
-function availability(variant: StorefrontProduct['variants'][number]) {
-  if (!variant.is_in_stock) return { label: 'Out of stock', tone: 'out' as const }
-  if (variant.is_low_stock) return { label: 'Low stock', tone: 'low' as const }
-  return { label: 'In stock', tone: 'in' as const }
-}
 
 export function ProductDetailInteractive({ product, warranty, phone }: { product: StorefrontProduct; warranty: string; phone: string }) {
   const [selectedId, setSelectedId] = useState(product.variants[0]?.id || '')
   const [activeImageIndex, setActiveImageIndex] = useState(0)
 
   const selected = useMemo(() => product.variants.find((variant) => variant.id === selectedId) || product.variants[0] || null, [product.variants, selectedId])
-  const status = selected ? availability(selected) : { label: 'Price on request', tone: 'out' as const }
-  const discount = selected?.compare_at_price && selected.compare_at_price > selected.price ? Math.round(((selected.compare_at_price - selected.price) / selected.compare_at_price) * 100) : null
+  const status = selected ? getPublicAvailability([selected]) : { label: 'Price on request', tone: 'out' as const }
+  const discount = getProductDiscount(product)
   const attributes = selected ? [selected.ram && ['RAM', selected.ram], selected.storage && ['Storage', selected.storage], selected.color && ['Colour', selected.color]].filter(Boolean) as string[][] : []
 
   const activeImage = product.images[activeImageIndex] || product.images[0]
@@ -54,9 +39,9 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
               <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400 sm:text-[11px]">Product image coming soon</p>
             </div>
           )}
-          {getProductDiscount(product) && (
+          {discount && (
             <span className="absolute left-6 top-6 rounded-full bg-slate-950 px-3.5 py-1.5 text-xs font-black text-emerald-300 shadow-lg">
-              -{getProductDiscount(product)}%
+              -{discount}%
             </span>
           )}
         </div>
@@ -121,7 +106,7 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {product.variants.map((variant) => {
-                const variantStatus = availability(variant);
+                const variantStatus = getPublicAvailability([variant]);
                 return (
                   <button
                     key={variant.id}
@@ -131,7 +116,7 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
                     aria-pressed={selected?.id === variant.id}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-slate-950">{variantLabel(variant)}</span>
+                      <span className="block truncate text-sm font-bold text-slate-950">{getVariantLabel(variant)}</span>
                       <span className="mt-1 block truncate text-[10px] text-slate-500 sm:text-xs">{formatPrice(variant.price)} · {variant.sku}</span>
                     </span>
                     <span className={`ml-3 shrink-0 text-[9px] font-black uppercase tracking-[0.12em] sm:text-[10px] ${variantStatus.tone === 'in' ? 'text-emerald-700' : variantStatus.tone === 'low' ? 'text-amber-700' : 'text-slate-400'}`}>

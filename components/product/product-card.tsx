@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { ArrowUpRight, PackageCheck } from 'lucide-react'
 
-import type { StorefrontProduct } from '@/lib/services/storefront'
-import { formatPrice, getCompareAtPrice, getProductAvailability, getProductDiscount, getProductImageAlt, getProductImageUrl, getProductPriceRange, getProductVariantSummary } from '@/lib/services/storefront'
+import type { StorefrontProduct } from '@/lib/services/storefront-utils'
+import { formatPrice, getCompareAtPrice, getProductAvailability, getProductDiscount, getProductImageAlt, getProductImageUrl, getProductPriceRange, getProductVariantSummary } from '@/lib/services/storefront-utils'
 
 function AvailabilityPill({ product }: { product: StorefrontProduct }) {
   const availability = getProductAvailability(product)

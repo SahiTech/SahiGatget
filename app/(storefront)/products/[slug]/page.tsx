@@ -7,12 +7,14 @@ import { ProductDetailInteractive } from '@/components/product/product-detail-in
 import { Breadcrumbs } from '@/components/storefront/page-intro'
 import { 
   getProductBySlug, 
+  getStorefrontSettings,
+} from '@/lib/services/storefront'
+import {
   getProductMetaDescription, 
   getProductMetaTitle, 
-  getStorefrontSettings,
   getProductPrimaryImage,
   getStartingPrice
-} from '@/lib/services/storefront'
+} from '@/lib/services/storefront-utils'
 
 export const dynamic = 'force-dynamic'
 
