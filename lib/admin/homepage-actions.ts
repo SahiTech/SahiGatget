@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin/auth'
 import type { HomepageBanner } from '@/lib/services/storefront-utils'
 
@@ -29,15 +30,21 @@ export async function uploadBannerImageAction(formData: FormData) {
       return { success: false, error: 'No valid file provided.' }
     }
 
-    const supabase = await createClient()
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const filename = `banners/${type}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+    if (!allowedTypes.has(file.type) || file.size > 5 * 1024 * 1024) {
+      return { success: false, error: 'Use a JPEG, PNG, WebP, or AVIF image up to 5 MB.' }
+    }
 
-    const { data, error } = await supabase.storage
+    const db = createAdminClient()
+    const extension = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1] || 'jpg'
+    const filename = `banners/${type}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${extension}`
+
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const { data, error } = await db.storage
       .from('homepage-banners')
       .upload(filename, buffer, {
-        contentType: file.type || 'image/jpeg',
-        upsert: true,
+        contentType: file.type,
+        upsert: false,
       })
 
     if (error) {
@@ -45,7 +52,7 @@ export async function uploadBannerImageAction(formData: FormData) {
       return { success: false, error: error.message }
     }
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = db.storage
       .from('homepage-banners')
       .getPublicUrl(data.path)
 
@@ -58,9 +65,9 @@ export async function uploadBannerImageAction(formData: FormData) {
 
 export async function createHomepageBanner(payload: Omit<HomepageBanner, 'id' | 'created_at' | 'updated_at'>) {
   const session = await requireAdmin(['OWNER', 'ADMIN'])
-  const supabase = await createClient()
+  const db = createAdminClient()
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('homepage_banners')
     .insert([{ ...payload, created_by: session.userId }])
     .select()
@@ -78,9 +85,9 @@ export async function createHomepageBanner(payload: Omit<HomepageBanner, 'id' | 
 
 export async function updateHomepageBanner(id: string, payload: Partial<HomepageBanner>) {
   const session = await requireAdmin(['OWNER', 'ADMIN'])
-  const supabase = await createClient()
+  const db = createAdminClient()
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('homepage_banners')
     .update({ ...payload, updated_at: new Date().toISOString() })
     .eq('id', id)
@@ -99,9 +106,9 @@ export async function updateHomepageBanner(id: string, payload: Partial<Homepage
 
 export async function deleteHomepageBanner(id: string) {
   const session = await requireAdmin(['OWNER', 'ADMIN'])
-  const supabase = await createClient()
+  const db = createAdminClient()
 
-  const { error } = await supabase
+  const { error } = await db
     .from('homepage_banners')
     .delete()
     .eq('id', id)
