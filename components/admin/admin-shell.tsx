@@ -1,18 +1,20 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { Archive, Boxes, ClipboardList, LayoutDashboard, LogOut, Menu, PackageSearch, Settings2, ShieldCheck, Store, UsersRound, Layout } from 'lucide-react'
+import { Archive, Boxes, ClipboardList, LayoutDashboard, LogOut, PackageSearch, Settings2, ShieldCheck, UsersRound, Layout, MessageSquareText } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 import { signOutAdmin } from '@/lib/admin/actions'
 import type { AdminRole, AdminSession } from '@/lib/admin/auth'
 import { AdminMobileNav } from './admin-mobile-nav'
 
-const navigation: { href: string; label: string; icon: any; roles: readonly AdminRole[] }[] = [
+const navigation: { href: string; label: string; icon: LucideIcon; roles: readonly AdminRole[] }[] = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/homepage', label: 'Homepage', icon: Layout, roles: ['OWNER', 'ADMIN'] },
   { href: '/admin/products', label: 'Catalogue', icon: PackageSearch, roles: ['OWNER', 'ADMIN'] },
   { href: '/admin/inventory', label: 'Inventory', icon: Boxes, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/orders', label: 'Orders', icon: ClipboardList, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/customers', label: 'Customers', icon: UsersRound, roles: ['OWNER', 'ADMIN', 'STAFF'] },
+  { href: '/admin/support', label: 'Customer Support', icon: MessageSquareText, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/settings', label: 'Settings', icon: Settings2, roles: ['OWNER', 'ADMIN'] },
 ]
 

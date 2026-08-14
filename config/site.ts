@@ -14,15 +14,15 @@ export const siteConfig = {
   },
   contact: {
     phone: "+880 1601-654316",
-    publicEmail: IS_PROD ? "helpline.sahigadget@gmail.com" : "www.sahigadget.com@gmail.com",
+    publicEmail: "hello@sahigadget.shop",
     adminEmail: IS_PROD ? "hello@sahigadget.shop" : "helpline.sahitech@gmail.com",
-    supportEmail: "helpline.sahigadget@gmail.com",
+    supportEmail: "hello@sahigadget.shop",
     businessEmail: "hello@sahigadget.shop",
     facebook: "https://www.facebook.com/sahigadgetbd",
   },
   email: {
     sender: "orders@mail.sahigadget.shop",
-    replyTo: "helpline.sahigadget@gmail.com",
+    replyTo: "hello@sahigadget.shop",
   },
   delivery: {
     dhakaCharge: 80,
