@@ -29,7 +29,10 @@ export async function createHomepageBanner(payload: Omit<HomepageBanner, 'id' | 
     .select()
     .single()
 
-  if (error) throw new Error('Unable to create homepage banner.')
+  if (error) {
+    console.error('Error creating banner:', error)
+    throw new Error(`Unable to create homepage banner: ${error.message}`)
+  }
   
   revalidatePath('/')
   revalidatePath('/admin/homepage')
@@ -47,7 +50,10 @@ export async function updateHomepageBanner(id: string, payload: Partial<Homepage
     .select()
     .single()
 
-  if (error) throw new Error('Unable to update homepage banner.')
+  if (error) {
+    console.error('Error updating banner:', error)
+    throw new Error(`Unable to update homepage banner: ${error.message}`)
+  }
 
   revalidatePath('/')
   revalidatePath('/admin/homepage')
@@ -68,21 +74,4 @@ export async function deleteHomepageBanner(id: string) {
   revalidatePath('/')
   revalidatePath('/admin/homepage')
   return { success: true }
-}
-
-export async function uploadBannerImage(file: File, path: string) {
-  const session = await requireAdmin(['OWNER', 'ADMIN'])
-  const supabase = await createClient()
-
-  const { data, error } = await supabase.storage
-    .from('homepage-banners')
-    .upload(path, file, { upsert: true })
-
-  if (error) throw new Error('Unable to upload banner image.')
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('homepage-banners')
-    .getPublicUrl(data.path)
-
-  return publicUrl
 }

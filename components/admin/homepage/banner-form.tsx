@@ -5,8 +5,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, Save, X, RefreshCw, Trash2 } from 'lucide-react'
 
-import { bannerSchema, type BannerInput } from '@/lib/admin/schema'
-import { createHomepageBanner, updateHomepageBanner, uploadBannerImage } from '@/lib/admin/homepage-actions'
+import { bannerSchema } from '@/lib/admin/schema'
+import { createHomepageBanner, updateHomepageBanner } from '@/lib/admin/homepage-actions'
+import { createClient as createBrowserClient } from '@/lib/supabase/client'
 
 const inputClass = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100'
 const labelClass = 'mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-600'
@@ -51,8 +52,8 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
       secondaryCtaUrl: '',
       isActive: true,
       sortOrder: 0,
-      desktopImageUrl: initialData?.desktop_image_url || 'https://placeholder.com/desktop.jpg',
-      mobileImageUrl: initialData?.mobile_image_url || 'https://placeholder.com/mobile.jpg',
+      desktopImageUrl: initialData?.desktop_image_url || '',
+      mobileImageUrl: initialData?.mobile_image_url || '',
     }
   })
 
@@ -94,7 +95,6 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
       form.clearErrors('mobileImageUrl')
     }
 
-    // Reset input value so same file can be selected again if removed
     event.target.value = ''
   }
 
@@ -115,19 +115,42 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
   const onSubmit = (values: any) => {
     startTransition(async () => {
       try {
+        setMessage('Uploading images & saving banner...')
+        const supabase = createBrowserClient()
+
         let finalDesktopUrl = values.desktopImageUrl
         let finalMobileUrl = values.mobileImageUrl
 
-        // Upload new desktop file if selected
+        // Upload new desktop file client-side if selected
         if (desktopFile) {
           const path = `banners/desktop-${Date.now()}-${desktopFile.name}`
-          finalDesktopUrl = await uploadBannerImage(desktopFile, path)
+          const { data, error } = await supabase.storage
+            .from('homepage-banners')
+            .upload(path, desktopFile, { upsert: true })
+
+          if (error) throw new Error(`Desktop image upload failed: ${error.message}`)
+          
+          const { data: { publicUrl } } = supabase.storage
+            .from('homepage-banners')
+            .getPublicUrl(data.path)
+          
+          finalDesktopUrl = publicUrl
         }
 
-        // Upload new mobile file if selected
+        // Upload new mobile file client-side if selected
         if (mobileFile) {
           const path = `banners/mobile-${Date.now()}-${mobileFile.name}`
-          finalMobileUrl = await uploadBannerImage(mobileFile, path)
+          const { data, error } = await supabase.storage
+            .from('homepage-banners')
+            .upload(path, mobileFile, { upsert: true })
+
+          if (error) throw new Error(`Mobile image upload failed: ${error.message}`)
+          
+          const { data: { publicUrl } } = supabase.storage
+            .from('homepage-banners')
+            .getPublicUrl(data.path)
+          
+          finalMobileUrl = publicUrl
         }
 
         if (!finalDesktopUrl || !finalMobileUrl) {
@@ -150,10 +173,10 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
 
         if (values.id) {
           await updateHomepageBanner(values.id, payload)
-          setMessage('Banner updated successfully.')
+          setMessage('Banner updated successfully!')
         } else {
           await createHomepageBanner(payload)
-          setMessage('Banner created successfully.')
+          setMessage('Banner created successfully!')
           form.reset()
           setDesktopFile(null)
           setDesktopPreview('')
@@ -165,7 +188,8 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
           onSuccess()
         }, 800)
       } catch (error: any) {
-        setMessage(error.message || 'An error occurred.')
+        console.error('Banner submission error:', error)
+        setMessage(error.message || 'An error occurred during banner creation.')
       }
     })
   }
@@ -251,13 +275,13 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
         
         <div>
           <label className={labelClass}>Heading</label>
-          <input className={inputClass} {...form.register('heading')} placeholder="e.g. New iPhone 15 Pro Max" />
+          <input className={inputClass} {...form.register('heading')} placeholder="e.g. Essential Picks" />
           {form.formState.errors.heading && <p className="mt-1 text-xs text-rose-600">{String(form.formState.errors.heading.message)}</p>}
         </div>
 
         <div>
           <label className={labelClass}>Description</label>
-          <textarea className="min-h-[80px] w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" {...form.register('description')} placeholder="Compelling marketing copy..." />
+          <textarea className="min-h-[80px] w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" {...form.register('description')} placeholder="e.g. Up to 56% off" />
           {form.formState.errors.description && <p className="mt-1 text-xs text-rose-600">{String(form.formState.errors.description.message)}</p>}
         </div>
       </div>
@@ -317,7 +341,7 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
       </div>
 
       {message && (
-        <div className={`rounded-lg p-4 text-sm font-bold ${message.includes('success') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+        <div className={`rounded-lg p-4 text-sm font-bold ${message.includes('success') || message.includes('Uploading') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
           {message}
         </div>
       )}
