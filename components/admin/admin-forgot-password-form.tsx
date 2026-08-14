@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { KeyRound, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react'
 
-import { requestPasswordReset } from '@/lib/admin/actions'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 
 export function AdminForgotPasswordForm() {
@@ -12,14 +12,30 @@ export function AdminForgotPasswordForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [isSubmitted, setIsSubmitted] = useState(false)
 
-  function onSubmit(formData: FormData) {
+  async function onSubmit(formData: FormData) {
+    const email = formData.get('email') as string
+    if (!email) return
+
     setMessage(null)
     startTransition(async () => {
-      const result = await requestPasswordReset({
-        email: formData.get('email'),
-      })
-      setMessage(result.message)
-      setIsSubmitted(true)
+      try {
+        const client = createClient()
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
+        
+        // Use client-side reset to ensure PKCE verifier is stored in the browser
+        await client.auth.resetPasswordForEmail(email, {
+          redirectTo: `${siteUrl}/auth/reset-password`,
+        })
+        
+        // Always show success message to prevent enumeration
+        setMessage('If an account exists for this email address, a password reset link has been sent.')
+        setIsSubmitted(true)
+      } catch (error) {
+        // Even on error, we might want to show success to prevent enumeration, 
+        // but here we can show a generic error if something actually broke.
+        setMessage('If an account exists for this email address, a password reset link has been sent.')
+        setIsSubmitted(true)
+      }
     })
   }
 
