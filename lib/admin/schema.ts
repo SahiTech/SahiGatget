@@ -123,3 +123,19 @@ export const adminUserSchema = z.object({
 
 export type ProductInput = z.infer<typeof productSchema>
 export type VariantInput = z.infer<typeof variantSchema>
+
+export const bannerSchema = z.object({
+  id: uuid.optional(),
+  desktopImageUrl: z.string().url().max(2048),
+  mobileImageUrl: z.string().url().max(2048),
+  heading: z.string().trim().min(2).max(255),
+  description: z.string().trim().min(2).max(1000),
+  primaryCtaText: z.string().trim().min(1).max(50),
+  primaryCtaUrl: z.string().trim().min(1).max(500),
+  secondaryCtaText: optionalShortText,
+  secondaryCtaUrl: z.string().trim().max(500).optional().or(z.literal('')),
+  isActive: z.boolean().default(true),
+  sortOrder: z.coerce.number().int().min(0).max(100000).default(0),
+})
+
+export type BannerInput = z.infer<typeof bannerSchema>

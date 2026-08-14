@@ -1,12 +1,14 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { Archive, Boxes, ClipboardList, LayoutDashboard, LogOut, Menu, PackageSearch, Settings2, ShieldCheck, Store, UsersRound } from 'lucide-react'
+import { Archive, Boxes, ClipboardList, LayoutDashboard, LogOut, Menu, PackageSearch, Settings2, ShieldCheck, Store, UsersRound, Layout } from 'lucide-react'
 
 import { signOutAdmin } from '@/lib/admin/actions'
 import type { AdminRole, AdminSession } from '@/lib/admin/auth'
+import { AdminMobileNav } from './admin-mobile-nav'
 
-const navigation: { href: string; label: string; icon: typeof LayoutDashboard; roles: readonly AdminRole[] }[] = [
+const navigation: { href: string; label: string; icon: any; roles: readonly AdminRole[] }[] = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, roles: ['OWNER', 'ADMIN', 'STAFF'] },
+  { href: '/admin/homepage', label: 'Homepage', icon: Layout, roles: ['OWNER', 'ADMIN'] },
   { href: '/admin/products', label: 'Catalogue', icon: PackageSearch, roles: ['OWNER', 'ADMIN'] },
   { href: '/admin/inventory', label: 'Inventory', icon: Boxes, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/orders', label: 'Orders', icon: ClipboardList, roles: ['OWNER', 'ADMIN', 'STAFF'] },
@@ -39,7 +41,18 @@ export function AdminShell({ session, children }: { session: AdminSession; child
       </aside>
       <div className="md:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:px-8">
-          <div className="flex items-center gap-3"><details className="relative md:hidden"><summary className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 text-slate-700"><Menu className="h-4 w-4" /><span className="sr-only">Open admin navigation</span></summary><div className="absolute left-0 top-11 w-64 rounded-xl border border-slate-200 bg-slate-950 p-3 shadow-xl"><NavigationLinks session={session} /><div className="mt-3 border-t border-slate-800 pt-3"><SignOutControl /></div></div></details><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">SahiGadget administration</p><p className="text-sm text-slate-500">Operational control center</p></div></div>
+          <div className="flex items-center gap-3">
+            <AdminMobileNav>
+              <NavigationLinks session={session} />
+              <div className="mt-3 border-t border-slate-800 pt-3">
+                <SignOutControl />
+              </div>
+            </AdminMobileNav>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">SahiGadget administration</p>
+              <p className="text-sm text-slate-500">Operational control center</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-4 w-4" />{session.role}</div>
         </header>
         <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">{children}</main>

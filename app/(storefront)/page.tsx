@@ -5,7 +5,8 @@ import { ArrowRight, BadgeCheck, CheckCircle2, Headphones, MapPin, Phone, Shield
 import { siteConfig } from '@/config/site'
 import { BrandCard, CategoryCard } from '@/components/storefront/discovery-card'
 import { ProductGrid } from '@/components/product/product-card'
-import { getBrands, getCategories, getDeliverySummary, getFeaturedProducts, getProducts, getStorefrontPolicySummary, getStorefrontSettings, type StorefrontBrand, type StorefrontCategory, type StorefrontProduct } from '@/lib/services/storefront'
+import { getBrands, getCategories, getDeliverySummary, getFeaturedProducts, getProducts, getStorefrontPolicySummary, getStorefrontSettings, getStorefrontBanners, type StorefrontBrand, type StorefrontCategory, type StorefrontProduct } from '@/lib/services/storefront'
+import { HeroSection } from '@/components/storefront/hero-section'
 
 export const metadata = {
   title: 'SahiGadget — Authentic Mobile Phones & Gadgets in Bangladesh',
@@ -13,88 +14,29 @@ export const metadata = {
 }
 
 export default async function HomePage() {
-  const [featuredResult, allProductsResult, brands, categories, settings] = await Promise.all([
+  const [featuredResult, allProductsResult, brands, categories, settings, banners] = await Promise.all([
     getFeaturedProducts(8),
     getProducts({ pageSize: 12 }),
     getBrands(),
     getCategories(),
     getStorefrontSettings(),
+    getStorefrontBanners(),
   ])
 
   const featuredProducts = featuredResult
   const allProducts = allProductsResult.products
   const bestDeals = allProducts.filter((p) => p.variants.some((v) => v.compare_at_price && v.compare_at_price > v.price)).slice(0, 4)
-  const latestProducts = allProducts.slice(0, 4)
 
   return (
     <main className="flex-1 bg-slate-50/50">
-      {/* 03 — HERO / MAIN PROMOTIONAL AREA */}
-      <section className="relative overflow-hidden bg-slate-950 text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(16,185,129,0.22),transparent_35%),radial-gradient(circle_at_10%_90%,rgba(14,165,233,0.18),transparent_35%)]" />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-24">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300 sm:text-xs">
-              <Zap className="h-3.5 w-3.5" /> Trusted mobile & gadget store in Bangladesh
-            </div>
-            <h1 className="mt-6 max-w-3xl text-3xl font-black leading-[1.05] tracking-[-0.05em] sm:text-5xl md:text-6xl lg:text-7xl">
-              Authentic devices.<br />
-              <span className="text-emerald-300">Clear pricing. No guesswork.</span>
-            </h1>
-            <p className="mt-6 max-w-xl text-sm leading-7 text-slate-300 sm:text-base sm:leading-8">
-              {siteConfig.tagline}. {siteConfig.brandPromise}. Explore verified mobile phones, feature phones, and smart wearables with secure Cash on Delivery nationwide.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/products" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-emerald-400 px-7 text-sm font-black text-slate-950 transition-colors hover:bg-emerald-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200">
-                Explore catalogue <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link href="/categories" className="inline-flex min-h-12 items-center rounded-full border border-slate-700 px-7 text-sm font-bold text-white transition-colors hover:border-slate-400 hover:bg-white/5">
-                Browse categories
-              </Link>
-            </div>
-            <div className="mt-9 flex flex-wrap gap-x-6 gap-y-3 text-[10px] font-semibold text-slate-400 sm:text-xs">
-              <span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-emerald-300" />Cash on Delivery</span>
-              <span className="flex items-center gap-2"><Truck className="h-4 w-4 text-emerald-300" />{getDeliverySummary(settings)}</span>
-              <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-300" />{getStorefrontPolicySummary(settings)}</span>
-            </div>
-          </div>
-          <div className="relative mx-auto w-full max-w-md lg:ml-auto">
-            <div className="absolute -inset-4 rounded-[2.5rem] bg-emerald-400/10 blur-2xl" />
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/40 backdrop-blur sm:p-7">
-              <div className="flex items-center justify-between border-b border-white/10 pb-5">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300 sm:text-xs">Store snapshot</p>
-                  <p className="mt-1 text-2xl font-black tracking-tight">{siteConfig.name}</p>
-                </div>
-                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-900 shadow-md">
-                  <Image src="/logo.png" alt="SahiGadget Logo" width={48} height={48} className="h-full w-full object-cover" />
-                </div>
-              </div>
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-white/[0.06] p-4">
-                  <p className="text-2xl font-black text-white sm:text-3xl">{allProducts.length}</p>
-                  <p className="mt-1 text-[10px] text-slate-400 sm:text-xs">Active products</p>
-                </div>
-                <div className="rounded-2xl bg-white/[0.06] p-4">
-                  <p className="text-2xl font-black text-white sm:text-3xl">{brands.length}</p>
-                  <p className="mt-1 text-[10px] text-slate-400 sm:text-xs">Verified brands</p>
-                </div>
-                <div className="rounded-2xl bg-white/[0.06] p-4">
-                  <p className="text-2xl font-black text-white sm:text-3xl">{categories.length}</p>
-                  <p className="mt-1 text-[10px] text-slate-400 sm:text-xs">Categories</p>
-                </div>
-                <div className="rounded-2xl bg-emerald-400 p-4 text-slate-950">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-800">Support</p>
-                  <p className="mt-1 text-xs font-black truncate">{siteConfig.contact.phone}</p>
-                </div>
-              </div>
-              <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-                <p className="text-xs font-bold text-emerald-200">{siteConfig.brandPromise}</p>
-                <p className="mt-1.5 text-[10px] leading-5 text-slate-400">Clear specs, valid warranty terms, and prompt delivery across Bangladesh.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HeroSection 
+        banners={banners} 
+        deliverySummary={getDeliverySummary(settings)} 
+        policySummary={getStorefrontPolicySummary(settings)}
+        productCount={allProducts.length}
+        brandCount={brands.length}
+        categoryCount={categories.length}
+      />
 
       {/* 04 — TRUST / SERVICE FEATURES */}
       <section className="border-b border-slate-200 bg-white shadow-sm">

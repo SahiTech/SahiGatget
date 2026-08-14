@@ -16,7 +16,8 @@ import type {
   ProductImageRow,
   ProductFilters,
   ProductListResult,
-  StorefrontSettings
+  StorefrontSettings,
+  HomepageBanner
 } from './storefront-utils'
 
 export * from './storefront-utils'
@@ -166,4 +167,20 @@ export async function getProductTypes() {
   const { data, error } = await supabase.from('products').select('product_type').eq('is_published', true).order('product_type').limit(100)
   if (error) throw new Error('Unable to load product types.')
   return Array.from(new Set((data ?? []).map((row) => row.product_type)))
+}
+
+export async function getStorefrontBanners() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('homepage_banners')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error loading banners:', error)
+    return []
+  }
+  return data as HomepageBanner[]
 }

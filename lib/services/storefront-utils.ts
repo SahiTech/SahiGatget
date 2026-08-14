@@ -36,6 +36,22 @@ export type StorefrontSettings = {
   warranty: { guaranteeDays: number; serviceWarrantyYears: number; policyText: string }
 }
 
+export type HomepageBanner = {
+  id: string
+  desktop_image_url: string
+  mobile_image_url: string
+  heading: string
+  description: string
+  primary_cta_text: string
+  primary_cta_url: string
+  secondary_cta_text?: string | null
+  secondary_cta_url?: string | null
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
 export type ProductListResult = { products: StorefrontProduct[]; total: number; page: number; pageSize: number; pageCount: number }
 
 export type ProductFilters = {
