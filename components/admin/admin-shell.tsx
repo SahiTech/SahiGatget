@@ -1,0 +1,56 @@
+import Link from 'next/link'
+import { Archive, Boxes, ClipboardList, LayoutDashboard, LogOut, Menu, PackageSearch, Settings2, ShieldCheck, Store, UsersRound } from 'lucide-react'
+
+import { signOutAdmin } from '@/lib/admin/actions'
+import type { AdminRole, AdminSession } from '@/lib/admin/auth'
+
+const navigation: { href: string; label: string; icon: typeof LayoutDashboard; roles: readonly AdminRole[] }[] = [
+  { href: '/admin', label: 'Overview', icon: LayoutDashboard, roles: ['OWNER', 'ADMIN', 'STAFF'] },
+  { href: '/admin/products', label: 'Catalogue', icon: PackageSearch, roles: ['OWNER', 'ADMIN'] },
+  { href: '/admin/inventory', label: 'Inventory', icon: Boxes, roles: ['OWNER', 'ADMIN', 'STAFF'] },
+  { href: '/admin/orders', label: 'Orders', icon: ClipboardList, roles: ['OWNER', 'ADMIN', 'STAFF'] },
+  { href: '/admin/customers', label: 'Customers', icon: UsersRound, roles: ['OWNER', 'ADMIN', 'STAFF'] },
+  { href: '/admin/settings', label: 'Settings', icon: Settings2, roles: ['OWNER', 'ADMIN'] },
+]
+
+function NavigationLinks({ session }: { session: AdminSession }) {
+  return (
+    <nav className="space-y-1" aria-label="Admin navigation">
+      {navigation.filter((item) => item.roles.includes(session.role)).map((item) => {
+        const Icon = item.icon
+        return <Link key={item.href} href={item.href} className="flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"><Icon className="h-4 w-4 text-emerald-400" />{item.label}</Link>
+      })}
+    </nav>
+  )
+}
+
+function SignOutControl() {
+  return <form action={signOutAdmin}><button type="submit" className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-slate-300 transition hover:bg-rose-500/10 hover:text-rose-300"><LogOut className="h-4 w-4" />Sign out</button></form>
+}
+
+export function AdminShell({ session, children }: { session: AdminSession; children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-950">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-slate-950 p-5 text-white md:flex">
+        <Link href="/admin" className="mb-9 flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400 text-slate-950"><Store className="h-5 w-5" /></span><span><span className="block text-sm font-bold tracking-wide">SahiGadget</span><span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300">Operations</span></span></Link>
+        <NavigationLinks session={session} />
+        <div className="mt-auto border-t border-slate-800 pt-4"><div className="mb-3 rounded-xl bg-slate-900 p-3"><p className="truncate text-sm font-semibold">{session.fullName}</p><p className="mt-1 text-xs font-bold uppercase tracking-wider text-emerald-300">{session.role}</p></div><SignOutControl /></div>
+      </aside>
+      <div className="md:pl-64">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:px-8">
+          <div className="flex items-center gap-3"><details className="relative md:hidden"><summary className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 text-slate-700"><Menu className="h-4 w-4" /><span className="sr-only">Open admin navigation</span></summary><div className="absolute left-0 top-11 w-64 rounded-xl border border-slate-200 bg-slate-950 p-3 shadow-xl"><NavigationLinks session={session} /><div className="mt-3 border-t border-slate-800 pt-3"><SignOutControl /></div></div></details><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">SahiGadget administration</p><p className="text-sm text-slate-500">Operational control center</p></div></div>
+          <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-4 w-4" />{session.role}</div>
+        </header>
+        <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">{children}</main>
+      </div>
+    </div>
+  )
+}
+
+export function AdminPageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
+  return <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">{eyebrow}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{title}</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{description}</p></div>{action}</div>
+}
+
+export function AdminEmptyState({ icon: Icon = Archive, title, description }: { icon?: typeof Archive; title: string; description: string }) {
+  return <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><Icon className="h-5 w-5" /></div><h2 className="mt-4 text-lg font-semibold text-slate-900">{title}</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">{description}</p></div>
+}
