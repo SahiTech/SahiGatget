@@ -118,15 +118,16 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
         let finalDesktopUrl = values.desktopImageUrl
         let finalMobileUrl = values.mobileImageUrl
 
-        // Upload desktop file via Server Action (secure service role / authenticated admin context)
+        // Upload desktop file via Server Action
         if (desktopFile) {
           const formData = new FormData()
           formData.append('file', desktopFile)
           formData.append('type', 'desktop')
 
           const res = await uploadBannerImageAction(formData)
-          if (!res.success || !res.url) {
-            throw new Error(res.error || 'Desktop image upload failed.')
+          if (!res.ok || !res.url) {
+            setMessage(res.message || 'Desktop image upload failed.')
+            return
           }
           finalDesktopUrl = res.url
         }
@@ -138,8 +139,9 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
           formData.append('type', 'mobile')
 
           const res = await uploadBannerImageAction(formData)
-          if (!res.success || !res.url) {
-            throw new Error(res.error || 'Mobile image upload failed.')
+          if (!res.ok || !res.url) {
+            setMessage(res.message || 'Mobile image upload failed.')
+            return
           }
           finalMobileUrl = res.url
         }
@@ -162,12 +164,20 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
           sort_order: Number(values.sortOrder) || 0,
         }
 
+        let res
         if (values.id) {
-          await updateHomepageBanner(values.id, payload)
-          setMessage('Banner updated successfully!')
+          res = await updateHomepageBanner(values.id, payload)
         } else {
-          await createHomepageBanner(payload)
-          setMessage('Banner created successfully!')
+          res = await createHomepageBanner(payload)
+        }
+
+        if (!res.ok) {
+          setMessage(res.message)
+          return
+        }
+
+        setMessage(values.id ? 'Banner updated successfully!' : 'Banner created successfully!')
+        if (!values.id) {
           form.reset()
           setDesktopFile(null)
           setDesktopPreview('')
