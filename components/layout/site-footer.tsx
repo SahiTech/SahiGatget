@@ -37,11 +37,15 @@ export async function SiteFooter() {
         </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Customer care</p>
-          <nav className="mt-5 grid gap-3 text-sm text-slate-300">
+          <nav className="mt-5 grid gap-3 text-sm text-slate-300" aria-label="Customer care navigation">
             <Link href="/track-order" className="transition-colors hover:text-white">Track an order</Link>
             <Link href="/help" className="transition-colors hover:text-white">Help & Policies</Link>
-            <Link href="/order" className="transition-colors hover:text-white">Order information</Link>
-            <Link href="/admin/login" className="transition-colors hover:text-white">Admin portal</Link>
+            <Link href="/warranty" className="transition-colors hover:text-white">Warranty & Guarantee</Link>
+            <Link href="/shipping" className="transition-colors hover:text-white">Shipping & Delivery</Link>
+            <Link href="/returns" className="transition-colors hover:text-white">Returns & Replacements</Link>
+            <Link href="/terms" className="transition-colors hover:text-white">Terms & Conditions</Link>
+            <Link href="/privacy" className="transition-colors hover:text-white">Privacy Policy</Link>
+            <Link href="/contact" className="transition-colors hover:text-white">Contact Support</Link>
           </nav>
           <p className="mt-6 text-xs leading-6 text-slate-500">Checkout and payments will be connected in a later phase.</p>
         </div>
