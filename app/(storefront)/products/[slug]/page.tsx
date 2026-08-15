@@ -66,38 +66,60 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
     colourValues ? ['Colour', colourValues] as [string, string] : null,
   ].filter((row): row is [string, string] => Boolean(row))
   const breadcrumbItems = getProductBreadcrumbItems(product)
-  const variantEntities = product.variants.map((variant) => ({
-    '@type': 'Product',
-    name: `${product.name}${variant.variant_title ? ` · ${variant.variant_title}` : ''}`,
-    description: product.short_description || product.description || undefined,
-    image: primaryImage ? [primaryImage] : undefined,
-    sku: variant.sku || undefined,
-    brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined,
-    category: product.category?.name || undefined,
-    offers: {
-      '@type': 'Offer',
-      url: `${siteConfig.url}/products/${product.slug}`,
-      priceCurrency: siteConfig.currency.code,
-      price: variant.price,
-      availability: variant.is_in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      seller: { '@type': 'Organization', name: siteConfig.name },
-    },
-  }))
+  const productUrl = `${siteConfig.url}/products/${encodeURIComponent(product.slug)}`
+  const productId = `${productUrl}#product`
+  const brandEntity = product.brand ? { '@type': 'Brand', '@id': `${siteConfig.url}/brands/${encodeURIComponent(product.brand.slug)}#brand`, name: product.brand.name } : undefined
+  const variesBy = [
+    product.variants.some((variant) => variant.color) ? 'https://schema.org/color' : null,
+    product.variants.some((variant) => variant.ram || variant.storage || variant.variant_title) ? 'https://schema.org/additionalProperty' : null,
+  ].filter((value): value is string => Boolean(value))
+  const variantEntities = product.variants.map((variant, index) => {
+    const variantProperties = [
+      variant.ram ? { '@type': 'PropertyValue', name: 'RAM', value: variant.ram } : null,
+      variant.storage ? { '@type': 'PropertyValue', name: 'Storage', value: variant.storage } : null,
+      variant.variant_title ? { '@type': 'PropertyValue', name: 'Variant', value: variant.variant_title } : null,
+    ].filter((property): property is { '@type': string; name: string; value: string } => Boolean(property))
+    return {
+      '@type': 'Product',
+      '@id': `${productId}#variant-${index + 1}`,
+      name: `${product.name}${variant.variant_title ? ` · ${variant.variant_title}` : ''}`,
+      description: product.short_description || product.description || undefined,
+      image: primaryImage ? [primaryImage] : undefined,
+      sku: variant.sku || undefined,
+      color: variant.color || undefined,
+      brand: brandEntity,
+      category: product.category?.name || undefined,
+      isVariantOf: { '@id': productId },
+      additionalProperty: variantProperties.length ? variantProperties : undefined,
+      offers: {
+        '@type': 'Offer',
+        url: productUrl,
+        priceCurrency: siteConfig.currency.code,
+        price: variant.price,
+        availability: variant.is_in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        seller: { '@type': 'Organization', '@id': `${siteConfig.url}/#organization`, name: siteConfig.name },
+      },
+    }
+  })
   const productEntity = product.variants.length > 1 ? {
     '@type': 'ProductGroup',
+    '@id': productId,
     name: product.name,
     description: product.short_description || product.description || undefined,
-    url: `${siteConfig.url}/products/${product.slug}`,
+    url: productUrl,
     image: primaryImage ? [primaryImage] : undefined,
-    brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined,
+    brand: brandEntity,
     category: product.category?.name || undefined,
+    productGroupID: product.slug,
+    ...(variesBy.length ? { variesBy } : {}),
     hasVariant: variantEntities,
   } : variantEntities[0] ?? {
     '@type': 'Product',
+    '@id': productId,
     name: product.name,
     description: product.short_description || product.description || undefined,
     image: primaryImage ? [primaryImage] : undefined,
-    brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined,
+    brand: brandEntity,
     category: product.category?.name || undefined,
   }
   const jsonLd = {

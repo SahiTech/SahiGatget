@@ -37,7 +37,6 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: `${siteConfig.name} · ${siteConfig.tagline}`,
     description: siteConfig.brandPromise,
-    creator: '@sahigadget', // Assuming a handle or can be omitted
   },
   robots: { 
     index: true, 

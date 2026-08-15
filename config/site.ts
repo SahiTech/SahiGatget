@@ -1,4 +1,4 @@
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sahi-gatget.vercel.app";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.sahigadget.shop";
 const IS_PROD = SITE_URL.includes("sahigadget.shop");
 
 export const siteConfig = {

@@ -16,7 +16,27 @@ export async function generateMetadata({ params }: BrandPageProps): Promise<Meta
   const { slug } = await params
   const brand = await getBrandBySlug(slug)
   if (!brand) return { title: 'Brand not found' }
-  return { title: getBrandMetaTitle(brand), description: brand.meta_description || getBrandDescription(brand), alternates: { canonical: getBrandPath(brand.slug) } }
+  const title = getBrandMetaTitle(brand)
+  const description = brand.meta_description || getBrandDescription(brand)
+  const canonical = getBrandPath(brand.slug)
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: 'website',
+      images: brand.logo_url ? [{ url: brand.logo_url, alt: `${brand.name} logo` }] : [],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: brand.logo_url ? [brand.logo_url] : [],
+    },
+  }
 }
 
 export default async function BrandPage({ params }: BrandPageProps) {
@@ -34,6 +54,7 @@ export default async function BrandPage({ params }: BrandPageProps) {
     '@graph': [
       {
         '@type': 'Brand',
+        '@id': `${siteConfig.url}/brands/${encodeURIComponent(brand.slug)}#brand`,
         name: brand.name,
         url: breadcrumbItems[2].url,
         ...(brand.logo_url ? { logo: brand.logo_url } : {}),
