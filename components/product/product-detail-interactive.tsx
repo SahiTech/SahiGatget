@@ -29,5 +29,133 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
   const discount = selected?.compare_at_price && selected.compare_at_price > selected.price ? Math.round(((selected.compare_at_price - selected.price) / selected.compare_at_price) * 100) : null
   const attributes = selected ? [selected.ram && ['RAM', selected.ram], selected.storage && ['Storage', selected.storage], selected.color && ['Colour', selected.color]].filter(Boolean) as string[][] : []
 
-  return <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16"><div><div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_50%_35%,#ffffff_0%,#eef5f2_42%,#d8e7e1_100%)]"><div className="flex h-36 w-36 items-center justify-center rounded-[2.5rem] bg-slate-950 text-5xl font-black tracking-[-0.08em] text-emerald-300 shadow-2xl shadow-slate-950/20">{product.name.slice(0, 2).toUpperCase()}</div><p className="absolute bottom-6 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">Product image coming soon</p></div><div className="mt-4 grid grid-cols-3 gap-3"><div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><ShieldCheck className="mx-auto h-5 w-5 text-emerald-600" /><p className="mt-2 text-[11px] font-bold text-slate-500">Warranty context</p></div><div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><PackageCheck className="mx-auto h-5 w-5 text-emerald-600" /><p className="mt-2 text-[11px] font-bold text-slate-500">Live availability</p></div><div className="rounded-2xl border border-slate-200 bg-white p-4 text-center"><Check className="mx-auto h-5 w-5 text-emerald-600" /><p className="mt-2 text-[11px] font-bold text-slate-500">Public-safe data</p></div></div></div><div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">{product.brand?.name || 'SahiGadget'} · {product.product_type.replace(/[-_]/g, ' ')}</p><h1 className="mt-3 text-4xl font-black tracking-[-0.05em] text-slate-950 sm:text-5xl">{product.name}</h1>{product.short_description && <p className="mt-5 max-w-2xl text-base leading-8 text-slate-500">{product.short_description}</p>}<div className="mt-7 flex flex-wrap items-end gap-3"><p className="text-3xl font-black tracking-tight text-slate-950">{selected ? formatPrice(selected.price) : 'Price on request'}</p>{selected?.compare_at_price && selected.compare_at_price > selected.price && <><p className="text-sm text-slate-400 line-through">{formatPrice(selected.compare_at_price)}</p><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Save {discount}%</span></>}</div><p className="mt-2 text-xs text-slate-400">Current price from the selected live variant.</p>{product.variants.length > 0 && <div className="mt-8"><div className="flex items-center justify-between"><p className="text-sm font-black text-slate-950">Choose a variant</p><span className="text-xs font-semibold text-slate-400">{product.variants.length} option{product.variants.length === 1 ? '' : 's'}</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{product.variants.map((variant) => { const variantStatus = availability(variant); return <button key={variant.id} type="button" onClick={() => setSelectedId(variant.id)} className={`flex items-center justify-between rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${selected?.id === variant.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-400'}`} aria-pressed={selected?.id === variant.id}><span><span className="block text-sm font-bold text-slate-950">{variantLabel(variant)}</span><span className="mt-1 block text-xs text-slate-500">{formatPrice(variant.price)} · {variant.sku}</span></span><span className={`ml-3 shrink-0 text-[10px] font-black uppercase tracking-[0.12em] ${variantStatus.tone === 'in' ? 'text-emerald-700' : variantStatus.tone === 'low' ? 'text-amber-700' : 'text-slate-400'}`}>{variantStatus.label}</span></button> })}</div></div>}<div className="mt-8 grid gap-3 rounded-[1.5rem] border border-slate-200 bg-white p-5"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="text-sm font-black text-slate-950">Warranty & guarantee</p><p className="mt-1 text-sm leading-6 text-slate-500">{product.warranty_policy || warranty}</p></div></div><div className="flex items-start gap-3"><Phone className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="text-sm font-black text-slate-950">Need help before ordering?</p><a href={`tel:${phone.replace(/\s+/g, '')}`} className="mt-1 inline-block text-sm font-bold text-slate-700 underline underline-offset-4 hover:text-emerald-700">Call {phone}</a></div></div></div><div className="mt-6 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5"><p className="font-black text-slate-950">Ready to order?</p><p className="mt-1 text-sm leading-6 text-slate-600">Cash on Delivery is available. Your final price, delivery charge, and stock are checked securely before confirmation.</p>{selected && selected.is_in_stock ? <Link href={`/order?productId=${encodeURIComponent(product.id)}&variantId=${encodeURIComponent(selected.id)}`} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-emerald-600 hover:text-slate-950">Order now · Cash on Delivery</Link> : <p className="mt-4 text-sm font-bold text-slate-500">This selected variant is unavailable to order.</p>}</div>{selected && <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-slate-200 pt-6 text-sm">{attributes.map(([label, value]) => <div key={label}><dt className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{label}</dt><dd className="mt-1 font-bold text-slate-950">{value}</dd></div>)}<div><dt className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">SKU</dt><dd className="mt-1 font-bold text-slate-950">{selected.sku}</dd></div><div><dt className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Availability</dt><dd className={`mt-1 font-bold ${status.tone === 'in' ? 'text-emerald-700' : status.tone === 'low' ? 'text-amber-700' : 'text-slate-500'}`}>{status.label}</dd></div></dl>}</div></div>
+  return (
+    <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+      <div>
+        <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_50%_35%,#ffffff_0%,#eef5f2_42%,#d8e7e1_100%)]">
+          <div className="flex h-32 w-32 items-center justify-center rounded-[2rem] bg-slate-950 text-4xl font-black tracking-[-0.08em] text-emerald-300 shadow-2xl shadow-slate-950/20 sm:h-36 sm:w-36 sm:rounded-[2.5rem] sm:text-5xl">
+            {product.name.slice(0, 2).toUpperCase()}
+          </div>
+          <p className="absolute bottom-6 text-[9px] font-bold uppercase tracking-[0.22em] text-slate-400 sm:text-[10px]">Product image coming soon</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
+            <ShieldCheck className="mx-auto h-5 w-5 text-emerald-600" />
+            <p className="mt-2 text-[10px] font-bold text-slate-500 sm:text-[11px]">Warranty context</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
+            <PackageCheck className="mx-auto h-5 w-5 text-emerald-600" />
+            <p className="mt-2 text-[10px] font-bold text-slate-500 sm:text-[11px]">Live availability</p>
+          </div>
+          <div className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 text-center sm:col-span-1">
+            <Check className="mx-auto h-5 w-5 text-emerald-600" />
+            <p className="mt-2 text-[10px] font-bold text-slate-500 sm:text-[11px]">Public-safe data</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 sm:text-xs">{product.brand?.name || 'SahiGadget'} · {product.product_type.replace(/[-_]/g, ' ')}</p>
+        <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-slate-950 sm:text-4xl md:text-5xl">{product.name}</h1>
+        {product.short_description && (
+          <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base sm:leading-8">{product.short_description}</p>
+        )}
+        
+        <div className="mt-7 flex flex-wrap items-end gap-3">
+          <p className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{selected ? formatPrice(selected.price) : 'Price on request'}</p>
+          {selected?.compare_at_price && selected.compare_at_price > selected.price && (
+            <>
+              <p className="text-sm text-slate-400 line-through">{formatPrice(selected.compare_at_price)}</p>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-700 sm:text-xs">Save {discount}%</span>
+            </>
+          )}
+        </div>
+        <p className="mt-2 text-[10px] text-slate-400 sm:text-xs">Current price from the selected live variant.</p>
+
+        {product.variants.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-black text-slate-950">Choose a variant</p>
+              <span className="text-[10px] font-semibold text-slate-400 sm:text-xs">{product.variants.length} option{product.variants.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {product.variants.map((variant) => {
+                const variantStatus = availability(variant);
+                return (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => setSelectedId(variant.id)}
+                    className={`flex items-center justify-between rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${selected?.id === variant.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-400'}`}
+                    aria-pressed={selected?.id === variant.id}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-slate-950">{variantLabel(variant)}</span>
+                      <span className="mt-1 block truncate text-[10px] text-slate-500 sm:text-xs">{formatPrice(variant.price)} · {variant.sku}</span>
+                    </span>
+                    <span className={`ml-3 shrink-0 text-[9px] font-black uppercase tracking-[0.12em] sm:text-[10px] ${variantStatus.tone === 'in' ? 'text-emerald-700' : variantStatus.tone === 'low' ? 'text-amber-700' : 'text-slate-400'}`}>
+                      {variantStatus.label}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-8 grid gap-3 rounded-[1.5rem] border border-slate-200 bg-white p-5">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+            <div>
+              <p className="text-sm font-black text-slate-950">Warranty & guarantee</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6">{product.warranty_policy || warranty}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <Phone className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+            <div>
+              <p className="text-sm font-black text-slate-950">Need help before ordering?</p>
+              <a href={`tel:${phone.replace(/\s+/g, '')}`} className="mt-1 inline-block text-sm font-bold text-slate-700 underline underline-offset-4 hover:text-emerald-700">Call {phone}</a>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5">
+          <p className="font-black text-slate-950">Ready to order?</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">Cash on Delivery is available. Your final price, delivery charge, and stock are checked securely before confirmation.</p>
+          {selected && selected.is_in_stock ? (
+            <Link 
+              href={`/order?productId=${encodeURIComponent(product.id)}&variantId=${encodeURIComponent(selected.id)}`} 
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-emerald-600 hover:text-slate-950 sm:w-auto"
+            >
+              Order now · Cash on Delivery
+            </Link>
+          ) : (
+            <p className="mt-4 text-sm font-bold text-slate-500">This selected variant is unavailable to order.</p>
+          )}
+        </div>
+
+        {selected && (
+          <dl className="mt-8 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-200 pt-6 text-sm sm:gap-x-6">
+            {attributes.map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">{label}</dt>
+                <dd className="mt-1 font-bold text-slate-950">{value}</dd>
+              </div>
+            ))}
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">SKU</dt>
+              <dd className="mt-1 break-all font-bold text-slate-950">{selected.sku}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">Availability</dt>
+              <dd className={`mt-1 font-bold ${status.tone === 'in' ? 'text-emerald-700' : status.tone === 'low' ? 'text-amber-700' : 'text-slate-500'}`}>
+                {status.label}
+              </dd>
+            </div>
+          </dl>
+        )}
+      </div>
+    </div>
+  )
 }
