@@ -17,7 +17,8 @@ import type {
   ProductFilters,
   ProductListResult,
   StorefrontSettings,
-  HomepageBanner
+  HomepageBanner,
+  StorefrontProduct
 } from './storefront-utils'
 
 export * from './storefront-utils'
@@ -134,6 +135,32 @@ export async function getProductBySlug(slug: string) {
   const row = data as unknown as RawProduct
   const variantsByProduct = await getVariantsByProductId(supabase, [row.id])
   return normalizeProduct(row, variantsByProduct.get(row.id) ?? [])
+}
+
+export async function getRelatedProducts(product: StorefrontProduct, limit = 4) {
+  const [categoryResult, typeResult, brandResult] = await Promise.all([
+    product.category ? getProducts({ category: product.category.slug, pageSize: 48 }) : Promise.resolve({ products: [] as StorefrontProduct[], total: 0, page: 1, pageSize: 48, pageCount: 0 }),
+    product.product_type ? getProducts({ productType: product.product_type, pageSize: 48 }) : Promise.resolve({ products: [] as StorefrontProduct[], total: 0, page: 1, pageSize: 48, pageCount: 0 }),
+    product.brand ? getProducts({ brand: product.brand.slug, pageSize: 48 }) : Promise.resolve({ products: [] as StorefrontProduct[], total: 0, page: 1, pageSize: 48, pageCount: 0 }),
+  ])
+  const candidates = new Map<string, { product: StorefrontProduct; score: number }>()
+  const tokens = product.name.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length > 2)
+  const addCandidates = (items: StorefrontProduct[], baseScore: number) => {
+    for (const candidate of items) {
+      if (candidate.id === product.id) continue
+      const nameScore = tokens.reduce((score, token) => score + (candidate.name.toLowerCase().includes(token) ? 8 : 0), 0)
+      const categoryScore = product.category && candidate.category?.id === product.category.id ? 100 : 0
+      const typeScore = candidate.product_type === product.product_type ? 50 : 0
+      const brandScore = product.brand && candidate.brand?.id === product.brand.id ? 35 : 0
+      const existing = candidates.get(candidate.id)
+      const score = baseScore + nameScore + categoryScore + typeScore + brandScore
+      candidates.set(candidate.id, { product: candidate, score: Math.max(existing?.score ?? 0, score) })
+    }
+  }
+  addCandidates(categoryResult.products, 100)
+  addCandidates(typeResult.products, 50)
+  addCandidates(brandResult.products, 35)
+  return Array.from(candidates.values()).sort((a, b) => b.score - a.score || a.product.name.localeCompare(b.product.name)).slice(0, limit).map(({ product: candidate }) => candidate)
 }
 
 export async function getBrands() {
