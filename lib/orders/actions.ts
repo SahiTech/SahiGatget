@@ -3,6 +3,7 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { queueOrderConfirmationEmails } from '@/lib/email/service'
 import {
   guestOrderInputSchema,
   orderQuoteInputSchema,
@@ -100,7 +101,7 @@ async function loadOrderSuccessById(orderId: string): Promise<OrderSuccessSummar
   const admin = createAdminClient()
   const { data: order, error: orderError } = await admin
     .from('orders')
-    .select('id,order_number,subtotal,discount_total,delivery_charge,grand_total,payment_method,customer_name_snapshot,customer_phone_snapshot,customer_email_snapshot,shipping_division,shipping_district,shipping_area,shipping_address,shipping_postal_code,notes')
+    .select('id,order_number,order_status,created_at,subtotal,discount_total,delivery_charge,grand_total,payment_method,customer_name_snapshot,customer_phone_snapshot,customer_email_snapshot,shipping_division,shipping_district,shipping_area,shipping_address,shipping_postal_code,notes')
     .eq('id', orderId)
     .maybeSingle()
   if (orderError || !order) throw new Error('Your order was created, but its confirmation could not be loaded. Please use order tracking.')
@@ -114,10 +115,13 @@ async function loadOrderSuccessById(orderId: string): Promise<OrderSuccessSummar
 
   const row = order as unknown as Record<string, unknown>
   return {
+    orderId: String(row.id),
     orderNumber: String(row.order_number),
     customerName: String(row.customer_name_snapshot),
     customerEmail: row.customer_email_snapshot ? String(row.customer_email_snapshot) : null,
     phone: String(row.customer_phone_snapshot),
+    status: String(row.order_status),
+    createdAt: String(row.created_at),
     delivery: {
       division: String(row.shipping_division ?? ''),
       district: String(row.shipping_district ?? ''),
@@ -192,7 +196,13 @@ export async function createGuestCodOrder(input: unknown): Promise<ActionResult<
       return { ok: false, message: 'We could not place your order right now. No payment has been collected. Please try again.' }
     }
 
-    return { ok: true, data: await loadOrderSuccessById(String(data[0].order_id)) }
+    const summary = await loadOrderSuccessById(String(data[0].order_id))
+    try {
+      await queueOrderConfirmationEmails(summary)
+    } catch (emailError) {
+      console.error('[email] order confirmation notification failed', emailError instanceof Error ? emailError.message : emailError)
+    }
+    return { ok: true, data: summary }
   } catch (error) {
     return { ok: false, message: error instanceof Error && error.message.includes('available') ? error.message : 'We could not place your order right now. No payment has been collected. Please try again.' }
   }

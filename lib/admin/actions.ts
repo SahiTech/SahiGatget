@@ -21,6 +21,7 @@ import {
   variantSchema,
 } from '@/lib/admin/schema'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { latestStatusTransitionId, loadOrderForEmail, queueOrderStatusEmail } from '@/lib/email/service'
 import { createClient } from '@/lib/supabase/server'
 
 export type AdminActionResult = { ok: boolean; message: string; data?: { id?: string; logoUrl?: string } }
@@ -317,6 +318,14 @@ export async function updateOrderStatus(input: unknown): Promise<AdminActionResu
       p_actor_id: session.userId,
     })
     if (error) throw new Error(error.message)
+    try {
+      const order = await loadOrderForEmail(parsed.orderId)
+      const transitionId = await latestStatusTransitionId(parsed.orderId)
+      const notification = await queueOrderStatusEmail(order, transitionId)
+      if (!notification.ok) console.error('[email] order status notification failed', notification.error)
+    } catch (emailError) {
+      console.error('[email] order status notification failed', emailError instanceof Error ? emailError.message : emailError)
+    }
     refreshAdminRoutes()
     return { ok: true, message: 'Order status updated and history recorded.' }
   } catch (error) {

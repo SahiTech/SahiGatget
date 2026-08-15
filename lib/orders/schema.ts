@@ -58,10 +58,13 @@ export type Quote = {
 }
 
 export type OrderSuccessSummary = {
+  orderId: string
   orderNumber: string
   customerName: string
   customerEmail: string | null
   phone: string
+  status: string
+  createdAt: string
   delivery: {
     division: string
     district: string
