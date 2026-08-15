@@ -47,14 +47,17 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   const settings = await getStorefrontSettings()
   const relatedProducts = await getRelatedProducts(product, 4)
   const primaryImage = getProductPrimaryImage(product)
+  const ramValues = Array.from(new Set(product.variants.map((variant) => variant.ram).filter(Boolean))).join(' · ')
+  const storageValues = Array.from(new Set(product.variants.map((variant) => variant.storage).filter(Boolean))).join(' · ')
+  const colourValues = Array.from(new Set(product.variants.map((variant) => variant.color).filter(Boolean))).join(' · ')
   const specRows = [
-    product.brand ? ['Brand', product.brand.name] : null,
-    product.category ? ['Category', product.category.name] : null,
-    product.product_type ? ['Product type', product.product_type.replace(/[-_]/g, ' ')] : null,
-    ...(['RAM', Array.from(new Set(product.variants.map((variant) => variant.ram).filter(Boolean))).join(' · ')] as const),
-    ...(['Storage', Array.from(new Set(product.variants.map((variant) => variant.storage).filter(Boolean))).join(' · ')] as const),
-    ...(['Colour', Array.from(new Set(product.variants.map((variant) => variant.color).filter(Boolean))).join(' · ')] as const),
-  ].filter((row): row is [string, string] => Boolean(row && row[1]))
+    product.brand ? ['Brand', product.brand.name] as [string, string] : null,
+    product.category ? ['Category', product.category.name] as [string, string] : null,
+    product.product_type ? ['Product type', product.product_type.replace(/[-_]/g, ' ')] as [string, string] : null,
+    ramValues ? ['RAM', ramValues] as [string, string] : null,
+    storageValues ? ['Storage', storageValues] as [string, string] : null,
+    colourValues ? ['Colour', colourValues] as [string, string] : null,
+  ].filter((row): row is [string, string] => Boolean(row))
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
