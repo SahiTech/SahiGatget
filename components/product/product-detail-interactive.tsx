@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { Check, PackageCheck, Phone, ShieldCheck } from 'lucide-react'
 
+import { BrandLogo } from '@/components/storefront/brand-logo'
 import type { StorefrontProduct } from '@/lib/services/storefront-utils'
+import { getBrandPath } from '@/lib/services/storefront-utils'
 import { getProductImageAlt, getProductImageUrl, getProductDiscount, formatPrice, getVariantLabel, getPublicAvailability } from '@/lib/services/storefront-utils'
 import { siteConfig } from '@/config/site'
 
@@ -81,7 +83,8 @@ export function ProductDetailInteractive({ product, warranty, phone }: { product
       </div>
 
       <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 sm:text-xs">{product.brand?.name || 'SahiGadget'} · {product.product_type.replace(/[-_]/g, ' ')}</p>
+        {product.brand ? <Link href={getBrandPath(product.brand.slug)} className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 transition-colors hover:text-emerald-700 sm:text-xs"><BrandLogo brand={product.brand} size="sm" className="h-7 w-7 rounded-lg p-1" />{product.brand.name}</Link> : <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 sm:text-xs">SahiGadget</p>}
+        <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 sm:text-xs">{product.product_type.replace(/[-_]/g, ' ')}</p>
         <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-slate-950 sm:text-4xl md:text-5xl">{product.name}</h1>
         {product.short_description && (
           <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base sm:leading-8">{product.short_description}</p>

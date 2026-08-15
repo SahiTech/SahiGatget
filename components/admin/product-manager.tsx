@@ -4,9 +4,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
-import { Archive, ImagePlus, Pencil, Plus, Save, Tag } from 'lucide-react'
+import { Archive, ImagePlus, Pencil, Plus, Save, Tag, Trash2, Upload } from 'lucide-react'
 
-import { archiveProduct, deleteProductImage, saveBrand, saveCategory, saveProduct, saveVariant, uploadProductImage } from '@/lib/admin/actions'
+import { archiveProduct, deleteProductImage, removeBrandLogo, saveBrand, saveCategory, saveProduct, saveVariant, uploadBrandLogo, uploadProductImage } from '@/lib/admin/actions'
 import { brandSchema, categorySchema, productSchema, variantSchema } from '@/lib/admin/schema'
 
 const inputClass = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100'
@@ -41,9 +41,57 @@ function ProductTab({ products, brands, categories }: Omit<ProductManagerProps, 
 }
 
 function BrandTab({ brands }: { brands: any[] }) {
-  const [message, setMessage] = useState<string | null>(null); const [isPending, startTransition] = useTransition()
+  const [message, setMessage] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const [logoUrl, setLogoUrl] = useState('')
   const form = useForm<any>({ resolver: zodResolver(brandSchema), defaultValues: { name: '', slug: '', description: '', logoUrl: '', isActive: true, metaTitle: '', metaDescription: '' } })
-  return <div className="grid gap-6 lg:grid-cols-[.7fr_1.3fr]"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Create or edit brand</h2><form className="mt-5 space-y-4" onSubmit={form.handleSubmit((values: any) => startTransition(async () => { const result = await saveBrand(values); setMessage(result.message); if (result.ok) form.reset() }))}><div><label className={labelClass}>Name</label><input className={inputClass} {...form.register('name')} /></div><div><label className={labelClass}>Slug</label><input className={inputClass} {...form.register('slug')} /></div><div><label className={labelClass}>Description</label><textarea className="min-h-20 w-full rounded-lg border border-slate-200 p-3 text-sm" {...form.register('description')} /></div><div><label className={labelClass}>Logo URL</label><input className={inputClass} {...form.register('logoUrl')} /></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" {...form.register('isActive')} /> Active</label><button disabled={isPending} className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white"><Tag className="h-4 w-4" />Save brand</button></form><ResultMessage message={message} /></section><section className="rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-semibold">Brands</h2></div><ul className="divide-y divide-slate-100">{brands.map((brand) => <li key={brand.id} className="flex items-center justify-between px-5 py-4"><div><p className="font-semibold">{brand.name}</p><p className="text-xs text-slate-500">/{brand.slug}</p></div><span className={`text-xs font-semibold ${brand.is_active ? 'text-emerald-700' : 'text-slate-500'}`}>{brand.is_active ? 'Active' : 'Inactive'}</span></li>)}</ul></section></div>
+  const editingId = form.watch('id')
+
+  function editBrand(brand: any) {
+    form.reset({ id: brand.id, name: brand.name, slug: brand.slug, description: brand.description ?? '', logoUrl: brand.logo_url ?? '', isActive: brand.is_active, metaTitle: brand.meta_title ?? '', metaDescription: brand.meta_description ?? '' })
+    setLogoUrl(brand.logo_url ?? '')
+    setMessage(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function resetBrand() {
+    form.reset()
+    setLogoUrl('')
+    setMessage(null)
+  }
+
+  function uploadLogo(file: File | undefined) {
+    if (!file) return
+    if (!editingId) {
+      setMessage('Save the brand first, then upload its logo.')
+      return
+    }
+    const data = new FormData()
+    data.set('brandId', editingId)
+    data.set('file', file)
+    startTransition(async () => {
+      const result = await uploadBrandLogo(data)
+      setMessage(result.message)
+      if (result.ok && result.data?.logoUrl) {
+        setLogoUrl(result.data.logoUrl)
+        form.setValue('logoUrl', result.data.logoUrl)
+      }
+    })
+  }
+
+  function removeLogo() {
+    if (!editingId) return
+    startTransition(async () => {
+      const result = await removeBrandLogo(editingId)
+      setMessage(result.message)
+      if (result.ok) {
+        setLogoUrl('')
+        form.setValue('logoUrl', '')
+      }
+    })
+  }
+
+  return <div className="grid gap-6 lg:grid-cols-[.8fr_1.2fr]"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-4"><div><h2 className="font-semibold">{editingId ? 'Edit brand' : 'Create brand'}</h2><p className="mt-1 text-sm text-slate-500">Save the brand record before uploading a logo.</p></div>{editingId ? <button type="button" onClick={resetBrand} className="text-xs font-semibold text-slate-500 hover:text-slate-950">Cancel edit</button> : null}</div><form className="mt-5 space-y-4" onSubmit={form.handleSubmit((values: any) => startTransition(async () => { const result = await saveBrand(values); setMessage(result.message); if (result.ok && result.data?.id) { form.setValue('id', result.data.id); } }))}><div><label className={labelClass}>Name</label><input className={inputClass} {...form.register('name')} /><p className="mt-1 text-xs text-rose-600">{typeof form.formState.errors.name?.message === 'string' ? form.formState.errors.name.message : ''}</p></div><div><label className={labelClass}>Slug</label><input className={inputClass} {...form.register('slug')} /></div><div><label className={labelClass}>Description</label><textarea className="min-h-20 w-full rounded-lg border border-slate-200 p-3 text-sm" {...form.register('description')} /></div><div><label className={labelClass}>SEO title</label><input className={inputClass} {...form.register('metaTitle')} /></div><div><label className={labelClass}>SEO description</label><textarea className="min-h-20 w-full rounded-lg border border-slate-200 p-3 text-sm" {...form.register('metaDescription')} /></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" {...form.register('isActive')} /> Active</label><button disabled={isPending} className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white"><Tag className="h-4 w-4" />{editingId ? 'Save changes' : 'Save brand'}</button></form><div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4"><div className="flex items-center gap-4">{logoUrl ? <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-3"><img src={logoUrl} alt="Brand logo preview" className="h-full w-full object-contain" /></div> : <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200 bg-white text-center text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">No logo</div>}<div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-900">Brand logo</p><p className="mt-1 text-xs leading-5 text-slate-500">SVG, PNG, WebP, or JPEG · maximum 2 MB · object-contained on storefront.</p><div className="mt-3 flex flex-wrap gap-2"><label className={`inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white transition hover:bg-emerald-700 ${!editingId || isPending ? 'pointer-events-none opacity-50' : ''}`}><Upload className="h-3.5 w-3.5" />{logoUrl ? 'Replace logo' : 'Upload logo'}<input type="file" accept="image/svg+xml,image/png,image/webp,image/jpeg" className="sr-only" disabled={!editingId || isPending} onChange={(event) => { uploadLogo(event.target.files?.[0]); event.currentTarget.value = '' }} /></label>{logoUrl ? <button type="button" onClick={removeLogo} disabled={isPending} className="inline-flex h-9 items-center gap-2 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" />Remove</button> : null}</div></div></div></div><ResultMessage message={message} /></section><section className="rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-semibold">Brands</h2><p className="mt-1 text-sm text-slate-500">{brands.length} brand{brands.length === 1 ? '' : 's'} in the catalogue.</p></div>{brands.length ? <ul className="divide-y divide-slate-100">{brands.map((brand) => <li key={brand.id} className="flex items-center gap-4 px-5 py-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">{brand.logo_url ? <img src={brand.logo_url} alt={`${brand.name} logo`} className="h-full w-full object-contain" /> : <span className="text-center text-[8px] font-bold uppercase tracking-wider text-slate-400">No logo</span>}</div><div className="min-w-0 flex-1"><p className="truncate font-semibold text-slate-900">{brand.name}</p><p className="truncate text-xs text-slate-500">/{brand.slug}</p></div><span className={`shrink-0 text-xs font-semibold ${brand.is_active ? 'text-emerald-700' : 'text-slate-500'}`}>{brand.is_active ? 'Active' : 'Inactive'}</span><button type="button" onClick={() => editBrand(brand)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-950" aria-label={`Edit ${brand.name}`}><Pencil className="h-4 w-4" /></button></li>)}</ul> : <p className="p-8 text-sm text-slate-500">No brands are available yet.</p>}</section></div>
 }
 
 function CategoryTab({ categories }: { categories: any[] }) {

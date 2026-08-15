@@ -143,6 +143,13 @@ export async function getBrands() {
   return (data ?? []) as StorefrontBrand[]
 }
 
+export async function getBrandBySlug(slug: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('brands').select('id,name,slug,logo_url,description,meta_title,meta_description').eq('slug', slug).eq('is_active', true).maybeSingle()
+  if (error) throw new Error('Unable to load this brand.')
+  return (data ?? null) as StorefrontBrand | null
+}
+
 export async function getCategories() {
   const supabase = await createClient()
   const { data, error } = await supabase.from('categories').select('id,name,slug,description,image_url,sort_order,meta_title,meta_description').eq('is_active', true).order('sort_order').order('name')

@@ -12,6 +12,7 @@ import {
 import {
   getProductMetaDescription, 
   getProductMetaTitle, 
+  getBrandPath,
   getProductPrimaryImage,
   getStartingPrice
 } from '@/lib/services/storefront-utils'
@@ -95,7 +96,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <Breadcrumbs 
           items={[
             { label: 'Products', href: '/products' }, 
-            ...(product.category ? [{ label: product.category.name, href: `/products?category=${encodeURIComponent(product.category.slug)}` }] : []), 
+            ...(product.brand ? [{ label: product.brand.name, href: getBrandPath(product.brand.slug) }] : []),
+            ...(product.category ? [{ label: product.category.name, href: `/products?category=${encodeURIComponent(product.category.slug)}` }] : []),
             { label: product.name, href: `/products/${product.slug}` }
           ]} 
         />
@@ -125,7 +127,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
             <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">More from {product.brand.name}</p>
             <h2 className="mt-3 text-2xl font-black tracking-tight">Explore the full brand catalogue.</h2>
             <Link 
-              href={`/products?brand=${encodeURIComponent(product.brand.slug)}`} 
+              href={getBrandPath(product.brand.slug)}
               className="mt-5 inline-flex rounded-full bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-emerald-300"
             >
               Browse {product.brand.name}

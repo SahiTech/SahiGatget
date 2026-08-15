@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { ArrowUpRight, PackageCheck } from 'lucide-react'
 
+import { BrandLogo } from '@/components/storefront/brand-logo'
 import type { StorefrontProduct } from '@/lib/services/storefront-utils'
-import { formatPrice, getCompareAtPrice, getProductAvailability, getProductDiscount, getProductImageAlt, getProductImageUrl, getProductPriceRange, getProductVariantSummary } from '@/lib/services/storefront-utils'
+import { formatPrice, getBrandPath, getCompareAtPrice, getProductAvailability, getProductDiscount, getProductImageAlt, getProductImageUrl, getProductPriceRange, getProductVariantSummary } from '@/lib/services/storefront-utils'
 
 function AvailabilityPill({ product }: { product: StorefrontProduct }) {
   const availability = getProductAvailability(product)
@@ -39,7 +40,7 @@ export function ProductCard({ product }: { product: StorefrontProduct }) {
       </Link>
       <div className="flex flex-1 flex-col px-2 pb-2 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-          <span className="min-w-0 flex-1 truncate">{product.brand?.name || 'SahiGadget'}</span>
+          {product.brand ? <Link href={getBrandPath(product.brand.slug)} className="inline-flex min-w-0 items-center gap-2 truncate transition-colors hover:text-emerald-700" aria-label={`Browse ${product.brand.name} products`}><BrandLogo brand={product.brand} size="sm" className="h-7 w-7 rounded-lg p-1" /><span className="truncate">{product.brand.name}</span></Link> : <span className="min-w-0 flex-1 truncate">SahiGadget</span>}
           {product.is_featured && <span className="shrink-0 text-emerald-600">Featured</span>}
         </div>
         <Link href={`/products/${product.slug}`} className="mt-2 block focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200">

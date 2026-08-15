@@ -219,7 +219,7 @@ export function getProductVariantSummary(product: StorefrontProduct) {
 }
 
 export function getProductPath(slug: string) { return `/products/${slug}` }
-export function getBrandPath(slug: string) { return `/products?brand=${encodeURIComponent(slug)}` }
+export function getBrandPath(slug: string) { return `/brands/${encodeURIComponent(slug)}` }
 export function getCategoryPath(slug: string) { return `/products?category=${encodeURIComponent(slug)}` }
 export function getSearchPath(query: string) { return `/search?q=${encodeURIComponent(query)}` }
 

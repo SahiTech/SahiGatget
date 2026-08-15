@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import { ArrowUpRight, Layers3, Sparkles } from 'lucide-react'
 
+import { BrandLogo } from '@/components/storefront/brand-logo'
 import type { StorefrontBrand, StorefrontCategory } from '@/lib/services/storefront'
+import { getBrandPath } from '@/lib/services/storefront'
 
 // Mapping of category slugs to high-quality fallback visuals from existing catalogue
 const categoryFallbacks: Record<string, string> = {
@@ -13,26 +15,21 @@ const categoryFallbacks: Record<string, string> = {
 
 export function BrandCard({ brand }: { brand: StorefrontBrand }) {
   return (
-    <Link 
-      href={`/products?brand=${encodeURIComponent(brand.slug)}`} 
-      className="group rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-900/8 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
+    <Link
+      href={getBrandPath(brand.slug)}
+      className="group flex min-h-[220px] flex-col rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-900/8 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
     >
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-lg font-black text-emerald-300">
-          {brand.logo_url ? (
-            <>
-              <span className="sr-only">{brand.name} logo</span>
-              <img src={brand.logo_url} alt={`${brand.name} logo`} className="h-full w-full object-contain bg-white p-2" />
-            </>
-          ) : (
-            brand.name.slice(0, 2).toUpperCase()
-          )}
-        </div>
-        <ArrowUpRight className="h-5 w-5 text-slate-300 transition-colors group-hover:text-emerald-600" aria-hidden="true" />
+      <div className="flex items-start justify-between gap-4">
+        <BrandLogo brand={brand} size="md" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition-colors duration-200 group-hover:border-emerald-200 group-hover:bg-emerald-50 group-hover:text-emerald-700" aria-hidden="true">
+          <ArrowUpRight className="h-4 w-4" />
+        </span>
       </div>
-      <h2 className="mt-5 text-lg font-black tracking-tight text-slate-950">{brand.name}</h2>
-      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{brand.description || 'Explore published products from this brand.'}</p>
-      <span className="mt-4 inline-flex text-xs font-bold uppercase tracking-[0.15em] text-emerald-700">Browse products</span>
+      <div className="mt-auto pt-7">
+        <h2 className="text-lg font-black tracking-tight text-slate-950">{brand.name}</h2>
+        <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">{brand.description || 'Explore published products from this brand.'}</p>
+        <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-[0.15em] text-emerald-700">Explore brand <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></span>
+      </div>
     </Link>
   )
 }

@@ -157,6 +157,7 @@ export default async function HomePage() {
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">Trusted makers</p>
                 <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] sm:text-3xl">Shop by brand</h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">Explore active makers with clear catalogue paths, recognizable logos, and products ready for delivery across Bangladesh.</p>
               </div>
               <Link href="/brands" className="inline-flex items-center gap-2 text-sm font-black text-emerald-300 transition-colors hover:text-emerald-200">
                 All brands <ArrowRight className="h-4 w-4" />

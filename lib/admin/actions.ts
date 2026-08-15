@@ -23,7 +23,7 @@ import {
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
-export type AdminActionResult = { ok: boolean; message: string }
+export type AdminActionResult = { ok: boolean; message: string; data?: { id?: string; logoUrl?: string } }
 
 function optional(value?: string | null) {
   const trimmed = value?.trim()
@@ -45,6 +45,8 @@ function actionFailure(error: unknown): AdminActionResult {
 function refreshAdminRoutes() {
   ;['/admin', '/admin/dashboard', '/admin/products', '/admin/inventory', '/admin/orders', '/admin/customers', '/admin/settings'].forEach((path) => revalidatePath(path))
   revalidatePath('/products')
+  revalidatePath('/brands')
+  revalidatePath('/brands/[slug]', 'page')
 }
 
 export async function signInAdmin(input: unknown): Promise<AdminActionResult> {
@@ -164,7 +166,65 @@ export async function saveBrand(input: unknown): Promise<AdminActionResult> {
     if (error || !data) throw new Error(error?.message ?? 'Unable to save brand.')
     await writeAdminAuditLog({ actorUserId: session.userId, action: parsed.id ? 'BRAND_UPDATED' : 'BRAND_CREATED', entityType: 'brand', entityId: data.id, details: { is_active: parsed.isActive } })
     refreshAdminRoutes()
-    return { ok: true, message: parsed.id ? 'Brand updated.' : 'Brand created.' }
+    return { ok: true, message: parsed.id ? 'Brand updated.' : 'Brand created.', data: { id: data.id, logoUrl: payload.logo_url ?? undefined } }
+  } catch (error) {
+    return actionFailure(error)
+  }
+}
+
+function getBrandLogoStoragePath(url: string | null | undefined) {
+  if (!url) return null
+  const marker = '/storage/v1/object/public/brand-logos/'
+  const index = url.indexOf(marker)
+  return index >= 0 ? decodeURIComponent(url.slice(index + marker.length)) : null
+}
+
+export async function uploadBrandLogo(formData: FormData): Promise<AdminActionResult> {
+  try {
+    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    const brandId = formData.get('brandId')
+    const file = formData.get('file')
+    if (typeof brandId !== 'string' || !zUuid(brandId) || !(file instanceof File)) return { ok: false, message: 'Choose a brand and a valid logo file.' }
+    const allowedTypes = new Set(['image/svg+xml', 'image/png', 'image/webp', 'image/jpeg'])
+    if (!allowedTypes.has(file.type) || file.size <= 0 || file.size > 2 * 1024 * 1024) return { ok: false, message: 'Use an SVG, PNG, WebP, or JPEG logo up to 2 MB.' }
+
+    const extension = file.type === 'image/svg+xml' ? 'svg' : file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
+    const storagePath = `${brandId}/${randomUUID()}.${extension}`
+    const db = createAdminClient()
+    const { data: brand, error: brandError } = await db.from('brands').select('id,logo_url').eq('id', brandId).single()
+    if (brandError || !brand) return { ok: false, message: 'The selected brand could not be found.' }
+    const upload = await db.storage.from('brand-logos').upload(storagePath, file, { contentType: file.type, upsert: false })
+    if (upload.error) throw new Error(upload.error.message)
+    const { data: publicUrl } = db.storage.from('brand-logos').getPublicUrl(storagePath)
+    const { error: updateError } = await db.from('brands').update({ logo_url: publicUrl.publicUrl, updated_at: new Date().toISOString() }).eq('id', brandId)
+    if (updateError) {
+      await db.storage.from('brand-logos').remove([storagePath])
+      throw new Error(updateError.message)
+    }
+    const oldPath = getBrandLogoStoragePath(brand.logo_url)
+    if (oldPath && oldPath !== storagePath) await db.storage.from('brand-logos').remove([oldPath])
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'BRAND_LOGO_UPLOADED', entityType: 'brand', entityId: brandId, details: { content_type: file.type, size: file.size } })
+    refreshAdminRoutes()
+    return { ok: true, message: 'Brand logo uploaded.', data: { id: brandId, logoUrl: publicUrl.publicUrl } }
+  } catch (error) {
+    return actionFailure(error)
+  }
+}
+
+export async function removeBrandLogo(brandId: string): Promise<AdminActionResult> {
+  try {
+    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    if (!zUuid(brandId)) return { ok: false, message: 'Invalid brand reference.' }
+    const db = createAdminClient()
+    const { data: brand, error: brandError } = await db.from('brands').select('id,logo_url').eq('id', brandId).single()
+    if (brandError || !brand) return { ok: false, message: 'The selected brand could not be found.' }
+    const { error: updateError } = await db.from('brands').update({ logo_url: null, updated_at: new Date().toISOString() }).eq('id', brandId)
+    if (updateError) throw new Error(updateError.message)
+    const storagePath = getBrandLogoStoragePath(brand.logo_url)
+    if (storagePath) await db.storage.from('brand-logos').remove([storagePath])
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'BRAND_LOGO_REMOVED', entityType: 'brand', entityId: brandId })
+    refreshAdminRoutes()
+    return { ok: true, message: 'Brand logo removed.', data: { id: brandId, logoUrl: '' } }
   } catch (error) {
     return actionFailure(error)
   }
