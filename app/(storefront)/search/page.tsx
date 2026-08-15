@@ -6,7 +6,14 @@ import { ProductGrid } from '@/components/product/product-card'
 import { PageIntro } from '@/components/storefront/page-intro'
 import { getProducts } from '@/lib/services/storefront'
 
-export const metadata: Metadata = { title: 'Search the catalogue', description: 'Search published SahiGadget products by name, brand, SKU, and variant information.', alternates: { canonical: '/search' } }
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: 'Search the catalogue',
+    description: 'Search published SahiGadget products by name, brand, SKU, and variant information.',
+    alternates: { canonical: '/search' },
+    robots: { index: false, follow: true },
+  }
+}
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 function valueOf(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value }

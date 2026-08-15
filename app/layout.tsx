@@ -77,6 +77,50 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-slate-50 text-slate-950">
         <Toaster position="top-right" richColors />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'Organization',
+                  '@id': `${siteConfig.url}/#organization`,
+                  name: siteConfig.name,
+                  url: siteConfig.url,
+                  description: `${siteConfig.brandPromise}.`,
+                  telephone: siteConfig.contact.phone,
+                  email: siteConfig.contact.publicEmail,
+                  address: {
+                    '@type': 'PostalAddress',
+                    addressLocality: siteConfig.location.city,
+                    addressCountry: siteConfig.location.country,
+                    postalCode: '1460',
+                    streetAddress: 'Araihazar',
+                  },
+                  areaServed: { '@type': 'Country', name: 'Bangladesh' },
+                  sameAs: [siteConfig.contact.facebook],
+                  contactPoint: [{
+                    '@type': 'ContactPoint',
+                    contactType: 'customer support',
+                    telephone: siteConfig.contact.phone,
+                    email: siteConfig.contact.supportEmail,
+                    areaServed: 'BD',
+                    availableLanguage: ['en', 'bn'],
+                  }],
+                },
+                {
+                  '@type': 'WebSite',
+                  '@id': `${siteConfig.url}/#website`,
+                  name: siteConfig.name,
+                  url: siteConfig.url,
+                  publisher: { '@id': `${siteConfig.url}/#organization` },
+                  inLanguage: 'en-BD',
+                },
+              ],
+            }),
+          }}
+        />
         {children}
       </body>
     </html>

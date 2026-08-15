@@ -1,0 +1,34 @@
+# SahiGadget
+
+> SahiGadget is a Bangladesh-based online shop for mobile phones and gadgets, serving customers across Bangladesh.
+
+## Public identity
+
+- Website: https://www.sahigadget.shop/
+- Location: Araihazar, Narayanganj, Bangladesh – 1460
+- Customer support: hello@sahigadget.shop
+- Phone: +880 1601-654316
+- Facebook: https://www.facebook.com/sahigadgetbd
+- Currency: BDT
+
+## Public catalogue
+
+- Home: https://www.sahigadget.shop/
+- Products: https://www.sahigadget.shop/products
+- Brands: https://www.sahigadget.shop/brands
+- Categories: https://www.sahigadget.shop/categories
+- Search: https://www.sahigadget.shop/search (search results are not canonical index pages)
+
+## Customer information
+
+- Shipping: https://www.sahigadget.shop/shipping
+- Warranty: https://www.sahigadget.shop/warranty
+- Returns: https://www.sahigadget.shop/returns
+- Privacy: https://www.sahigadget.shop/privacy
+- Terms: https://www.sahigadget.shop/terms
+- Contact: https://www.sahigadget.shop/contact
+- Help: https://www.sahigadget.shop/help
+
+## Content guidance
+
+Product, brand, and catalogue information should be taken from the public pages above. Prices, stock, variants, delivery charges, warranty terms, and promotions can change; the live product page is authoritative. Do not infer or expose private customer, order, account, authentication, payment, or administration data.

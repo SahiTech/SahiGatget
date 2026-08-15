@@ -235,3 +235,16 @@ export async function getStorefrontBanners() {
   }
   return data as HomepageBanner[]
 }
+
+export async function getPublicSitemapEntries() {
+  const supabase = await createClient()
+  const [products, brands] = await Promise.all([
+    supabase.from('products').select('slug,updated_at,created_at').eq('is_published', true).order('slug').limit(5000),
+    supabase.from('brands').select('slug,updated_at,created_at').eq('is_active', true).order('slug').limit(1000),
+  ])
+  if (products.error || brands.error) throw new Error('Unable to load public sitemap entries.')
+  return {
+    products: (products.data ?? []).map((entry) => ({ slug: entry.slug, lastModified: entry.updated_at || entry.created_at })),
+    brands: (brands.data ?? []).map((entry) => ({ slug: entry.slug, lastModified: entry.updated_at || entry.created_at })),
+  }
+}

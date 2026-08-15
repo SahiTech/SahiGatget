@@ -29,14 +29,21 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   }
 }
 
-function ProductBreadcrumbs({ product }: { product: Awaited<ReturnType<typeof getProductBySlug>> extends infer T ? Exclude<T, null> : never }) {
-  const items = [
+type ProductForSeo = Awaited<ReturnType<typeof getProductBySlug>> extends infer T ? Exclude<T, null> : never
+
+function getProductBreadcrumbItems(product: ProductForSeo) {
+  return [
     { label: 'Home', href: '/' },
     { label: 'Products', href: '/products' },
     ...(product.brand ? [{ label: product.brand.name, href: `/brands/${encodeURIComponent(product.brand.slug)}` }] : []),
     ...(product.category ? [{ label: product.category.name, href: getCategoryPath(product.category.slug) }] : []),
+    { label: product.name, href: `/products/${encodeURIComponent(product.slug)}` },
   ]
-  return <nav aria-label="Breadcrumb" className="min-w-0 overflow-hidden text-xs font-semibold text-slate-500"><ol className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">{items.map((item) => <li key={`${item.href}-${item.label}`} className="inline-flex min-w-0 items-center gap-2"><Link href={item.href} className="max-w-[12rem] truncate transition-colors hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200">{item.label}</Link><span aria-hidden="true" className="text-slate-300">/</span></li>)}<li aria-current="page" className="min-w-0 max-w-full truncate font-bold text-slate-950">{product.name}</li></ol></nav>
+}
+
+function ProductBreadcrumbs({ product }: { product: ProductForSeo }) {
+  const items = getProductBreadcrumbItems(product)
+  return <nav aria-label="Breadcrumb" className="min-w-0 overflow-hidden text-xs font-semibold text-slate-500"><ol className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">{items.map((item, index) => <li key={`${item.href}-${item.label}`} className="inline-flex min-w-0 items-center gap-2">{index === items.length - 1 ? <span aria-current="page" className="min-w-0 max-w-full truncate font-bold text-slate-950">{item.label}</span> : <><Link href={item.href} className="max-w-[12rem] truncate transition-colors hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200">{item.label}</Link><span aria-hidden="true" className="text-slate-300">/</span></>}</li>)}</ol></nav>
 }
 
 export default async function ProductDetailPage({ params }: { params: Params }) {
@@ -58,23 +65,50 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
     storageValues ? ['Storage', storageValues] as [string, string] : null,
     colourValues ? ['Colour', colourValues] as [string, string] : null,
   ].filter((row): row is [string, string] => Boolean(row))
-  const jsonLd = {
-    '@context': 'https://schema.org',
+  const breadcrumbItems = getProductBreadcrumbItems(product)
+  const variantEntities = product.variants.map((variant) => ({
+    '@type': 'Product',
+    name: `${product.name}${variant.variant_title ? ` · ${variant.variant_title}` : ''}`,
+    description: product.short_description || product.description || undefined,
+    image: primaryImage ? [primaryImage] : undefined,
+    sku: variant.sku || undefined,
+    brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined,
+    category: product.category?.name || undefined,
+    offers: {
+      '@type': 'Offer',
+      url: `${siteConfig.url}/products/${product.slug}`,
+      priceCurrency: siteConfig.currency.code,
+      price: variant.price,
+      availability: variant.is_in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      seller: { '@type': 'Organization', name: siteConfig.name },
+    },
+  }))
+  const productEntity = product.variants.length > 1 ? {
+    '@type': 'ProductGroup',
+    name: product.name,
+    description: product.short_description || product.description || undefined,
+    url: `${siteConfig.url}/products/${product.slug}`,
+    image: primaryImage ? [primaryImage] : undefined,
+    brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined,
+    category: product.category?.name || undefined,
+    hasVariant: variantEntities,
+  } : variantEntities[0] ?? {
     '@type': 'Product',
     name: product.name,
     description: product.short_description || product.description || undefined,
     image: primaryImage ? [primaryImage] : undefined,
-    sku: product.variants[0]?.sku || undefined,
     brand: product.brand ? { '@type': 'Brand', name: product.brand.name } : undefined,
     category: product.category?.name || undefined,
-    offers: product.variants[0] ? {
-      '@type': 'Offer',
-      url: `${siteConfig.url}/products/${product.slug}`,
-      priceCurrency: siteConfig.currency.code,
-      price: product.variants[0].price,
-      availability: product.variants.some((variant) => variant.is_in_stock) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      seller: { '@type': 'Organization', name: siteConfig.name },
-    } : undefined,
+  }
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      productEntity,
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: breadcrumbItems.map((item, position) => ({ '@type': 'ListItem', position: position + 1, name: item.label, item: `${siteConfig.url}${item.href}` })),
+      },
+    ],
   }
 
   return <main className="flex-1"><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} /><div className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8"><ProductBreadcrumbs product={product} /><div className="mt-7"><ProductDetailInteractive product={product} settings={settings} phone={siteConfig.contact.phone} /></div>

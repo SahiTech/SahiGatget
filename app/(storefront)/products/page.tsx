@@ -7,7 +7,16 @@ import { ProductGrid } from '@/components/product/product-card'
 import { PageIntro } from '@/components/storefront/page-intro'
 import { getBrands, getCategories, getProductTypes, getProducts, parsePage, parsePrice, type ProductFilters } from '@/lib/services/storefront'
 
-export const metadata: Metadata = { title: 'Shop the catalogue', description: 'Browse published mobile phones and gadgets from the SahiGadget catalogue.', alternates: { canonical: '/products' } }
+export async function generateMetadata({ searchParams }: { searchParams: SearchParams }): Promise<Metadata> {
+  const params = await searchParams
+  const hasQueryState = Object.values(params).some((value) => Array.isArray(value) ? value.some(Boolean) : Boolean(value))
+  return {
+    title: 'Shop the catalogue',
+    description: 'Browse published mobile phones and gadgets from the SahiGadget catalogue.',
+    alternates: { canonical: '/products' },
+    robots: hasQueryState ? { index: false, follow: true } : { index: true, follow: true },
+  }
+}
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 function valueOf(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value }
