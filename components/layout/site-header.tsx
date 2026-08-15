@@ -83,7 +83,7 @@ export function SiteHeader() {
     const isTooShort = !isEmpty && query.trim().length < 2
 
     return (
-      <div className={`absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ${isMobile ? 'max-h-[60vh] overflow-y-auto' : ''}`}>
+      <div className={`motion-safe:animate-[dropdown-in_160ms_ease-out_both] motion-reduce:animate-none absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ${isMobile ? 'max-h-[60vh] overflow-y-auto' : ''}`}>
         {isEmpty ? (
           <div className="p-4">
             <p className="mb-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -191,12 +191,12 @@ export function SiteHeader() {
               <Image src="/logo.png" alt="SahiGadget Logo" width={44} height={44} className="h-full w-full object-cover" />
             </div>
             <div className="min-w-0">
-              <span className="block truncate text-[15px] font-black leading-tight tracking-[-0.02em] text-slate-950 sm:text-base">{siteConfig.name}</span>
+              <span className="motion-safe:animate-[brand-in_240ms_ease-out_both] motion-reduce:animate-none block truncate bg-gradient-to-r from-slate-950 via-slate-800 to-emerald-600 bg-clip-text text-[17px] font-black leading-tight tracking-[-0.035em] text-transparent sm:text-lg">{siteConfig.name}</span>
               <span className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:block">Mobile & gadgets</span>
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
+          <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary navigation">
             {navItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
               return (
@@ -207,7 +207,7 @@ export function SiteHeader() {
             })}
           </nav>
 
-          <div ref={searchRef} className="relative hidden min-w-0 max-w-md flex-1 items-center md:block md:mx-4">
+          <div ref={searchRef} className="relative hidden min-w-0 max-w-md flex-1 items-center lg:block lg:mx-4">
             <form onSubmit={submitSearch} role="search">
               <label className="sr-only" htmlFor="desktop-search">Search the catalogue</label>
               <div className="flex w-full items-center rounded-full border border-slate-200 bg-slate-50 px-4 transition-colors focus-within:border-emerald-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100/80">
@@ -222,7 +222,7 @@ export function SiteHeader() {
                   onFocus={() => setShowDropdown(true)}
                   autoComplete="off"
                   placeholder="Search phones, gadgets, or SKU" 
-                  className="h-10 min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:outline-none"
+                  className="h-10 min-w-0 flex-1 appearance-none bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 {query && (
                   <button 
@@ -246,17 +246,17 @@ export function SiteHeader() {
               Admin Portal
             </Link>
             <Link href="/track-order" className="hidden text-sm font-semibold text-slate-500 transition-colors hover:text-slate-950 lg:block">Track order</Link>
-            <Button asChild className="hidden rounded-full bg-emerald-500 text-slate-950 hover:bg-emerald-400 md:inline-flex">
+            <Button asChild className="hidden rounded-full bg-emerald-500 text-slate-950 transition-transform duration-150 hover:-translate-y-0.5 hover:bg-emerald-400 motion-reduce:transform-none lg:inline-flex">
               <Link href="/products">Shop now</Link>
             </Button>
-            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 transition-colors hover:bg-slate-100 md:hidden" onClick={() => { setMenuOpen((open) => !open); if (!menuOpen) setShowDropdown(false); }} aria-expanded={menuOpen} aria-controls="mobile-navigation" aria-label={menuOpen ? 'Close menu' : 'Open menu'}>
+            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 transition-colors hover:bg-slate-100 lg:hidden" onClick={() => { setMenuOpen((open) => !open); if (!menuOpen) setShowDropdown(false); }} aria-expanded={menuOpen} aria-controls="mobile-navigation" aria-label={menuOpen ? 'Close menu' : 'Open menu'}>
               {menuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
             </button>
           </div>
         </div>
 
         {menuOpen && (
-          <div id="mobile-navigation" className="border-t border-slate-200 bg-white px-4 py-5 md:hidden shadow-xl">
+          <div id="mobile-navigation" className="motion-safe:animate-[menu-in_180ms_ease-out_both] motion-reduce:animate-none border-t border-slate-200 bg-white px-4 py-5 shadow-xl lg:hidden">
             <div ref={mobileSearchRef} className="relative mb-4">
                 <form onSubmit={submitSearch} className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 transition-colors focus-within:border-emerald-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100/80" role="search">
                 <label className="sr-only" htmlFor="mobile-search">Search the catalogue</label>
@@ -271,7 +271,7 @@ export function SiteHeader() {
                   onFocus={() => setShowDropdown(true)}
                   autoComplete="off"
                   placeholder="Search phones, gadgets, SKU" 
-                  className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400 focus-visible:outline-none"
+                  className="h-11 min-w-0 flex-1 appearance-none bg-transparent text-sm outline-none placeholder:text-slate-400 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 {query && (
                   <button type="button" onClick={() => { setQuery(''); setSuggestions([]) }} className="mr-2 text-slate-400">
