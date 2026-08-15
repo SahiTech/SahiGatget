@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
+import type { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, Save, X, RefreshCw, Trash2, Link2, MousePointerClick } from 'lucide-react'
 
@@ -11,7 +12,21 @@ import { createHomepageBanner, updateHomepageBanner, uploadBannerImageAction } f
 const inputClass = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100'
 const labelClass = 'mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-600'
 
-type BannerFormProps = { initialData?: any; onSuccess: () => void; onCancel?: () => void }
+type BannerRecord = {
+  id?: string
+  desktop_image_url?: string | null
+  mobile_image_url?: string | null
+  heading?: string | null
+  description?: string | null
+  primary_cta_text?: string | null
+  primary_cta_url?: string | null
+  is_active?: boolean | null
+  sort_order?: number | null
+}
+
+type BannerFormValues = z.input<typeof bannerSchema>
+
+type BannerFormProps = { initialData?: BannerRecord | null; onSuccess: () => void; onCancel?: () => void }
 
 export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps) {
   const [isPending, startTransition] = useTransition()
@@ -19,7 +34,7 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
   const [bannerFile, setBannerFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string>(initialData?.desktop_image_url || initialData?.mobile_image_url || '')
 
-  const form = useForm<any>({
+  const form = useForm<BannerFormValues>({
     resolver: zodResolver(bannerSchema),
     defaultValues: initialData
       ? {
@@ -70,7 +85,7 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
     form.setValue('mobileImageUrl', '', { shouldValidate: true })
   }
 
-  const onSubmit = (values: any) => {
+  const onSubmit = (values: BannerFormValues) => {
     startTransition(async () => {
       try {
         setMessage('Uploading optimized banner image...')
@@ -92,7 +107,7 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
         if (!result.ok) { setMessage(result.message); return }
         setMessage(values.id ? 'Banner updated successfully.' : 'Banner created successfully.')
         window.setTimeout(onSuccess, 500)
-      } catch (error: any) { setMessage(error?.message || 'Banner save failed.') }
+      } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Banner save failed.') }
     })
   }
 

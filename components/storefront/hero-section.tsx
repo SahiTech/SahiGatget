@@ -18,11 +18,6 @@ export function HeroSection({ banners, productCount, brandCount, categoryCount }
     return () => window.clearInterval(interval)
   }, [banners.length])
 
-  useEffect(() => {
-    if (!banners.length) return
-    setCurrentSlide((prev) => Math.min(prev, banners.length - 1))
-  }, [banners.length])
-
   if (banners.length === 0) {
     return (
       <section className="relative overflow-hidden bg-slate-950 text-white">
@@ -35,15 +30,16 @@ export function HeroSection({ banners, productCount, brandCount, categoryCount }
     )
   }
 
-  const activeBanner = banners[currentSlide]
+  const activeIndex = Math.min(currentSlide, banners.length - 1)
+  const activeBanner = banners[activeIndex]
   const destination = activeBanner.primary_cta_url?.trim() || '/products'
 
   return (
     <section aria-label="Promotional banners" className="bg-slate-950">
       <div className="relative mx-auto aspect-[2.8/1] min-h-[140px] w-full max-w-[1920px] overflow-hidden bg-slate-950 sm:min-h-[210px]">
-        {banners.map((banner, idx) => <div key={banner.id} aria-hidden={idx !== currentSlide} className={`absolute inset-0 transition-opacity duration-500 ease-out ${idx === currentSlide ? 'z-10 opacity-100' : 'z-0 opacity-0'}`}><Image src={banner.desktop_image_url} alt="" fill sizes="100vw" priority={idx === 0} loading={idx === 0 ? 'eager' : 'lazy'} quality={82} className="object-cover" /></div>)}
+        {banners.map((banner, idx) => <div key={banner.id} aria-hidden={idx !== activeIndex} className={`absolute inset-0 transition-opacity duration-500 ease-out ${idx === activeIndex ? 'z-10 opacity-100' : 'z-0 opacity-0'}`}><Image src={banner.desktop_image_url} alt="" fill sizes="100vw" priority={idx === 0} loading={idx === 0 ? 'eager' : 'lazy'} quality={82} className="object-cover" /></div>)}
         <Link href={destination} aria-label="Open this promotion" className="absolute inset-0 z-20 block cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-emerald-300"><span className="sr-only">Open promotion</span></Link>
-        {banners.length > 1 ? <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center gap-1.5 sm:bottom-4" aria-hidden="true">{banners.map((banner, idx) => <span key={banner.id} className={`h-1 rounded-full transition-all ${idx === currentSlide ? 'w-6 bg-white' : 'w-2 bg-white/45'}`} />)}</div> : null}
+        {banners.length > 1 ? <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center gap-1.5 sm:bottom-4" aria-hidden="true">{banners.map((banner, idx) => <span key={banner.id} className={`h-1 rounded-full transition-all ${idx === activeIndex ? 'w-6 bg-white/90' : 'w-2 bg-white/45'}`} />)}</div> : null}
       </div>
     </section>
   )
