@@ -4,29 +4,37 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowRight, BadgeCheck, ShieldCheck, Truck, Zap } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { HomepageBanner } from '@/lib/services/storefront-utils'
 import { siteConfig } from '@/config/site'
 
-export function HeroSection({ banners, deliverySummary, policySummary, productCount, brandCount, categoryCount }: { 
-  banners: HomepageBanner[]; 
-  deliverySummary: string;
-  policySummary: string;
-  productCount: number;
-  brandCount: number;
-  categoryCount: number;
-}) {
+type HeroSectionProps = {
+  banners: HomepageBanner[]
+  deliverySummary: string
+  policySummary: string
+  productCount: number
+  brandCount: number
+  categoryCount: number
+}
+
+export function HeroSection({ banners, productCount, brandCount, categoryCount }: HeroSectionProps) {
   const [currentSlide, setCurrentSlide] = useState(0)
 
   useEffect(() => {
     if (banners.length <= 1) return
-    const interval = setInterval(() => {
+
+    const interval = window.setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % banners.length)
     }, 6000)
-    return () => clearInterval(interval)
+
+    return () => window.clearInterval(interval)
   }, [banners.length])
 
-  // Fallback Hero if no banners exist
+  useEffect(() => {
+    if (!banners.length) return
+    setCurrentSlide((prev) => Math.min(prev, banners.length - 1))
+  }, [banners.length])
+
   if (banners.length === 0) {
     return (
       <section className="relative overflow-hidden bg-slate-950 text-white">
@@ -51,11 +59,6 @@ export function HeroSection({ banners, deliverySummary, policySummary, productCo
                 Browse categories
               </Link>
             </div>
-            <div className="mt-9 flex flex-wrap gap-x-6 gap-y-3 text-[10px] font-semibold text-slate-400 sm:text-xs">
-              <span className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-emerald-300" />Cash on Delivery</span>
-              <span className="flex items-center gap-2"><Truck className="h-4 w-4 text-emerald-300" />{deliverySummary}</span>
-              <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-300" />{policySummary}</span>
-            </div>
           </div>
           <StatsCard productCount={productCount} brandCount={brandCount} categoryCount={categoryCount} />
         </div>
@@ -64,70 +67,48 @@ export function HeroSection({ banners, deliverySummary, policySummary, productCo
   }
 
   const activeBanner = banners[currentSlide]
+  const destination = activeBanner.primary_cta_url?.trim() || '/products'
 
   return (
-    <section className="relative flex min-h-[520px] items-center overflow-hidden bg-slate-950 text-white">
-      {/* Background Images with improved visibility and professional gradient */}
-      {banners.map((banner, idx) => (
-        <div 
-          key={banner.id} 
-          className={`absolute inset-0 transition-opacity duration-1000 ${idx === currentSlide ? 'opacity-100' : 'opacity-0'}`}
-        >
-          {/* Desktop Image */}
-          <div className="hidden absolute inset-0 md:block">
-            <img src={banner.desktop_image_url} alt="" className="h-full w-full scale-105 object-cover opacity-90 transition-transform duration-1000" />
-            {/* Subtle left-to-right gradient to ensure text readability without hiding the image */}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/30 to-transparent" />
-          </div>
-          {/* Mobile Image */}
-          <div className="absolute inset-0 md:hidden">
-            <img src={banner.mobile_image_url} alt="" className="h-full w-full object-cover opacity-85" />
-            {/* Bottom-up gradient for mobile to keep the top/middle clear */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent" />
-          </div>
-        </div>
-      ))}
-
-      <div className="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-24">
-        <div className="transition-all duration-500 transform translate-y-0 opacity-100">
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300 backdrop-blur-md sm:text-xs">
-            <Zap className="h-3.5 w-3.5 text-emerald-400" /> Featured Highlight
-          </div>
-          <h1 className="mt-6 max-w-3xl text-3xl font-black leading-[1.05] tracking-[-0.05em] drop-shadow-lg sm:text-5xl md:text-6xl lg:text-7xl">
-            {activeBanner.heading}
-          </h1>
-          <p className="mt-6 max-w-xl text-sm leading-7 text-slate-100 drop-shadow-md sm:text-base sm:leading-8">
-            {activeBanner.description}
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href={activeBanner.primary_cta_url} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-emerald-400 px-7 text-sm font-black text-slate-950 shadow-xl shadow-emerald-400/20 transition-colors hover:bg-emerald-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200">
-              {activeBanner.primary_cta_text} <ArrowRight className="h-4 w-4" />
-            </Link>
-            {activeBanner.secondary_cta_text && activeBanner.secondary_cta_url && (
-              <Link href={activeBanner.secondary_cta_url} className="inline-flex min-h-12 items-center rounded-full border border-white/20 bg-black/20 px-7 text-sm font-bold text-white backdrop-blur-md transition-colors hover:bg-black/40">
-                {activeBanner.secondary_cta_text}
-              </Link>
-            )}
-          </div>
-          
-          {/* Pagination dots if multiple banners */}
-          {banners.length > 1 && (
-            <div className="mt-10 flex gap-2">
-              {banners.map((_, idx) => (
-                <button 
-                  key={idx} 
-                  onClick={() => setCurrentSlide(idx)}
-                  className={`h-1.5 rounded-full transition-all ${idx === currentSlide ? 'w-8 bg-emerald-400' : 'w-2 bg-white/30 hover:bg-white/60'}`}
-                  aria-label={`Go to slide ${idx + 1}`}
-                />
-              ))}
+    <section aria-label="Promotional banners" className="bg-slate-950">
+      <div className="relative mx-auto w-full max-w-[1920px] overflow-hidden bg-slate-950 aspect-[2.8/1] min-h-[140px] max-h-[520px] sm:min-h-[210px]">
+        {banners.map((banner, idx) => {
+          const isActive = idx === currentSlide
+          return (
+            <div
+              key={banner.id}
+              aria-hidden={!isActive}
+              className={`absolute inset-0 transition-opacity duration-500 ease-out ${isActive ? 'z-10 opacity-100' : 'z-0 opacity-0'}`}
+            >
+              <img
+                src={banner.desktop_image_url}
+                alt=""
+                loading={idx === 0 ? 'eager' : 'lazy'}
+                fetchPriority={idx === 0 ? 'high' : 'low'}
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
             </div>
-          )}
-        </div>
-        
-        <div className="hidden lg:block">
-          <StatsCard productCount={productCount} brandCount={brandCount} categoryCount={categoryCount} />
-        </div>
+          )
+        })}
+
+        <Link
+          href={destination}
+          aria-label="Open this promotion"
+          className="absolute inset-0 z-20 block cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-emerald-300"
+        >
+          <span className="sr-only">Open promotion</span>
+        </Link>
+
+        {banners.length > 1 ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center gap-1.5 sm:bottom-4" aria-hidden="true">
+            {banners.map((banner, idx) => (
+              <span key={banner.id} className={`h-1 rounded-full transition-all ${idx === currentSlide ? 'w-6 bg-white' : 'w-2 bg-white/45'}`} />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="pointer-events-none absolute inset-0 z-15 bg-gradient-to-b from-black/[0.03] via-transparent to-black/[0.10]" />
       </div>
     </section>
   )
@@ -148,27 +129,12 @@ function StatsCard({ productCount, brandCount, categoryCount }: { productCount: 
           </div>
         </div>
         <div className="mt-6 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl bg-white/[0.06] p-4">
-            <p className="text-2xl font-black text-white sm:text-3xl">{productCount}</p>
-            <p className="mt-1 text-[10px] text-slate-300 sm:text-xs">Active products</p>
-          </div>
-          <div className="rounded-2xl bg-white/[0.06] p-4">
-            <p className="text-2xl font-black text-white sm:text-3xl">{brandCount}</p>
-            <p className="mt-1 text-[10px] text-slate-300 sm:text-xs">Verified brands</p>
-          </div>
-          <div className="rounded-2xl bg-white/[0.06] p-4">
-            <p className="text-2xl font-black text-white sm:text-3xl">{categoryCount}</p>
-            <p className="mt-1 text-[10px] text-slate-300 sm:text-xs">Categories</p>
-          </div>
-          <div className="rounded-2xl bg-emerald-400 p-4 text-slate-950">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-800">Support</p>
-            <p className="mt-1 text-xs font-black truncate">{siteConfig.contact.phone}</p>
-          </div>
+          <div className="rounded-2xl bg-white/[0.06] p-4"><p className="text-2xl font-black text-white sm:text-3xl">{productCount}</p><p className="mt-1 text-[10px] text-slate-300 sm:text-xs">Active products</p></div>
+          <div className="rounded-2xl bg-white/[0.06] p-4"><p className="text-2xl font-black text-white sm:text-3xl">{brandCount}</p><p className="mt-1 text-[10px] text-slate-300 sm:text-xs">Verified brands</p></div>
+          <div className="rounded-2xl bg-white/[0.06] p-4"><p className="text-2xl font-black text-white sm:text-3xl">{categoryCount}</p><p className="mt-1 text-[10px] text-slate-300 sm:text-xs">Categories</p></div>
+          <div className="rounded-2xl bg-emerald-400 p-4 text-slate-950"><p className="text-xs font-bold uppercase tracking-wider text-slate-800">Support</p><p className="mt-1 text-xs font-black truncate">{siteConfig.contact.phone}</p></div>
         </div>
-        <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-          <p className="text-xs font-bold text-emerald-200">{siteConfig.brandPromise}</p>
-          <p className="mt-1.5 text-[10px] leading-5 text-slate-300">Clear specs, valid warranty terms, and prompt delivery across Bangladesh.</p>
-        </div>
+        <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4"><p className="text-xs font-bold text-emerald-200">{siteConfig.brandPromise}</p><p className="mt-1.5 text-[10px] leading-5 text-slate-300">Clear specs, valid warranty terms, and prompt delivery across Bangladesh.</p></div>
       </div>
     </div>
   )
