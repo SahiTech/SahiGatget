@@ -19,6 +19,7 @@ export type InvoiceDocument = {
   invoiceNumber: string
   orderId: string
   orderNumber: string
+  verificationToken: string | null
   issuedAt: string
   orderDate: string
   orderStatus: string

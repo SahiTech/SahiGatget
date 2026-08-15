@@ -70,3 +70,44 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
     animation: none !important;
   }
 }
+
+
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  .invoice-page {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .invoice-paper {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .invoice-paper table {
+    page-break-inside: auto;
+  }
+
+  .invoice-paper tr,
+  .invoice-paper .invoice-policy,
+  .invoice-paper .invoice-footer,
+  .invoice-paper .invoice-qr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

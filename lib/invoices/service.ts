@@ -34,7 +34,7 @@ function storeProfile(value: unknown) {
     brandPromise: textValue(profile.brand_promise, 'আসল পণ্য • দ্রুত ডেলিভারি • সারা দেশে সেবা'),
     location: textValue(profile.location, 'Araihazar, Narayanganj, Bangladesh – 1460'),
     phone: textValue(profile.phone, '+880 1601-654316'),
-    publicEmail: textValue(profile.public_email, 'www.sahigadget.com@gmail.com'),
+    publicEmail: textValue(profile.public_email, 'hello@sahigadget.shop'),
     currency: textValue(profile.currency, 'BDT'),
   }
 }
@@ -60,6 +60,7 @@ async function loadInvoiceById(invoiceId: string): Promise<InvoiceDocument> {
 
   if (error || !data) throw new Error('Invoice could not be loaded safely.')
   const row = data as unknown as Record<string, unknown>
+  const { data: orderToken } = await db.from('orders').select('tracking_token').eq('id', String(row.order_id)).maybeSingle()
   const rawItems = Array.isArray(row.invoice_items) ? row.invoice_items as Array<Record<string, unknown>> : []
   const items: InvoiceDocumentItem[] = rawItems.map((item) => ({
     id: textValue(item.id),
@@ -82,6 +83,7 @@ async function loadInvoiceById(invoiceId: string): Promise<InvoiceDocument> {
     invoiceNumber: textValue(row.invoice_number),
     orderId: textValue(row.order_id),
     orderNumber: textValue(row.order_number_snapshot),
+    verificationToken: optionalText(orderToken?.tracking_token),
     issuedAt: textValue(row.issued_at),
     orderDate: textValue(row.issued_at),
     orderStatus: textValue(row.order_status_snapshot, 'PENDING'),
@@ -135,4 +137,36 @@ export async function getGuestInvoiceDocument(orderNumber: string, phone: string
     throw new Error('We could not verify this order. Check the order number and mobile number, then try again.')
   }
   return loadInvoiceForOrder(String(order.id))
+}
+
+export async function getPublicInvoiceVerification(token: string) {
+  const normalizedToken = token.trim()
+  if (!normalizedToken || normalizedToken.length > 160) return null
+  const db = createAdminClient()
+  const { data: order, error } = await db
+    .from('orders')
+    .select('id,order_number,created_at,order_status,payment_status,subtotal,discount_total,delivery_charge,grand_total')
+    .eq('tracking_token', normalizedToken)
+    .maybeSingle()
+  if (error || !order) return null
+
+  const { data: items, error: itemsError } = await db
+    .from('order_items')
+    .select('quantity')
+    .eq('order_id', String((order as Record<string, unknown>).id))
+  if (itemsError) return null
+
+  const row = order as Record<string, unknown>
+  const safeItems = (items ?? []) as Array<Record<string, unknown>>
+  return {
+    orderNumber: textValue(row.order_number),
+    createdAt: textValue(row.created_at),
+    status: textValue(row.order_status, 'PENDING'),
+    paymentStatus: textValue(row.payment_status, 'pending'),
+    subtotal: numberValue(row.subtotal),
+    discountTotal: numberValue(row.discount_total),
+    deliveryCharge: numberValue(row.delivery_charge),
+    grandTotal: numberValue(row.grand_total),
+    itemCount: safeItems.reduce((sum, item) => sum + numberValue(item.quantity), 0),
+  }
 }

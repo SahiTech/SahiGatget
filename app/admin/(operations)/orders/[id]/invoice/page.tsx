@@ -14,5 +14,5 @@ export const metadata: Metadata = {
 export default async function AdminInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const invoice = await getAdminInvoiceDocument(id)
-  return <main className="min-h-screen bg-slate-100 py-8"><InvoiceActions orderId={invoice.orderId} /><InvoiceDocumentView invoice={invoice} /></main>
+  return <main className="invoice-page min-h-screen bg-slate-100 py-8"><InvoiceActions orderId={invoice.orderId} />{await InvoiceDocumentView({ invoice })}</main>
 }
