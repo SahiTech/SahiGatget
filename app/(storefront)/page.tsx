@@ -4,7 +4,7 @@ import { ArrowRight, Sparkles, PackageOpen, Phone } from 'lucide-react'
 import { siteConfig } from '@/config/site'
 import { BrandCard, CategoryCard } from '@/components/storefront/discovery-card'
 import { ProductGrid } from '@/components/product/product-card'
-import { getBrands, getCategories, getFeaturedProducts, getProducts, getStorefrontSettings, getStorefrontBanners, type StorefrontBrand, type StorefrontCategory } from '@/lib/services/storefront'
+import { getBrands, getCategories, getFeaturedProducts, getProducts, getStorefrontBanners, type StorefrontBrand, type StorefrontCategory } from '@/lib/services/storefront'
 import { HeroSection } from '@/components/storefront/hero-section'
 import { TrustStrip } from '@/components/storefront/trust-strip'
 
@@ -14,12 +14,11 @@ export const metadata = {
 }
 
 export default async function HomePage() {
-  const [featuredResult, allProductsResult, brands, categories, settings, banners] = await Promise.all([
+  const [featuredResult, allProductsResult, brands, categories, banners] = await Promise.all([
     getFeaturedProducts(8),
     getProducts({ pageSize: 12 }),
     getBrands(),
     getCategories(),
-    getStorefrontSettings(),
     getStorefrontBanners(),
   ])
 
@@ -29,27 +28,12 @@ export default async function HomePage() {
 
   return (
     <main className="flex-1 bg-slate-50/50">
-      <HeroSection banners={banners} deliverySummary="" policySummary="" productCount={allProducts.length} brandCount={brands.length} categoryCount={categories.length} />
-
+      <HeroSection banners={banners} productCount={allProducts.length} brandCount={brands.length} categoryCount={categories.length} />
       <TrustStrip />
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Discover</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl">Shop by category</h2></div>
-          <Link href="/categories" className="inline-flex items-center gap-2 text-sm font-black text-slate-950 transition-colors hover:text-emerald-700">View all categories <ArrowRight className="h-4 w-4" /></Link>
-        </div>
-        <div className="mt-8">{categories.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{categories.map((category: StorefrontCategory) => <CategoryCard key={category.id} category={category} />)}</div> : <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">Categories will appear here as soon as they are added.</div>}</div>
-      </section>
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Discover</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl">Shop by category</h2></div><Link href="/categories" className="inline-flex items-center gap-2 text-sm font-black text-slate-950 transition-colors hover:text-emerald-700">View all categories <ArrowRight className="h-4 w-4" /></Link></div><div className="mt-8">{categories.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{categories.map((category: StorefrontCategory) => <CategoryCard key={category.id} category={category} />)}</div> : <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">Categories will appear here as soon as they are added.</div>}</div></section>
 
-      <section className="border-y border-slate-200 bg-white py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Catalogue highlight</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl">Featured devices & gadgets</h2><p className="mt-1 text-sm text-slate-500">Published live inventory with transparent pricing and specs.</p></div>
-            <Link href="/products" className="inline-flex items-center gap-2 text-sm font-black text-slate-950 transition-colors hover:text-emerald-700">Browse full catalogue <ArrowRight className="h-4 w-4" /></Link>
-          </div>
-          <div className="mt-8">{featuredProducts.length ? <ProductGrid products={featuredProducts} /> : <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-12 text-center"><PackageOpen className="mx-auto h-10 w-10 text-slate-400" /><p className="mt-4 text-base font-black text-slate-950">Catalogue is being updated</p><p className="mt-1 text-sm text-slate-500">Published products will appear here automatically.</p></div>}</div>
-        </div>
-      </section>
+      <section className="border-y border-slate-200 bg-white py-16"><div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Catalogue highlight</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl">Featured devices & gadgets</h2><p className="mt-1 text-sm text-slate-500">Published live inventory with transparent pricing and specs.</p></div><Link href="/products" className="inline-flex items-center gap-2 text-sm font-black text-slate-950 hover:text-emerald-700">Browse full catalogue <ArrowRight className="h-4 w-4" /></Link></div><div className="mt-8">{featuredProducts.length ? <ProductGrid products={featuredProducts} /> : <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-12 text-center"><PackageOpen className="mx-auto h-10 w-10 text-slate-400" /><p className="mt-4 text-base font-black text-slate-950">Catalogue is being updated</p><p className="mt-1 text-sm text-slate-500">Published products will appear here automatically.</p></div>}</div></div></section>
 
       {bestDeals.length > 0 && <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.2em] text-rose-600"><Sparkles className="h-3.5 w-3.5" /> Special savings</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl">Best value deals</h2></div><Link href="/products" className="inline-flex items-center gap-2 text-sm font-black text-slate-950 hover:text-emerald-700">View all deals <ArrowRight className="h-4 w-4" /></Link></div><div className="mt-8"><ProductGrid products={bestDeals} /></div></section>}
 
