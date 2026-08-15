@@ -213,7 +213,7 @@ export function SiteHeader() {
               <div className="flex w-full items-center rounded-full border border-slate-200 bg-slate-50 px-4 transition-colors focus-within:border-emerald-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-100/80">
                 <Search className="mr-2 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                 <input 
-                  id="desktop-search" 
+                  id="desktop-search" data-search-input
                   value={query} 
                   onChange={(event) => {
                     setQuery(event.target.value)
@@ -262,7 +262,7 @@ export function SiteHeader() {
                 <label className="sr-only" htmlFor="mobile-search">Search the catalogue</label>
                 <Search className="mr-2 h-4 w-4 text-slate-400" aria-hidden="true" />
                 <input 
-                  id="mobile-search" 
+                  id="mobile-search" data-search-input
                   value={query} 
                   onChange={(event) => {
                     setQuery(event.target.value)

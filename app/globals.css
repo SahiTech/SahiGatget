@@ -39,6 +39,11 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
   to { opacity: 1; transform: translateY(0); }
 }
 
+[data-search-input]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
