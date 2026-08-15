@@ -1,1 +1,5 @@
-export default function SearchLoading() { return <main className="flex-1"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"><div className="h-3 w-32 animate-pulse rounded-full bg-slate-200" /><div className="mt-5 h-12 w-72 animate-pulse rounded-xl bg-slate-200" /><div className="mx-auto mt-10 h-16 max-w-3xl animate-pulse rounded-[1.5rem] bg-white shadow-sm ring-1 ring-slate-200" /></div></main> }
+import { ProductListingSkeleton } from '@/components/storefront/loading-skeletons'
+
+export default function SearchLoading() {
+  return <ProductListingSkeleton search />
+}

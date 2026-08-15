@@ -1,1 +1,5 @@
-export default function BrandsLoading() { return <main className="flex-1"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"><div className="h-3 w-32 animate-pulse rounded-full bg-slate-200" /><div className="mt-5 h-12 w-64 animate-pulse rounded-xl bg-slate-200" /><div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-48 animate-pulse rounded-[1.5rem] bg-white shadow-sm ring-1 ring-slate-200" />)}</div></div></main> }
+import { BrandPageSkeleton } from '@/components/storefront/loading-skeletons'
+
+export default function BrandsLoading() {
+  return <BrandPageSkeleton />
+}

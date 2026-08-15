@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowUpRight, PackageCheck } from 'lucide-react'
 
 import { BrandLogo } from '@/components/storefront/brand-logo'
@@ -11,13 +12,12 @@ function AvailabilityPill({ product }: { product: StorefrontProduct }) {
   return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${styles}`}><PackageCheck className="h-3 w-3" aria-hidden="true" />{availability.label}</span>
 }
 
-export function ProductMedia({ product, className = '' }: { product: StorefrontProduct; className?: string }) {
+export function ProductMedia({ product, className = '', priority = false }: { product: StorefrontProduct; className?: string; priority?: boolean }) {
   const imageUrl = getProductImageUrl(product)
   return (
     <div className={`relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[1.25rem] bg-[radial-gradient(circle_at_50%_35%,#ffffff_0%,#eef5f2_44%,#dce9e4_100%)] ${className}`}>
       {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt={getProductImageAlt(product)} className="h-full w-full object-contain p-8 transition-transform duration-300 group-hover:scale-105" />
+        <Image src={imageUrl} alt={getProductImageAlt(product)} fill sizes="(max-width: 639px) 100vw, (max-width: 1279px) 50vw, 25vw" priority={priority} loading={priority ? undefined : 'lazy'} className="object-contain p-8 transition-transform duration-300 group-hover:scale-105" />
       ) : (
         <div className="text-center">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-slate-950 text-2xl font-black tracking-tight text-emerald-300 shadow-xl shadow-slate-950/15">{product.name.slice(0, 2).toUpperCase()}</div>
@@ -29,14 +29,14 @@ export function ProductMedia({ product, className = '' }: { product: StorefrontP
   )
 }
 
-export function ProductCard({ product }: { product: StorefrontProduct }) {
+export function ProductCard({ product, priority = false }: { product: StorefrontProduct; priority?: boolean }) {
   const variantSummary = getProductVariantSummary(product)
   const compareAt = getCompareAtPrice(product)
   const priceRange = getProductPriceRange(product)
   return (
     <article className="group flex h-full flex-col rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-900/8">
       <Link href={`/products/${product.slug}`} className="block rounded-[1.25rem] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200" aria-label={`View ${product.name}`}>
-        <ProductMedia product={product} />
+        <ProductMedia product={product} priority={priority} />
       </Link>
       <div className="flex flex-1 flex-col px-2 pb-2 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
@@ -65,5 +65,5 @@ export function ProductCard({ product }: { product: StorefrontProduct }) {
 }
 
 export function ProductGrid({ products }: { products: StorefrontProduct[] }) {
-  return <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
+  return <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">{products.map((product, index) => <ProductCard key={product.id} product={product} priority={index === 0} />)}</div>
 }

@@ -1,1 +1,5 @@
-export default function CategoriesLoading() { return <main className="flex-1"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"><div className="h-3 w-32 animate-pulse rounded-full bg-slate-200" /><div className="mt-5 h-12 w-72 animate-pulse rounded-xl bg-slate-200" /><div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-48 animate-pulse rounded-[1.5rem] bg-slate-950/10" />)}</div></div></main> }
+import { CategoryPageSkeleton } from '@/components/storefront/loading-skeletons'
+
+export default function CategoriesLoading() {
+  return <CategoryPageSkeleton />
+}
