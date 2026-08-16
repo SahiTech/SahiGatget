@@ -1,34 +1,11 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { Archive, Boxes, ClipboardList, LayoutDashboard, LogOut, PackageSearch, Settings2, ShieldCheck, UsersRound, Layout, MessageSquareText } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { Archive, LogOut, ShieldCheck } from 'lucide-react'
 
 import { signOutAdmin } from '@/lib/admin/actions'
-import type { AdminRole, AdminSession } from '@/lib/admin/auth'
+import type { AdminSession } from '@/lib/admin/auth'
 import { AdminMobileNav } from './admin-mobile-nav'
-
-const navigation: { href: string; label: string; icon: LucideIcon; roles: readonly AdminRole[] }[] = [
-  { href: '/admin', label: 'Overview', icon: LayoutDashboard, roles: ['OWNER', 'ADMIN', 'STAFF'] },
-  { href: '/admin/homepage', label: 'Homepage', icon: Layout, roles: ['OWNER', 'ADMIN'] },
-  { href: '/admin/landing-pages', label: 'Landing Pages', icon: Layout, roles: ['OWNER', 'ADMIN'] },
-  { href: '/admin/products', label: 'Catalogue', icon: PackageSearch, roles: ['OWNER', 'ADMIN'] },
-  { href: '/admin/inventory', label: 'Inventory', icon: Boxes, roles: ['OWNER', 'ADMIN', 'STAFF'] },
-  { href: '/admin/orders', label: 'Orders', icon: ClipboardList, roles: ['OWNER', 'ADMIN', 'STAFF'] },
-  { href: '/admin/customers', label: 'Customers', icon: UsersRound, roles: ['OWNER', 'ADMIN', 'STAFF'] },
-  { href: '/admin/support', label: 'Customer Support', icon: MessageSquareText, roles: ['OWNER', 'ADMIN', 'STAFF'] },
-  { href: '/admin/settings', label: 'Settings', icon: Settings2, roles: ['OWNER', 'ADMIN'] },
-]
-
-function NavigationLinks({ session }: { session: AdminSession }) {
-  return (
-    <nav className="space-y-1" aria-label="Admin navigation">
-      {navigation.filter((item) => item.roles.includes(session.role)).map((item) => {
-        const Icon = item.icon
-        return <Link key={item.href} href={item.href} className="flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"><Icon className="h-4 w-4 text-emerald-400" />{item.label}</Link>
-      })}
-    </nav>
-  )
-}
+import { AdminNavigation } from './admin-navigation'
 
 function SignOutControl() {
   return <form action={signOutAdmin}><button type="submit" className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-slate-300 transition hover:bg-rose-500/10 hover:text-rose-300"><LogOut className="h-4 w-4" />Sign out</button></form>
@@ -39,14 +16,14 @@ export function AdminShell({ session, children }: { session: AdminSession; child
     <div className="min-h-screen bg-slate-100 text-slate-950">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-slate-950 p-5 text-white md:flex">
         <Link href="/admin" className="mb-9 flex items-center gap-3"><div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-slate-900 shadow-md"><Image src="/logo.png" alt="SahiGadget Logo" width={40} height={40} className="h-full w-full object-cover" /></div><span><span className="block text-sm font-bold tracking-wide">SahiGadget</span><span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300">Operations</span></span></Link>
-        <NavigationLinks session={session} />
+        <AdminNavigation role={session.role} />
         <div className="mt-auto border-t border-slate-800 pt-4"><div className="mb-3 rounded-xl bg-slate-900 p-3"><p className="truncate text-sm font-semibold">{session.fullName}</p><p className="mt-1 text-xs font-bold uppercase tracking-wider text-emerald-300">{session.role}</p></div><SignOutControl /></div>
       </aside>
       <div className="md:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:px-8">
           <div className="flex items-center gap-3">
             <AdminMobileNav>
-              <NavigationLinks session={session} />
+              <AdminNavigation role={session.role} />
               <div className="mt-3 border-t border-slate-800 pt-3">
                 <SignOutControl />
               </div>
