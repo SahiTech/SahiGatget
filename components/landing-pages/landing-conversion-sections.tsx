@@ -28,6 +28,15 @@ function customerText(value: string | undefined) {
     .replace(/live pricing/gi, 'মূল্য ও অফার')
     .replace(/live catalogue offer/gi, 'বর্তমান পণ্যের অফার')
     .replace(/order flow/gi, 'অর্ডার প্রক্রিয়া')
+    .replace(/choose your variant/gi, 'ভ্যারিয়েন্ট নির্বাচন করুন')
+    .replace(/see order options/gi, 'অর্ডার করুন')
+    .replace(/order now/gi, 'অর্ডার করুন')
+    .replace(/warranty information/gi, 'ওয়ারেন্টি তথ্য')
+    .replace(/warranty policy is shown from the current product পণ্যের/gi, 'ওয়ারেন্টি নীতি এই পণ্যের জন্য প্রযোজ্য')
+    .replace(/price, variants, and stock are resolved from the current পণ্যের/gi, 'মূল্য, ভ্যারিয়েন্ট ও স্টকের তথ্য এই পণ্য অনুযায়ী দেখানো হচ্ছে')
+    .replace(/the page links into the existing SahiGadget অর্ডার প্রক্রিয়া/gi, 'অর্ডারটি SahiGadget-এর নিরাপদ প্রক্রিয়ায় সম্পন্ন হবে')
+    .replace(/বর্তমান পণ্যের পণ্যের তথ্য with নিরাপদ অর্ডার সম্পন্ন করার ধাপ/gi, 'এই পণ্যের তথ্য ও নিরাপদ অর্ডারের সুবিধা একসাথে দেখুন')
+    .replace(/current product পণ্যের/gi, 'এই পণ্যের')
     .replace(/backend|database|cms|api/gi, 'সিস্টেম')
     .replace(/existing SahiGadget order flow/gi, 'SahiGadget-এর অর্ডার প্রক্রিয়া')
 }
@@ -89,7 +98,7 @@ function ProductHero({ section, product, variant, fixedImageUrl }: { section?: E
           {compareAt ? <span className="text-base font-semibold text-slate-400 line-through">{money(compareAt)}</span> : null}
         </div>
         <p className="mt-2 text-sm font-bold text-slate-600">{variant ? `${variantLabel(variant)} · ${variant.is_in_stock ? 'স্টকে আছে' : 'এই ভ্যারিয়েন্টটি বর্তমানে অনুপলব্ধ'}` : 'একটি ভ্যারিয়েন্ট নির্বাচন করুন'}</p>
-        <button type="button" onClick={scrollToOrder} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-7 py-3 text-base font-black text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 sm:w-auto">{section?.ctaLabel || 'অর্ডার করুন'}</button>
+        <button type="button" onClick={scrollToOrder} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-7 py-3 text-base font-black text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 sm:w-auto">{customerText(section?.ctaLabel) || 'অর্ডার করুন'}</button>
       </div>
     </div>
   </section>
@@ -98,7 +107,7 @@ function ProductHero({ section, product, variant, fixedImageUrl }: { section?: E
 function VariantSelector({ section, product, selectedVariantId, onSelect }: { section: Extract<LandingSection, { type: 'variant_selector' }>; product?: StorefrontProduct; selectedVariantId: string; onSelect: (id: string) => void }) {
   if (!product?.variants.length) return null
   return <section aria-labelledby={`${section.id}-title`} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-10 ${visibility(section)}`}>
-    <h2 id={`${section.id}-title`} className="text-2xl font-black tracking-tight text-slate-950">{section.title || 'রঙ নির্বাচন করুন'}</h2>
+    <h2 id={`${section.id}-title`} className="text-2xl font-black tracking-tight text-slate-950">{customerText(section.title) || 'ভ্যারিয়েন্ট নির্বাচন করুন'}</h2>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       {product.variants.map((variant) => {
         const image = imageForVariant(product, variant, section.variantImages?.[variant.id])
@@ -175,7 +184,7 @@ export function LandingConversionSections({ sections, products, fixedImageUrl }:
       if (section.type === 'variant_selector') return <VariantSelector key={section.id} section={section} product={selectedProduct} selectedVariantId={selectedVariantId} onSelect={setSelectedVariantId} />
       if (section.type === 'quantity_selector') return <QuantitySelector key={section.id} section={section} quantity={quantity} onChange={setQuantity} />
       if (section.type === 'countdown') return <Countdown key={section.id} section={section} />
-      if (section.type === 'offer') { const compareAt = selectedVariant.compare_at_price && selectedVariant.compare_at_price > selectedVariant.price ? selectedVariant.compare_at_price : null; return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 ${visibility(section)}`}><div className="border-y border-emerald-100 bg-emerald-50 px-5 py-5"><p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">{customerText(section.discountText) || 'বিশেষ অফার'}</p><h2 className="mt-2 text-2xl font-black">{customerText(section.title)}</h2>{section.body ? <p className="mt-2 text-sm leading-7 text-slate-700">{customerText(section.body)}</p> : null}<p className="mt-4 text-2xl font-black text-emerald-800">{money(selectedVariant.price)} {compareAt ? <span className="ml-2 text-sm text-slate-500 line-through">{money(compareAt)}</span> : null}</p>{section.ctaLabel ? <button type="button" onClick={scrollToOrder} className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{section.ctaLabel}</button> : null}</div></section> }
+      if (section.type === 'offer') { const compareAt = selectedVariant.compare_at_price && selectedVariant.compare_at_price > selectedVariant.price ? selectedVariant.compare_at_price : null; return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 ${visibility(section)}`}><div className="border-y border-emerald-100 bg-emerald-50 px-5 py-5"><p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">{customerText(section.discountText) || 'বিশেষ অফার'}</p><h2 className="mt-2 text-2xl font-black">{customerText(section.title)}</h2>{section.body ? <p className="mt-2 text-sm leading-7 text-slate-700">{customerText(section.body)}</p> : null}<p className="mt-4 text-2xl font-black text-emerald-800">{money(selectedVariant.price)} {compareAt ? <span className="ml-2 text-sm text-slate-500 line-through">{money(compareAt)}</span> : null}</p>{section.ctaLabel ? <button type="button" onClick={scrollToOrder} className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{customerText(section.ctaLabel)}</button> : null}</div></section> }
       if (section.type === 'features' || section.type === 'benefits') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{section.title}</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{section.items.map((item) => <article key={item.title} className="border-b border-slate-100 py-3"><h3 className="font-bold">{item.title}</h3>{item.body ? <p className="mt-1 text-sm leading-6 text-slate-600">{item.body}</p> : null}</article>)}</div></section>
       if (section.type === 'specifications') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{section.title}</h2><dl className="mt-4 grid gap-x-8 sm:grid-cols-2">{section.fields.filter((field) => field.value.trim()).map((field) => <div key={field.label} className="flex justify-between gap-4 border-b border-slate-100 py-3 text-sm"><dt className="font-semibold text-slate-500">{field.label}</dt><dd className="text-right font-bold">{field.value}</dd></div>)}</dl></section>
       if (section.type === 'social_proof') return <ReviewSection key={section.id} section={section} />
