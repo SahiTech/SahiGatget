@@ -17,7 +17,7 @@ export function BrandCard({ brand }: { brand: StorefrontBrand }) {
   return (
     <Link
       href={getBrandPath(brand.slug)}
-      className="group flex min-h-[220px] flex-col rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-900/8 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
+      className="group flex min-h-[200px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-900/8 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 sm:min-h-[220px] sm:rounded-[1.5rem] sm:p-5"
     >
       <div className="flex items-start justify-between gap-4">
         <BrandLogo brand={brand} size="md" />
@@ -40,11 +40,11 @@ export function CategoryCard({ category }: { category: StorefrontCategory }) {
   return (
     <Link 
       href={`/products?category=${encodeURIComponent(category.slug)}`} 
-      className="group relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-950 p-6 text-white shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-900/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 min-h-[210px] flex flex-col justify-between"
+      className="group relative flex min-h-[196px] flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-900/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 sm:min-h-[210px] sm:rounded-[1.75rem] sm:p-6"
     >
       {imageUrl ? (
         <div className="absolute inset-0 z-0">
-          <img src={imageUrl} alt="" className="h-full w-full object-cover opacity-60 transition-transform duration-700 group-hover:scale-110" />
+          <img src={imageUrl} alt="" className="h-full w-full object-cover opacity-60 transition-transform duration-500 group-hover:scale-105" />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/10" />
         </div>
       ) : (
@@ -60,7 +60,7 @@ export function CategoryCard({ category }: { category: StorefrontCategory }) {
         </div>
       </div>
 
-      <div className="relative z-10 mt-8">
+      <div className="relative z-10 mt-6 sm:mt-8">
         <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300 mb-1">
           <Sparkles className="h-3 w-3" /> Category
         </div>

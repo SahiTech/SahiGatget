@@ -15,9 +15,9 @@ function AvailabilityPill({ product }: { product: StorefrontProduct }) {
 export function ProductMedia({ product, className = '', priority = false }: { product: StorefrontProduct; className?: string; priority?: boolean }) {
   const imageUrl = getProductImageUrl(product)
   return (
-    <div className={`relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[1.25rem] bg-[radial-gradient(circle_at_50%_35%,#ffffff_0%,#eef5f2_44%,#dce9e4_100%)] ${className}`}>
+    <div className={`relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_50%_35%,#ffffff_0%,#eef5f2_44%,#dce9e4_100%)] ${className}`}>
       {imageUrl ? (
-        <Image src={imageUrl} alt={getProductImageAlt(product)} fill sizes="(max-width: 639px) 100vw, (max-width: 1279px) 50vw, 25vw" priority={priority} loading={priority ? undefined : 'lazy'} className="object-contain p-8 transition-transform duration-300 group-hover:scale-105" />
+        <Image src={imageUrl} alt={getProductImageAlt(product)} fill sizes="(max-width: 639px) 100vw, (max-width: 1279px) 50vw, 25vw" priority={priority} loading={priority ? undefined : 'lazy'} className="object-contain p-6 transition-transform duration-300 group-hover:scale-[1.03] sm:p-8" />
       ) : (
         <div className="text-center">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-slate-950 text-2xl font-black tracking-tight text-emerald-300 shadow-xl shadow-slate-950/15">{product.name.slice(0, 2).toUpperCase()}</div>
@@ -34,7 +34,7 @@ export function ProductCard({ product, priority = false }: { product: Storefront
   const compareAt = getCompareAtPrice(product)
   const priceRange = getProductPriceRange(product)
   return (
-    <article className="group flex h-full flex-col rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-900/8">
+    <article className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-900/8 sm:rounded-[1.5rem] sm:p-3">
       <Link href={`/products/${product.slug}`} className="block rounded-[1.25rem] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200" aria-label={`View ${product.name}`}>
         <ProductMedia product={product} priority={priority} />
       </Link>
@@ -56,7 +56,7 @@ export function ProductCard({ product, priority = false }: { product: Storefront
             <div className="shrink-0">
               <AvailabilityPill product={product} />
             </div>
-            <Link href={`/products/${product.slug}`} className="inline-flex items-center gap-1 text-xs font-bold text-slate-900 transition-colors hover:text-emerald-700" aria-label={`View details for ${product.name}`}>Details <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+            <Link href={`/products/${product.slug}`} className="inline-flex min-h-9 items-center gap-1 rounded-full border border-slate-200 px-3 text-xs font-bold text-slate-900 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100" aria-label={`View details for ${product.name}`}>Details <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
           </div>
         </div>
       </div>
@@ -65,5 +65,5 @@ export function ProductCard({ product, priority = false }: { product: Storefront
 }
 
 export function ProductGrid({ products }: { products: StorefrontProduct[] }) {
-  return <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">{products.map((product, index) => <ProductCard key={product.id} product={product} priority={index === 0} />)}</div>
+  return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">{products.map((product, index) => <ProductCard key={product.id} product={product} priority={index === 0} />)}</div>
 }
