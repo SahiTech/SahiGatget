@@ -118,10 +118,30 @@ function adminNewOrder(order: EmailOrderSnapshot) {
   return { subject, html, text }
 }
 
+const CUSTOMER_STATUS_EMAILS = new Set(['CONFIRMED', 'PROCESSING', 'DELIVERED', 'CANCELLED'])
+
+function statusCopy(status: string) {
+  switch (status) {
+    case 'CONFIRMED':
+      return { subject: 'Your SahiGadget order is confirmed', heading: 'Order confirmed', explanation: 'Your order has been confirmed and is now moving into the fulfilment process.' }
+    case 'PROCESSING':
+      return { subject: 'Your SahiGadget order is being prepared', heading: 'Order being prepared', explanation: 'Your order is being prepared by our team. We will continue to update you as it moves through fulfilment.' }
+    case 'DELIVERED':
+      return { subject: 'Your SahiGadget order has been delivered', heading: 'Order delivered', explanation: 'Your order has been marked as delivered. If you need any help after delivery, our support team is available.' }
+    case 'CANCELLED':
+      return { subject: 'Your SahiGadget order has been cancelled', heading: 'Order cancelled', explanation: 'Your order has been marked as cancelled. No cancellation reason is included unless it was explicitly recorded in the order data.' }
+    default:
+      return null
+  }
+}
+
 function statusEmail(order: EmailOrderSnapshot) {
-  const subject = `SahiGadget order update · ${order.orderNumber}`
-  const text = `Order update\n\nHello ${order.customerName},\n\nYour SahiGadget order ${order.orderNumber} is now ${order.status}.\n\nTrack your order: ${trackUrl(order)}\nSupport: ${siteConfig.contact.supportEmail}`
-  const html = layout('Order update', `<h1 style="margin:0 0 8px;font-size:26px">Order update</h1><p>Hello ${escapeHtml(order.customerName)}, your SahiGadget order status has been updated.</p><div style="background:#eef8f1;border-radius:10px;padding:16px;margin:22px 0"><strong>Order ${escapeHtml(order.orderNumber)}</strong><br/><span style="font-size:20px;color:#14734d">${escapeHtml(order.status)}</span></div><p>We will continue processing your order according to the latest status. For questions, contact <a href="mailto:${escapeHtml(siteConfig.contact.supportEmail)}">${escapeHtml(siteConfig.contact.supportEmail)}</a>.</p><p style="margin-top:24px"><a href="${escapeHtml(trackUrl(order))}" style="display:inline-block;background:#14734d;color:#fff;text-decoration:none;border-radius:8px;padding:12px 18px;font-weight:700">Track Order</a></p>`)
+  const copy = statusCopy(order.status)
+  if (!copy) throw new Error(`Unsupported customer-facing status: ${order.status}`)
+  const subject = `${copy.subject} · ${order.orderNumber}`
+  const delivery = `${order.delivery.address}, ${order.delivery.area}, ${order.delivery.district}, ${order.delivery.division}`
+  const text = `${copy.heading}\n\nHello ${order.customerName},\n\n${copy.explanation}\n\nOrder number: ${order.orderNumber}\nCurrent status: ${order.status}\n\nItems:\n${orderItemsText(order)}\n\nTotal: ${money(order.grandTotal)}\nDelivery: ${delivery}\n\nTrack your order: ${trackUrl(order)}\nSupport: ${siteConfig.contact.supportEmail}`
+  const html = layout(copy.heading, `<h1 style="margin:0 0 8px;font-size:26px">${escapeHtml(copy.heading)}</h1><p>Hello ${escapeHtml(order.customerName)},</p><p>${escapeHtml(copy.explanation)}</p><div style="background:#eef8f1;border-radius:10px;padding:16px;margin:22px 0"><strong>Order ${escapeHtml(order.orderNumber)}</strong><br/><span style="font-size:20px;color:#14734d">${escapeHtml(order.status)}</span></div><h2 style="font-size:16px;margin:24px 0 8px">Order summary</h2><table role="presentation" style="width:100%;border-collapse:collapse">${orderItemsHtml(order)}</table><p style="margin:18px 0"><strong>Total: ${money(order.grandTotal)}</strong></p><p><strong>Delivery information</strong><br/>${escapeHtml(delivery)}</p><p style="margin-top:24px"><a href="${escapeHtml(trackUrl(order))}" style="display:inline-block;background:#14734d;color:#fff;text-decoration:none;border-radius:8px;padding:12px 18px;font-weight:700">Track Order</a></p>`)
   return { subject, html, text }
 }
 
@@ -214,7 +234,7 @@ export async function queueOrderConfirmationEmails(order: EmailOrderSnapshot) {
 }
 
 export async function queueOrderStatusEmail(order: EmailOrderSnapshot, transitionId: string) {
-  if (!order.customerEmail) return { ok: true as const, skipped: true as const }
+  if (!order.customerEmail || !CUSTOMER_STATUS_EMAILS.has(order.status)) return { ok: true as const, skipped: true as const }
   return sendTransactionalEmail(templateFor('ORDER_STATUS', order, order.customerEmail, `order-status/${order.orderId}/${transitionId}/${order.status}`))
 }
 

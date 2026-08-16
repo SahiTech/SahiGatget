@@ -38,7 +38,10 @@ function actionFailure(error: unknown): AdminActionResult {
     if (error.message.includes('INSUFFICIENT_STOCK')) return { ok: false, message: 'This change would result in negative inventory.' }
     if (error.message.includes('INVALID_STOCK_DIRECTION')) return { ok: false, message: 'The quantity direction does not match the selected movement type.' }
     if (error.message.includes('ORDER_STATUS_UNCHANGED')) return { ok: false, message: 'The order already has that status.' }
-    return { ok: false, message: error.message || 'The operation could not be completed.' }
+    if (error.message.includes('ORDER_NOT_FOUND')) return { ok: false, message: 'The order could not be found.' }
+    if (error.message.includes('INVALID_ORDER_STATUS')) return { ok: false, message: 'Choose a valid order status.' }
+    if (error.message.includes('ORDER_UPDATE_FAILED')) return { ok: false, message: 'Unable to update order status. Please try again.' }
+    return { ok: false, message: 'The operation could not be completed. Please try again.' }
   }
   return { ok: false, message: 'The operation could not be completed.' }
 }
@@ -318,16 +321,25 @@ export async function updateOrderStatus(input: unknown): Promise<AdminActionResu
       p_actor_id: session.userId,
     })
     if (error) throw new Error(error.message)
+    let notificationMessage = 'Customer notification was not required for this status.'
     try {
       const order = await loadOrderForEmail(parsed.orderId)
       const transitionId = await latestStatusTransitionId(parsed.orderId)
       const notification = await queueOrderStatusEmail(order, transitionId)
-      if (!notification.ok) console.error('[email] order status notification failed', notification.error)
+      if (!notification.ok) {
+        console.error('[email] order status notification failed', notification.error)
+        notificationMessage = 'Customer notification could not be delivered. The order status was updated.'
+      } else if ('skipped' in notification && notification.skipped) {
+        notificationMessage = 'Customer notification was not required for this status.'
+      } else if ('status' in notification) {
+        notificationMessage = notification.status === 'DELIVERED' ? 'Customer notification delivered.' : 'Customer notification submitted for delivery.'
+      }
     } catch (emailError) {
       console.error('[email] order status notification failed', emailError instanceof Error ? emailError.message : emailError)
+      notificationMessage = 'Customer notification could not be delivered. The order status was updated.'
     }
     refreshAdminRoutes()
-    return { ok: true, message: 'Order status updated and history recorded.' }
+    return { ok: true, message: `Order status updated and history recorded. ${notificationMessage}` }
   } catch (error) {
     return actionFailure(error)
   }
