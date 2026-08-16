@@ -7,15 +7,14 @@ import type { LandingPage, LandingPageInput, LandingSection } from '@/lib/landin
 import type { StorefrontProduct } from '@/lib/services/storefront-utils'
 
 const blankSections: LandingSection[] = [
-  { id: 'hero-1', type: 'hero', eyebrow: 'SahiGadget', title: 'Write a clear campaign promise', body: 'Explain the product or campaign in one focused paragraph.', ctaLabel: 'View product', ctaHref: '#product' },
-  { id: 'benefits-1', type: 'benefits', title: 'Why customers choose it', items: [{ title: 'Authentic product', body: 'Use factual product information only.' }, { title: 'Live catalogue pricing', body: 'Price and stock are resolved from the catalogue.' }] },
+  { id: 'hero-1', type: 'hero', eyebrow: 'SahiGadget', title: 'পণ্যের প্রধান প্রতিশ্রুতি লিখুন', body: 'পণ্য বা প্রচারণার মূল কথা এক সংক্ষিপ্ত অনুচ্ছেদে লিখুন।', ctaLabel: 'পণ্য দেখুন', ctaHref: '#product' }, { id: 'benefits-1', type: 'benefits', title: 'কেন গ্রাহকরা এটি পছন্দ করেন', items: [{ title: 'আসল পণ্যের তথ্য', body: 'শুধু যাচাই করা পণ্যের তথ্য ব্যবহার করুন।' }, { title: 'সঠিক মূল্য ও প্রাপ্যতা', body: 'মূল্য ও প্রাপ্যতা নির্বাচিত পণ্যের তথ্য অনুযায়ী দেখানো হবে।' }] },
 ]
 
 const templates: Array<{ label: string; sections: LandingSection[] }> = [
-  { label: 'Product sales page', sections: [{ id: 'hero-1', type: 'hero', eyebrow: 'SahiGadget', title: 'A focused product campaign', body: 'Lead with a clear product promise and a factual call to action.', ctaLabel: 'Order now', ctaHref: '#order' }, { id: 'gallery-1', type: 'product_gallery', title: 'See it up close' }, { id: 'benefits-1', type: 'benefits', title: 'Built for everyday use', items: [{ title: 'Factual product details', body: 'Resolved from the current catalogue.' }, { title: 'Real availability', body: 'Shown for the selected variant.' }] }, { id: 'order-1', type: 'order', title: 'Ready to order?' }] },
-  { label: 'Flash sale page', sections: [{ id: 'hero-1', type: 'hero', title: 'A timely campaign message', body: 'Use a real campaign end time and factual pricing only.', ctaLabel: 'View offer', ctaHref: '#offer' }, { id: 'offer-1', type: 'offer', title: 'Current product offer', discountText: 'Add approved promotional copy', showLivePrice: true }, { id: 'countdown-1', type: 'countdown', title: 'Campaign ends', endsAt: new Date(Date.now() + 86400000).toISOString() }, { id: 'order-1', type: 'order', title: 'Order through SahiGadget' }] },
-  { label: 'Product + COD page', sections: [{ id: 'hero-1', type: 'hero', title: 'Order with confidence', body: 'Use configured delivery and payment information only.', ctaLabel: 'Order with COD', ctaHref: '#order' }, { id: 'variant-1', type: 'variant_selector', title: 'Choose your variant' }, { id: 'delivery-1', type: 'delivery_info', title: 'Delivery and payment', body: 'Delivery and Cash on Delivery information is resolved from current store settings.' }, { id: 'order-1', type: 'order', title: 'Complete your order' }] },
-  { label: 'Campaign page', sections: [{ id: 'announcement-1', type: 'announcement', eyebrow: 'Campaign', title: 'A clear campaign update', body: 'Keep campaign copy accurate and concise.', tone: 'emerald' }, { id: 'features-1', type: 'features', title: 'Campaign highlights', items: [{ title: 'Add a factual highlight', body: 'Only use verified store information.' }] }, { id: 'faq-1', type: 'faq', title: 'Frequently asked questions', items: [{ question: 'What should I include?', answer: 'Use only approved product, policy, and campaign information.' }] }, { id: 'cta-1', type: 'cta', title: 'Explore SahiGadget', body: 'Continue to the existing catalogue.', label: 'Browse products', href: '/products' }] },
+  { label: 'পণ্য বিক্রয় পৃষ্ঠা', sections: [{ id: 'hero-1', type: 'hero', eyebrow: 'SahiGadget', title: 'পণ্যের জন্য একটি আকর্ষণীয় প্রচারণা', body: 'পণ্যের স্পষ্ট সুবিধা ও যাচাই করা তথ্য দিয়ে শুরু করুন।', ctaLabel: 'অর্ডার করুন', ctaHref: '#order' }, { id: 'gallery-1', type: 'product_gallery', title: 'পণ্যটি কাছ থেকে দেখুন' }, { id: 'benefits-1', type: 'benefits', title: 'দৈনন্দিন ব্যবহারের জন্য উপযোগী', items: [{ title: 'যাচাই করা পণ্যের তথ্য', body: 'বর্তমান পণ্যের তথ্য অনুযায়ী দেখানো হবে।' }, { title: 'সঠিক প্রাপ্যতা', body: 'নির্বাচিত ভ্যারিয়েন্টের প্রাপ্যতা দেখানো হবে।' }] }, { id: 'order-1', type: 'order', title: 'অর্ডার করতে প্রস্তুত?' }] },
+  { label: 'বিশেষ অফার পৃষ্ঠা', sections: [{ id: 'hero-1', type: 'hero', title: 'সময়সীমার প্রচারণা বার্তা', body: 'শুধু সত্য প্রচারণার সময়সীমা ও যাচাই করা মূল্য ব্যবহার করুন।', ctaLabel: 'অফার দেখুন', ctaHref: '#offer' }, { id: 'offer-1', type: 'offer', title: 'বর্তমান পণ্যের অফার', discountText: 'অনুমোদিত প্রচারণার লেখা যোগ করুন', showLivePrice: true }, { id: 'countdown-1', type: 'countdown', title: 'প্রচারণা শেষ হবে', endsAt: new Date(Date.now() + 86400000).toISOString() }, { id: 'order-1', type: 'order', title: 'SahiGadget-এর মাধ্যমে অর্ডার করুন' }] },
+  { label: 'পণ্য + ক্যাশ অন ডেলিভারি পৃষ্ঠা', sections: [{ id: 'hero-1', type: 'hero', title: 'নিশ্চিন্তে অর্ডার করুন', body: 'শুধু নির্ধারিত ডেলিভারি ও পেমেন্টের তথ্য ব্যবহার করুন।', ctaLabel: 'ক্যাশ অন ডেলিভারিতে অর্ডার', ctaHref: '#order' }, { id: 'variant-1', type: 'variant_selector', title: 'ভ্যারিয়েন্ট বেছে নিন' }, { id: 'delivery-1', type: 'delivery_info', title: 'ডেলিভারি ও পেমেন্ট', body: 'বর্তমান স্টোর সেটিংস অনুযায়ী ডেলিভারি ও ক্যাশ অন ডেলিভারির তথ্য দেখানো হবে।' }, { id: 'order-1', type: 'order', title: 'অর্ডার সম্পন্ন করুন' }] },
+  { label: 'প্রচারণা পৃষ্ঠা', sections: [{ id: 'announcement-1', type: 'announcement', eyebrow: 'প্রচারণা', title: 'স্পষ্ট প্রচারণা আপডেট', body: 'প্রচারণার লেখা নির্ভুল ও সংক্ষিপ্ত রাখুন।', tone: 'emerald' }, { id: 'features-1', type: 'features', title: 'প্রচারণার মূল দিক', items: [{ title: 'যাচাই করা একটি সুবিধা যোগ করুন', body: 'শুধু যাচাই করা স্টোরের তথ্য ব্যবহার করুন।' }] }, { id: 'faq-1', type: 'faq', title: 'সাধারণ জিজ্ঞাসা', items: [{ question: 'কী তথ্য যোগ করব?', answer: 'শুধু অনুমোদিত পণ্য, নীতি ও প্রচারণার তথ্য ব্যবহার করুন।' }] }, { id: 'cta-1', type: 'cta', title: 'SahiGadget দেখুন', body: 'বর্তমান পণ্যের তালিকায় যান।', label: 'পণ্য দেখুন', href: '/products' }] },
 ]
 
 function blankInput(): LandingPageInput {
@@ -38,27 +37,27 @@ function nextSectionId(sections: LandingSection[], type: LandingSection['type'])
 
 function sectionTemplate(type: LandingSection['type'], sections: LandingSection[]): LandingSection {
   const id = nextSectionId(sections, type)
-  if (type === 'hero') return { id, type, title: 'New campaign headline', body: 'Add a concise, factual campaign description.', ctaLabel: 'Explore', ctaHref: '/products' }
-  if (type === 'announcement') return { id, type, title: 'New announcement', body: 'Add approved store or campaign information.', tone: 'neutral' }
-  if (type === 'features' || type === 'benefits') return { id, type, title: type === 'features' ? 'Key features' : 'Benefits', items: [{ title: 'New item', body: 'Describe a factual benefit.' }] }
-  if (type === 'product_gallery') return { id, type, title: 'Product gallery' }
-  if (type === 'offer') return { id, type, title: 'Current offer', discountText: 'Approved promotional text only', showLivePrice: true }
-  if (type === 'specifications') return { id, type, title: 'Specifications', fields: [{ label: 'Add field', value: 'Use a verified value' }] }
-  if (type === 'variant_selector') return { id, type, title: 'Choose a variant' }
-  if (type === 'quantity_selector') return { id, type, title: 'Quantity' }
-  if (type === 'delivery_info') return { id, type, title: 'Delivery information', body: 'Use current store settings and policies.' }
-  if (type === 'warranty') return { id, type, title: 'Warranty and trust', items: ['Add only a configured policy statement.'] }
-  if (type === 'social_proof') return { id, type, title: 'Customer feedback', body: 'Add real, approved customer content only.', disclaimer: 'Use only supplied content; no fabricated reviews.' }
-  if (type === 'image_text') return { id, type, title: 'Image and text', body: 'Add supporting content.', imageUrl: '', imageAlt: 'Describe the image' }
-  if (type === 'comparison') return { id, type, title: 'Comparison', items: [{ label: 'Verified attribute', value: 'Verified value' }] }
-  if (type === 'related_products') return { id, type, title: 'Related products', productIds: [] }
-  if (type === 'sticky_mobile_cta') return { id, type, label: 'Order now', href: '#order' }
-  if (type === 'countdown') return { id, type, title: 'Campaign ends', endsAt: new Date(Date.now() + 86400000).toISOString() }
-  if (type === 'order') return { id, type, title: 'Ready to order?', body: 'Use the existing SahiGadget order flow.', ctaLabel: 'Order now' }
-  if (type === 'trust') return { id, type, title: 'Trust information', items: ['Add a verified trust statement.'] }
-  if (type === 'faq') return { id, type, title: 'Frequently asked questions', items: [{ question: 'New question', answer: 'Add a factual answer.' }] }
-  if (type === 'rich_text') return { id, type, title: 'Supporting information', body: 'Add factual supporting content.' }
-  return { id, type: 'cta', title: 'Continue shopping', body: 'Explore the catalogue.', label: 'Browse products', href: '/products' }
+  if (type === 'hero') return { id, type, title: 'নতুন প্রচারণার শিরোনাম', body: 'সংক্ষিপ্ত ও যাচাই করা প্রচারণার বিবরণ যোগ করুন।', ctaLabel: 'দেখুন', ctaHref: '/products' }
+  if (type === 'announcement') return { id, type, title: 'নতুন ঘোষণা', body: 'অনুমোদিত স্টোর বা প্রচারণার তথ্য যোগ করুন।', tone: 'neutral' }
+  if (type === 'features' || type === 'benefits') return { id, type, title: type === 'features' ? 'মূল বৈশিষ্ট্য' : 'সুবিধা', items: [{ title: 'নতুন বিষয়', body: 'যাচাই করা একটি সুবিধা বর্ণনা করুন।' }] }
+  if (type === 'product_gallery') return { id, type, title: 'পণ্যের গ্যালারি' }
+  if (type === 'offer') return { id, type, title: 'বর্তমান অফার', discountText: 'শুধু অনুমোদিত প্রচারণার লেখা', showLivePrice: true }
+  if (type === 'specifications') return { id, type, title: 'বিস্তারিত তথ্য', fields: [{ label: 'নতুন তথ্যের নাম', value: 'যাচাই করা মান ব্যবহার করুন' }] }
+  if (type === 'variant_selector') return { id, type, title: 'ভ্যারিয়েন্ট বেছে নিন' }
+  if (type === 'quantity_selector') return { id, type, title: 'পরিমাণ' }
+  if (type === 'delivery_info') return { id, type, title: 'ডেলিভারি তথ্য', body: 'বর্তমান স্টোর সেটিংস ও নীতি ব্যবহার করুন।' }
+  if (type === 'warranty') return { id, type, title: 'ওয়ারেন্টি ও আস্থা', items: ['শুধু নির্ধারিত নীতির বক্তব্য যোগ করুন।'] }
+  if (type === 'social_proof') return { id, type, title: 'গ্রাহকের মতামত', body: 'শুধু বাস্তব ও অনুমোদিত গ্রাহক কনটেন্ট যোগ করুন।', disclaimer: 'শুধু সরবরাহ করা কনটেন্ট ব্যবহার করুন; বানানো রিভিউ নয়।' }
+  if (type === 'image_text') return { id, type, title: 'ছবি ও লেখা', body: 'সহায়ক কনটেন্ট যোগ করুন।', imageUrl: '', imageAlt: 'ছবিটির বর্ণনা লিখুন' }
+  if (type === 'comparison') return { id, type, title: 'তুলনা', items: [{ label: 'যাচাই করা বৈশিষ্ট্য', value: 'যাচাই করা মান' }] }
+  if (type === 'related_products') return { id, type, title: 'সম্পর্কিত পণ্য', productIds: [] }
+  if (type === 'sticky_mobile_cta') return { id, type, label: 'অর্ডার করুন', href: '#order' }
+  if (type === 'countdown') return { id, type, title: 'প্রচারণা শেষ হবে', endsAt: new Date(Date.now() + 86400000).toISOString() }
+  if (type === 'order') return { id, type, title: 'অর্ডার করতে প্রস্তুত?', body: 'SahiGadget-এর অর্ডার প্রক্রিয়া ব্যবহার করুন।', ctaLabel: 'অর্ডার করুন' }
+  if (type === 'trust') return { id, type, title: 'আস্থার তথ্য', items: ['যাচাই করা আস্থার বক্তব্য যোগ করুন।'] }
+  if (type === 'faq') return { id, type, title: 'সাধারণ জিজ্ঞাসা', items: [{ question: 'নতুন প্রশ্ন', answer: 'যাচাই করা উত্তর যোগ করুন।' }] }
+  if (type === 'rich_text') return { id, type, title: 'সহায়ক তথ্য', body: 'যাচাই করা সহায়ক কনটেন্ট যোগ করুন।' }
+  return { id, type: 'cta', title: 'আরও পণ্য দেখুন', body: 'পণ্যের তালিকা দেখুন।', label: 'পণ্য দেখুন', href: '/products' }
 }
 
 export function LandingPageManagerClient({ initialPages, products }: { initialPages: LandingPage[]; products: StorefrontProduct[] }) {
