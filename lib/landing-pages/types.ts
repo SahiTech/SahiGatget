@@ -17,7 +17,7 @@ export type LandingSection =
   | (LandingSectionBase & { type: 'quantity_selector'; title?: string; maxQuantity?: number })
   | (LandingSectionBase & { type: 'delivery_info'; title: string; body: string; href?: string })
   | (LandingSectionBase & { type: 'warranty'; title: string; items: string[]; href?: string })
-  | (LandingSectionBase & { type: 'social_proof'; title: string; body: string; disclaimer?: string; reviews?: Array<{ name: string; text: string; rating?: number; imageUrl?: string }> })
+  | (LandingSectionBase & { type: 'social_proof'; title: string; body: string; disclaimer?: string; reviews?: Array<{ name: string; text: string; rating?: number; imageUrl?: string; enabled?: boolean; sortOrder?: number }> })
   | (LandingSectionBase & { type: 'image_text'; title: string; body?: string; imageUrl: string; imageAlt: string; ctaLabel?: string; ctaHref?: string })
   | (LandingSectionBase & { type: 'comparison'; title: string; items: Array<{ label: string; value: string }> })
   | (LandingSectionBase & { type: 'related_products'; title?: string; productIds?: string[] })
@@ -25,7 +25,7 @@ export type LandingSection =
   | (LandingSectionBase & { type: 'countdown'; title: string; body?: string; endsAt: string })
   | (LandingSectionBase & { type: 'order'; title?: string; body?: string; productId?: string; ctaLabel?: string })
   | (LandingSectionBase & { type: 'trust'; title: string; items: string[] })
-  | (LandingSectionBase & { type: 'faq'; title: string; items: Array<{ question: string; answer: string }> })
+  | (LandingSectionBase & { type: 'faq'; title: string; items: Array<{ question: string; answer: string; enabled?: boolean; sortOrder?: number }> })
   | (LandingSectionBase & { type: 'rich_text'; title?: string; body: string })
   | (LandingSectionBase & { type: 'cta'; title: string; body?: string; label: string; href: string })
 
@@ -100,8 +100,9 @@ function validateSections(sections: LandingSection[]) {
     if (section.type === 'offer') { assertSafeUrl(section.ctaHref, 'Offer CTA'); if (section.discountText) assertText(section.discountText, 'Offer text', 240) }
     if (section.type === 'product' || section.type === 'order') if (!section.productId) throw new Error(`${section.type === 'product' ? 'Product' : 'Order'} sections require a product ID.`)
     if (section.type === 'countdown' && Number.isNaN(new Date(section.endsAt).getTime())) throw new Error('Countdown sections require a valid end time.')
+    if (section.type === 'faq') { for (const item of section.items) { assertText(item.question, 'FAQ question', 240); assertText(item.answer, 'FAQ answer', 2000); if (item.sortOrder !== undefined && (!Number.isInteger(item.sortOrder) || item.sortOrder < 0 || item.sortOrder > 999)) throw new Error('FAQ order must be a whole number between 0 and 999.') } }
     if (section.type === 'quantity_selector' && section.maxQuantity !== undefined && (!Number.isInteger(section.maxQuantity) || section.maxQuantity < 1 || section.maxQuantity > 99)) throw new Error('Quantity limits must be whole numbers between 1 and 99.')
-    if (section.type === 'social_proof') { assertText(section.body, 'Social proof text', 2000); for (const review of section.reviews ?? []) { assertText(review.name, 'Review name', 120); assertText(review.text, 'Review text', 1200); if (review.rating !== undefined && (!Number.isInteger(review.rating) || review.rating < 1 || review.rating > 5)) throw new Error('Review ratings must be whole numbers between 1 and 5.'); assertSafeUrl(review.imageUrl, 'Review image') } }
+    if (section.type === 'social_proof') { assertText(section.body, 'Social proof text', 2000); for (const review of section.reviews ?? []) { assertText(review.name, 'Review name', 120); assertText(review.text, 'Review text', 1200); if (review.rating !== undefined && (!Number.isInteger(review.rating) || review.rating < 1 || review.rating > 5)) throw new Error('Review ratings must be whole numbers between 1 and 5.'); if (review.sortOrder !== undefined && (!Number.isInteger(review.sortOrder) || review.sortOrder < 0 || review.sortOrder > 999)) throw new Error('Review order must be a whole number between 0 and 999.'); assertSafeUrl(review.imageUrl, 'Review image') } }
   }
   return sections
 }

@@ -12,6 +12,16 @@ function money(value: number | null | undefined) {
   return value === null || value === undefined ? 'বর্তমান মূল্য দেখুন' : `৳${value.toLocaleString('bn-BD')}`
 }
 
+function customerText(value: string | undefined) {
+  if (!value) return value
+  return value
+    .replace(/server[- ]authoritative/gi, 'নিরাপদ')
+    .replace(/live catalogue/gi, 'বর্তমান পণ্যের')
+    .replace(/catalogue/gi, 'পণ্যের')
+    .replace(/backend|database|cms|api/gi, 'সিস্টেম')
+    .replace(/existing SahiGadget order flow/gi, 'SahiGadget-এর অর্ডার প্রক্রিয়া')
+}
+
 function variantLabel(variant: StorefrontVariant) {
   return [variant.ram, variant.storage, variant.color].filter(Boolean).join(' / ') || variant.variant_title
 }
@@ -52,8 +62,8 @@ function scrollToOrder() {
 function ProductHero({ section, product, variant, fixedImageUrl }: { section?: Extract<LandingSection, { type: 'hero' }>; product?: StorefrontProduct; variant?: StorefrontVariant; fixedImageUrl?: string | null }) {
   if (!product) return null
   const image = imageForVariant(product, undefined, fixedImageUrl || section?.imageUrl) ?? primaryImage(product)
-  const title = section?.title || product.name
-  const body = section?.body || product.short_description || product.description
+  const title = customerText(section?.title) || product.name
+  const body = customerText(section?.body) || product.short_description || product.description
   const compareAt = variant?.compare_at_price && variant.price < variant.compare_at_price ? variant.compare_at_price : null
   return <section className="overflow-hidden border-b border-emerald-100 bg-gradient-to-b from-emerald-50 via-white to-white">
     <div className="mx-auto grid max-w-5xl items-center gap-6 px-4 py-5 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-12 lg:py-14">
@@ -103,11 +113,13 @@ function Countdown({ section }: { section: Extract<LandingSection, { type: 'coun
 }
 
 function TextSection({ section, title, tone = 'plain' }: { section: Extract<LandingSection, { type: 'delivery_info' | 'warranty' | 'trust' | 'social_proof' }>; title?: string; tone?: 'plain' | 'green' }) {
-  return <section className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 ${visibility(section)}`}><div className={`border-b border-slate-100 py-4 ${tone === 'green' ? 'bg-emerald-50 px-5' : ''}`}><h2 className="text-xl font-black tracking-tight text-slate-950">{title || section.title}</h2>{'body' in section ? <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{section.body}</p> : null}{'items' in section ? <ul className="mt-4 grid gap-2 sm:grid-cols-2">{section.items.map((item) => <li key={item} className="text-sm font-semibold text-slate-700">✓ {item}</li>)}</ul> : null}{'disclaimer' in section && section.disclaimer ? <p className="mt-4 text-xs font-semibold text-slate-500">{section.disclaimer}</p> : null}</div></section>
+  return <section className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 ${visibility(section)}`}><div className={`border-b border-slate-100 py-4 ${tone === 'green' ? 'bg-emerald-50 px-5' : ''}`}><h2 className="text-xl font-black tracking-tight text-slate-950">{customerText(title || section.title)}</h2>{'body' in section ? <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{customerText(section.body)}</p> : null}{'items' in section ? <ul className="mt-4 grid gap-2 sm:grid-cols-2">{section.items.map((item) => <li key={item} className="text-sm font-semibold text-slate-700">✓ {customerText(item)}</li>)}</ul> : null}{'disclaimer' in section && section.disclaimer ? <p className="mt-4 text-xs font-semibold text-slate-500">{customerText(section.disclaimer)}</p> : null}</div></section>
 }
 
 function ReviewSection({ section }: { section: Extract<LandingSection, { type: 'social_proof' }> }) {
-  return <section className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`} aria-labelledby={`${section.id}-title`}><h2 id={`${section.id}-title`} className="text-2xl font-black tracking-tight">{section.title}</h2>{section.body ? <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">{section.body}</p> : null}<div className="mt-5 grid gap-4 sm:grid-cols-2">{(section.reviews ?? []).map((review) => <article key={`${review.name}-${review.text}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start gap-3">{review.imageUrl ? <Image src={review.imageUrl} alt="" width={48} height={48} className="h-12 w-12 rounded-full object-cover" /> : null}<div><p className="font-black text-slate-950">{review.name}</p>{review.rating ? <p className="mt-1 text-sm font-bold text-amber-600" aria-label={`${review.rating} out of 5`}>{'★'.repeat(review.rating)}<span className="sr-only"> / ৫</span></p> : null}</div></div><p className="mt-4 text-sm leading-7 text-slate-700">{review.text}</p></article>)}</div>{section.disclaimer ? <p className="mt-4 text-xs font-semibold text-slate-500">{section.disclaimer}</p> : null}</section>
+  const reviews = (section.reviews ?? []).filter((review) => review.enabled !== false).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  if (!reviews.length) return null
+  return <section className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`} aria-labelledby={`${section.id}-title`}><h2 id={`${section.id}-title`} className="text-2xl font-black tracking-tight">{customerText(section.title)}</h2>{section.body ? <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">{customerText(section.body)}</p> : null}<div className="mt-5 grid gap-4 sm:grid-cols-2">{reviews.map((review) => <article key={`${review.name}-${review.text}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start gap-3">{review.imageUrl ? <Image src={review.imageUrl} alt="" width={48} height={48} className="h-12 w-12 rounded-full object-cover" loading="lazy" /> : null}<div><p className="font-black text-slate-950">{customerText(review.name)}</p>{review.rating ? <p className="mt-1 text-sm font-bold text-amber-600" aria-label={`${review.rating} out of 5`}>{'★'.repeat(review.rating)}<span className="sr-only"> / ৫</span></p> : null}</div></div><p className="mt-4 text-sm leading-7 text-slate-700">{customerText(review.text)}</p></article>)}</div>{section.disclaimer ? <p className="mt-4 text-xs font-semibold text-slate-500">{customerText(section.disclaimer)}</p> : null}</section>
 }
 
 type OrderFormProps = { product: StorefrontProduct; variant: StorefrontVariant; quantity: number }
@@ -158,7 +170,7 @@ export function LandingConversionSections({ sections, products, fixedImageUrl }:
       if (section.type === 'specifications') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{section.title}</h2><dl className="mt-4 grid gap-x-8 sm:grid-cols-2">{section.fields.filter((field) => field.value.trim()).map((field) => <div key={field.label} className="flex justify-between gap-4 border-b border-slate-100 py-3 text-sm"><dt className="font-semibold text-slate-500">{field.label}</dt><dd className="text-right font-bold">{field.value}</dd></div>)}</dl></section>
       if (section.type === 'social_proof') return <ReviewSection key={section.id} section={section} />
       if (section.type === 'delivery_info' || section.type === 'warranty' || section.type === 'trust') return <TextSection key={section.id} section={section} tone={section.type === 'delivery_info' ? 'green' : 'plain'} title={section.type === 'delivery_info' ? 'ডেলিভারি ও পেমেন্ট' : undefined} />
-      if (section.type === 'faq') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{section.title || 'সাধারণ জিজ্ঞাসা'}</h2><div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">{section.items.map((item) => <details key={item.question} className="py-4"><summary className="cursor-pointer pr-6 font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{item.question}</summary><p className="mt-3 text-sm leading-7 text-slate-600">{item.answer}</p></details>)}</div></section>
+      if (section.type === 'faq') { const items = section.items.filter((item) => item.enabled !== false).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)); if (!items.length) return null; return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{customerText(section.title) || 'সাধারণ জিজ্ঞাসা'}</h2><div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">{items.map((item) => <details key={item.question} className="py-4"><summary className="cursor-pointer pr-6 font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{customerText(item.question)}</summary><p className="mt-3 text-sm leading-7 text-slate-600">{customerText(item.answer)}</p></details>)}</div></section> }
       if (section.type === 'rich_text') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black">{section.title}</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{section.body}</p></section>
       if (section.type === 'order') return <OrderForm key={section.id} product={selectedProduct} variant={selectedVariant} quantity={quantity} />
       if (section.type === 'cta') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 text-center sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black">{section.title}</h2>{section.body ? <p className="mt-2 text-sm leading-7 text-slate-600">{section.body}</p> : null}<button type="button" onClick={scrollToOrder} className="mt-4 inline-flex min-h-12 items-center rounded-xl bg-emerald-600 px-7 py-3 text-sm font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{section.label}</button></section>
