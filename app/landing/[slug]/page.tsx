@@ -23,6 +23,6 @@ export default async function LandingPage({ params }: Props) {
   const page = await getPublicLandingPage(slug)
   if (!page) notFound()
   const product = page.linked_product
-  const jsonLd = product ? { '@context': 'https://schema.org', '@type': 'Product', '@id': `${siteConfig.url}/products/${product.slug}#product`, name: product.name, url: `${siteConfig.url}/products/${product.slug}`, description: product.description || product.short_description || undefined, image: product.images.map((image) => image.image_url), brand: product.brand?.name ? { '@type': 'Brand', name: product.brand.name } : undefined } : null
+  const jsonLd = product ? { '@context': 'https://schema.org', '@type': 'Product', '@id': `${siteConfig.url}/landing/${page.slug}#product`, name: product.name, url: `${siteConfig.url}/landing/${page.slug}`, description: product.description || product.short_description || undefined, image: product.images.map((image) => image.image_url), brand: product.brand?.name ? { '@type': 'Brand', name: product.brand.name } : undefined, offers: product.variants.filter((variant) => variant.is_in_stock).map((variant) => ({ '@type': 'Offer', priceCurrency: 'BDT', price: variant.price, availability: 'https://schema.org/InStock', url: `${siteConfig.url}/landing/${page.slug}` })) } : null
   return <><LandingPageRenderer page={page} />{jsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} /> : null}</>
 }
