@@ -32,9 +32,9 @@ function Input({ label, name, value, onChange, error, optional = false, type = '
   return <label className="block"><span className="flex items-center justify-between text-sm font-black text-slate-800">{label}{optional && <span className="text-xs font-medium text-slate-400">Optional</span>}</span><input name={name} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={`mt-2 h-12 w-full rounded-xl border bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 ${error ? 'border-rose-400' : 'border-slate-200'}`} />{error && <span className="mt-1.5 block text-xs font-bold text-rose-600">{error}</span>}</label>
 }
 
-export function CheckoutFlow({ productId, variantId }: { productId: string; variantId: string }) {
+export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { productId: string; variantId: string; initialQuantity?: number }) {
   const router = useRouter()
-  const [form, setForm] = useState<FormState>(initialForm)
+  const [form, setForm] = useState<FormState>(() => ({ ...initialForm, quantity: Math.min(10, Math.max(1, initialQuantity || 1)) }))
   const [step, setStep] = useState<'details' | 'review'>('details')
   const [quote, setQuote] = useState<Quote | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})

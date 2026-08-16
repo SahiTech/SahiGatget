@@ -83,6 +83,24 @@ export async function updateLandingPage(id: string, input: LandingPageInput): Pr
   }
 }
 
+export async function duplicateLandingPage(id: string): Promise<LandingPageActionResult> {
+  try {
+    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    const db = createAdminClient()
+    const { data: source, error: sourceError } = await db.from('landing_pages').select('internal_name, slug, page_type, linked_product_id, hero_image_url, mobile_hero_image_url, og_image_url, sections, seo_title, seo_description, noindex, starts_at, ends_at').eq('id', id).single()
+    if (sourceError || !source) throw new Error('The landing page could not be duplicated.')
+    const baseSlug = `${source.slug}-copy`.slice(0, 84)
+    const { data, error } = await db.from('landing_pages').insert({ ...source, internal_name: `${source.internal_name} copy`, slug: `${baseSlug}-${Date.now().toString(36).slice(-5)}`, status: 'draft', published_at: null, created_by: session.userId, updated_by: session.userId }).select('id, slug').single()
+    if (error) throw new Error(error.message.includes('landing_pages_slug_key') ? 'A duplicate slug already exists. Try again.' : 'The landing page could not be duplicated.')
+    const { data: links } = await db.from('landing_page_products').select('product_id, sort_order').eq('landing_page_id', id)
+    if (links?.length) await db.from('landing_page_products').insert(links.map((link) => ({ landing_page_id: data.id, product_id: link.product_id, sort_order: link.sort_order })))
+    refreshLandingPageRoutes(data.slug)
+    return { ok: true, message: 'Draft duplicate created.', id: data.id }
+  } catch (error) {
+    return failure(error)
+  }
+}
+
 export async function setLandingPageStatus(id: string, status: 'draft' | 'published' | 'archived'): Promise<LandingPageActionResult> {
   try {
     const session = await requireAdmin(['OWNER', 'ADMIN'])
