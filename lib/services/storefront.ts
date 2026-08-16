@@ -127,6 +127,16 @@ export async function getFeaturedProducts(limit = 4) {
   return (await getProducts({ sort: 'featured', pageSize: Math.min(limit, 12) })).products
 }
 
+export async function getProductById(id: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('products').select(PRODUCT_SELECT).eq('id', id).eq('is_published', true).maybeSingle()
+  if (error) throw new Error('Unable to load this product.')
+  if (!data) return null
+  const row = data as unknown as RawProduct
+  const variantsByProduct = await getVariantsByProductId(supabase, [row.id])
+  return normalizeProduct(row, variantsByProduct.get(row.id) ?? [])
+}
+
 export async function getProductBySlug(slug: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.from('products').select(PRODUCT_SELECT).eq('slug', slug).eq('is_published', true).maybeSingle()

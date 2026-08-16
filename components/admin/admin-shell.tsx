@@ -10,6 +10,7 @@ import { AdminMobileNav } from './admin-mobile-nav'
 const navigation: { href: string; label: string; icon: LucideIcon; roles: readonly AdminRole[] }[] = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/homepage', label: 'Homepage', icon: Layout, roles: ['OWNER', 'ADMIN'] },
+  { href: '/admin/landing-pages', label: 'Landing Pages', icon: Layout, roles: ['OWNER', 'ADMIN'] },
   { href: '/admin/products', label: 'Catalogue', icon: PackageSearch, roles: ['OWNER', 'ADMIN'] },
   { href: '/admin/inventory', label: 'Inventory', icon: Boxes, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/orders', label: 'Orders', icon: ClipboardList, roles: ['OWNER', 'ADMIN', 'STAFF'] },

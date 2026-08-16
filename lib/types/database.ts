@@ -868,6 +868,116 @@ export type Database = {
           },
         ]
       }
+      landing_page_products: {
+        Row: {
+          landing_page_id: string
+          product_id: string
+          sort_order: number
+        }
+        Insert: {
+          landing_page_id: string
+          product_id: string
+          sort_order?: number
+        }
+        Update: {
+          landing_page_id?: string
+          product_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_products_landing_page_id_fkey"
+            columns: ["landing_page_id"]
+            isOneToOne: false
+            referencedRelation: "landing_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landing_page_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landing_pages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          hero_image_url: string | null
+          id: string
+          internal_name: string
+          linked_product_id: string | null
+          mobile_hero_image_url: string | null
+          noindex: boolean
+          og_image_url: string | null
+          page_type: string
+          published_at: string | null
+          sections: Json
+          slug: string
+          seo_description: string | null
+          seo_title: string | null
+          starts_at: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          hero_image_url?: string | null
+          id?: string
+          internal_name: string
+          linked_product_id?: string | null
+          mobile_hero_image_url?: string | null
+          noindex?: boolean
+          og_image_url?: string | null
+          page_type?: string
+          published_at?: string | null
+          sections?: Json
+          slug: string
+          seo_description?: string | null
+          seo_title?: string | null
+          starts_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          hero_image_url?: string | null
+          id?: string
+          internal_name?: string
+          linked_product_id?: string | null
+          mobile_hero_image_url?: string | null
+          noindex?: boolean
+          og_image_url?: string | null
+          page_type?: string
+          published_at?: string | null
+          sections?: Json
+          slug?: string
+          seo_description?: string | null
+          seo_title?: string | null
+          starts_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_pages_linked_product_id_fkey"
+            columns: ["linked_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       settings: {
         Row: {
           description: string | null

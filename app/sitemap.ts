@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 
 import { siteConfig } from '@/config/site'
 import { getPublicSitemapEntries } from '@/lib/services/storefront'
+import { getPublicLandingPageEntries } from '@/lib/landing-pages/data'
 
 const publicRoutes = [
   { path: '/', priority: 1, changeFrequency: 'daily' as const },
@@ -18,9 +19,10 @@ const publicRoutes = [
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const entries = await getPublicSitemapEntries()
+  const [entries, landingPages] = await Promise.all([getPublicSitemapEntries(), getPublicLandingPageEntries()])
   const baseEntries = publicRoutes.map((route) => ({ url: `${siteConfig.url}${route.path}`, priority: route.priority, changeFrequency: route.changeFrequency }))
   const productEntries = entries.products.map((entry) => ({ url: `${siteConfig.url}/products/${encodeURIComponent(entry.slug)}`, lastModified: entry.lastModified, changeFrequency: 'weekly' as const, priority: 0.8 }))
   const brandEntries = entries.brands.map((entry) => ({ url: `${siteConfig.url}/brands/${encodeURIComponent(entry.slug)}`, lastModified: entry.lastModified, changeFrequency: 'weekly' as const, priority: 0.7 }))
-  return [...baseEntries, ...productEntries, ...brandEntries]
+  const landingEntries = landingPages.map((entry) => ({ url: `${siteConfig.url}/landing/${encodeURIComponent(entry.slug)}`, lastModified: entry.updated_at, changeFrequency: 'weekly' as const, priority: 0.75 }))
+  return [...baseEntries, ...productEntries, ...brandEntries, ...landingEntries]
 }
