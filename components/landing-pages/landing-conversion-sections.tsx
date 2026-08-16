@@ -109,25 +109,25 @@ function ProductHero({ section, product, variant, fixedImageUrl }: { section?: E
   </section>
 }
 
-function VariantSelector({ section, product, selectedVariantId, onSelect }: { section: Extract<LandingSection, { type: 'variant_selector' }>; product?: StorefrontProduct; selectedVariantId: string; onSelect: (id: string) => void }) {
+function VariantSelector({ section, product, selectedVariantId, onSelect, quantity, onChange, maxQuantity }: { section: Extract<LandingSection, { type: 'variant_selector' }>; product?: StorefrontProduct; selectedVariantId: string; onSelect: (id: string) => void; quantity: number; onChange: (value: number) => void; maxQuantity: number }) {
   if (!product?.variants.length) return null
+  const max = Math.min(maxQuantity, 10)
   return <section aria-labelledby={`${section.id}-title`} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-10 ${visibility(section)}`}>
     <h2 id={`${section.id}-title`} className="text-2xl font-black tracking-tight text-slate-950">{customerText(section.title) || 'ভ্যারিয়েন্ট নির্বাচন করুন'}</h2>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       {product.variants.map((variant) => {
         const image = imageForVariant(product, variant, section.variantImages?.[variant.id])
-        return <button type="button" key={variant.id} onClick={() => onSelect(variant.id)} disabled={!variant.is_in_stock} aria-pressed={selectedVariantId === variant.id} className={`flex min-h-20 items-center gap-3 rounded-2xl border bg-white p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${selectedVariantId === variant.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 hover:border-emerald-300'} ${!variant.is_in_stock ? 'cursor-not-allowed opacity-50' : ''}`}>
-          <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-50">{image ? <Image src={image.image_url} alt="" fill className="object-contain" sizes="56px" /> : null}</span>
-          <span className="min-w-0"><span className="block truncate font-bold text-slate-950">{variantLabel(variant)}</span><span className="mt-1 block text-sm font-black text-emerald-700">{money(variant.price)}</span><span className="mt-1 block text-xs font-semibold text-slate-500">{variant.is_in_stock ? (variant.is_low_stock ? 'সীমিত স্টক' : 'স্টকে আছে') : 'অনুপলব্ধ'}</span></span>
-        </button>
+        const selected = selectedVariantId === variant.id
+        return <div key={variant.id} className={`flex min-h-20 items-center gap-3 rounded-2xl border bg-white p-3 text-left transition ${selected ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200'} ${!variant.is_in_stock ? 'opacity-50' : ''}`}>
+          <button type="button" onClick={() => onSelect(variant.id)} disabled={!variant.is_in_stock} aria-pressed={selected} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+            <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-50">{image ? <Image src={image.image_url} alt="" fill className="object-contain" sizes="56px" /> : null}</span>
+            <span className="min-w-0"><span className="block truncate font-bold text-slate-950">{variantLabel(variant)}</span><span className="mt-1 block text-sm font-black text-emerald-700">{money(variant.price)}</span><span className="mt-1 block text-xs font-semibold text-slate-500">{variant.is_in_stock ? (variant.is_low_stock ? 'সীমিত স্টক' : 'স্টকে আছে') : 'অনুপলব্ধ'}</span></span>
+          </button>
+          {selected && variant.is_in_stock ? <div className="inline-flex shrink-0 items-center rounded-xl border border-emerald-200 bg-white p-1" aria-label={`${variantLabel(variant)}-এর পরিমাণ`}><button type="button" onClick={() => onChange(Math.max(1, quantity - 1))} aria-label="পরিমাণ কমান" className="h-10 w-10 rounded-lg text-lg font-black text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">−</button><span aria-live="polite" className="min-w-8 text-center text-sm font-black text-slate-950">{quantity}</span><button type="button" onClick={() => onChange(Math.min(max, quantity + 1))} aria-label="পরিমাণ বাড়ান" className="h-10 w-10 rounded-lg text-lg font-black text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">+</button></div> : null}
+        </div>
       })}
     </div>
   </section>
-}
-
-function QuantitySelector({ section, quantity, onChange }: { section: Extract<LandingSection, { type: 'quantity_selector' }>; quantity: number; onChange: (value: number) => void }) {
-  const max = Math.min(section.maxQuantity ?? 10, 10)
-  return <section className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 ${visibility(section)}`}><div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100"><div><h2 className="text-lg font-black text-slate-950">{customerText(section.title) || 'পরিমাণ নির্বাচন করুন'}</h2><p className="mt-1 text-xs text-slate-500">আপনার পছন্দ অনুযায়ী পরিমাণ নির্ধারণ করুন।</p></div><div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-1"><button type="button" onClick={() => onChange(Math.max(1, quantity - 1))} aria-label="পরিমাণ কমান" className="h-10 w-10 rounded-lg text-lg font-black text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">−</button><span aria-live="polite" className="min-w-10 text-center text-sm font-black text-slate-950">{quantity}</span><button type="button" onClick={() => onChange(Math.min(max, quantity + 1))} aria-label="পরিমাণ বাড়ান" className="h-10 w-10 rounded-lg text-lg font-black text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">+</button></div></div></section>
 }
 
 function Countdown({ section }: { section: Extract<LandingSection, { type: 'countdown' }> }) {
@@ -172,10 +172,10 @@ export function LandingConversionSections({ sections, products, fixedImageUrl }:
   const [showSticky, setShowSticky] = useState(false)
   const selectedVariant = useMemo(() => selectedProduct?.variants.find((variant) => variant.id === selectedVariantId) ?? firstAvailable, [selectedProduct, selectedVariantId, firstAvailable])
   const renderSections = useMemo(() => {
-    const withoutOrders: LandingSection[] = sections.filter((section) => section.type !== 'order')
+    const withoutOrders: LandingSection[] = sections.filter((section) => section.type !== 'order' && section.type !== 'quantity_selector')
     const orders = sections.filter((section): section is Extract<LandingSection, { type: 'order' }> => section.type === 'order' && section.enabled !== false)
     if (!orders.length) return withoutOrders
-    const anchorIndexes = withoutOrders.map((section, index) => (section.type === 'variant_selector' || section.type === 'quantity_selector' ? index : -1)).filter((index) => index >= 0)
+    const anchorIndexes = withoutOrders.map((section, index) => (section.type === 'variant_selector' ? index : -1)).filter((index) => index >= 0)
     const heroIndex = withoutOrders.findIndex((section) => section.type === 'hero')
     const insertAt = (anchorIndexes.length ? Math.max(...anchorIndexes) : heroIndex) + 1
     withoutOrders.splice(Math.max(0, insertAt), 0, ...orders)
@@ -186,8 +186,8 @@ export function LandingConversionSections({ sections, products, fixedImageUrl }:
   return <div className="min-h-screen overflow-x-clip bg-white pb-24 text-slate-950"><ProductHero section={hero} product={selectedProduct} variant={selectedVariant} fixedImageUrl={fixedImageUrl} />
     {renderSections.map((section) => {
       if (section.enabled === false || section.type === 'hero' || section.type === 'product' || section.type === 'announcement' || section.type === 'offer' || section.type === 'countdown' || section.type === 'product_gallery' || section.type === 'related_products' || section.type === 'sticky_mobile_cta') return null
-      if (section.type === 'variant_selector') return <VariantSelector key={section.id} section={section} product={selectedProduct} selectedVariantId={selectedVariantId} onSelect={setSelectedVariantId} />
-      if (section.type === 'quantity_selector') return <QuantitySelector key={section.id} section={section} quantity={quantity} onChange={setQuantity} />
+      if (section.type === 'variant_selector') { const quantitySection = sections.find((candidate): candidate is Extract<LandingSection, { type: 'quantity_selector' }> => candidate.type === 'quantity_selector'); return <VariantSelector key={section.id} section={section} product={selectedProduct} selectedVariantId={selectedVariantId} onSelect={setSelectedVariantId} quantity={quantity} onChange={setQuantity} maxQuantity={quantitySection?.maxQuantity ?? 10} /> }
+      if (section.type === 'quantity_selector') return null
       if (section.type === 'features' || section.type === 'benefits') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{customerText(section.title)}</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{section.items.filter((item) => item.enabled !== false).map((item) => <article key={item.title} className="border-b border-slate-100 py-3"><h3 className="font-bold">{customerText(item.title)}</h3>{item.body ? <p className="mt-1 text-sm leading-6 text-slate-600">{customerText(item.body)}</p> : null}</article>)}</div></section>
       if (section.type === 'specifications') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{customerText(section.title)}</h2><dl className="mt-4 grid gap-x-8 sm:grid-cols-2">{section.fields.filter((field) => field.enabled !== false && field.value.trim()).map((field) => <div key={field.label} className="flex justify-between gap-4 border-b border-slate-100 py-3 text-sm"><dt className="font-semibold text-slate-500">{customerText(field.label)}</dt><dd className="text-right font-bold">{customerText(field.value)}</dd></div>)}</dl></section>
       if (section.type === 'social_proof') return <ReviewSection key={section.id} section={section} />
