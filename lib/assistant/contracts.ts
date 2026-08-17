@@ -29,7 +29,7 @@ export const publicProductCardSchema = z.object({
   id: uuidSchema,
   name: z.string().min(1).max(200),
   slug: z.string().min(1).max(200),
-  imageUrl: z.string().url().nullable(),
+  imageUrl: z.string().url().refine((value) => /^https?:\/\//i.test(value), 'Only HTTP(S) images are allowed.').nullable(),
   imageAlt: z.string().max(240),
   price: z.number().finite().nonnegative().nullable(),
   compareAtPrice: z.number().finite().nonnegative().nullable(),

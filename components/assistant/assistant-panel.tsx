@@ -26,18 +26,23 @@ export default function AssistantPanel({ onClose }: { onClose: () => void }) {
   const titleId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     inputRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      previousFocusRef.current?.focus()
+    }
   }, [onClose])
 
   const conversation = useMemo(() => messages.slice(-6).map(({ role, content }) => ({ role, content })), [messages])
@@ -67,7 +72,7 @@ export default function AssistantPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div ref={panelRef} role="dialog" aria-modal="false" aria-labelledby={titleId} className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex max-h-[min(70vh,620px)] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.24)] sm:inset-x-auto sm:right-4 sm:w-[min(390px,calc(100vw-2rem))] motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-200">
+    <div id="sahigadget-assistant-panel" ref={panelRef} role="dialog" aria-modal="true" tabIndex={-1} aria-labelledby={titleId} className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex max-h-[min(70vh,620px)] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.24)] sm:inset-x-auto sm:right-4 sm:w-[min(390px,calc(100vw-2rem))] motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-reduce:animate-none">
       <header className="flex items-center justify-between border-b border-slate-100 bg-slate-950 px-4 py-3 text-white">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-teal-500/20 text-teal-200"><Bot aria-hidden="true" className="h-5 w-5" /></span>

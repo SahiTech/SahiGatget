@@ -9,16 +9,32 @@ import { buildAssistantResponse, isAssistantProviderConfigured } from '@/lib/ass
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const MAX_BODY_BYTES = 24_000
+
 function errorResponse(requestId: string, status: number, code: string, message: string, retryAfterSeconds?: number) {
   const response = NextResponse.json({ requestId, error: { code, message, ...(retryAfterSeconds ? { retryAfterSeconds } : {}) } }, { status })
   response.headers.set('Cache-Control', 'no-store')
+  if (retryAfterSeconds) response.headers.set('Retry-After', String(retryAfterSeconds))
   return response
 }
 
 export async function POST(request: Request) {
   const requestId = randomUUID()
   try {
-    const raw = await request.json()
+    const declaredLength = Number(request.headers.get('content-length') ?? 0)
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+      return errorResponse(requestId, 413, 'PAYLOAD_TOO_LARGE', 'অনুরোধটি বেশি বড়। অনুগ্রহ করে ছোট করে আবার চেষ্টা করুন।')
+    }
+    const rawText = await request.text()
+    if (new TextEncoder().encode(rawText).byteLength > MAX_BODY_BYTES) {
+      return errorResponse(requestId, 413, 'PAYLOAD_TOO_LARGE', 'অনুরোধটি বেশি বড়। অনুগ্রহ করে ছোট করে আবার চেষ্টা করুন।')
+    }
+    let raw: unknown
+    try {
+      raw = JSON.parse(rawText)
+    } catch {
+      return errorResponse(requestId, 400, 'INVALID_REQUEST', 'অনুরোধটি সঠিক JSON নয়। অনুগ্রহ করে আবার চেষ্টা করুন।')
+    }
     const parsed = assistantRequestSchema.safeParse(raw)
     if (!parsed.success) return errorResponse(requestId, 400, 'INVALID_REQUEST', 'অনুরোধটি সঠিক নয়। অনুগ্রহ করে আবার চেষ্টা করুন।')
     const requestHeaders = await headers()

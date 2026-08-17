@@ -124,10 +124,18 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
   }
 }
 
+function isSafeModelOutput(output: AssistantModelOutput, intent: ReturnType<typeof classifyIntent>, retrieval: RetrievalResult) {
+  if (intent !== 'product_search' || output.intent !== 'product_search' || output.evidenceStatus === 'no_evidence' || output.fallbackReason !== 'none') return false
+  if (!retrieval.context.length) return false
+  if (/[৳₹$€]|\b\d{2,}\b|স্টক|স্টকে|available|availability|দাম|মূল্য|price|discount|ছাড়|ডেলিভারি|delivery|ওয়ারেন্টি|warranty|গ্যারান্টি|guarantee/i.test(output.answer)) return false
+  return true
+}
+
 export async function buildAssistantResponse(request: AssistantRequest, requestId: string): Promise<AssistantResponse> {
   const intent = classifyIntent(request.message)
-  const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId)
-  const modelOutput = await callProvider(request, retrieval, intent)
+  const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname)
+  const providerOutput = intent === 'product_search' && retrieval.context.length ? await callProvider(request, retrieval, intent) : null
+  const modelOutput = providerOutput && isSafeModelOutput(providerOutput, intent, retrieval) ? providerOutput : null
   const output = modelOutput ?? deterministicOutput(request, retrieval, intent)
   const allowedIds = new Set(retrieval.context.map((item) => item.id))
   const safeIds = output.productIds.filter((id) => allowedIds.has(id)).slice(0, 6)

@@ -43,16 +43,20 @@ async function upstashIncrement(key: string) {
 }
 
 export async function checkAssistantRateLimit(identity: { ip: string; sessionId: string }): Promise<RateLimitResult> {
-  const key = `sahigadget:assistant:${identity.ip.slice(0, 80)}:${identity.sessionId.slice(0, 128)}`
+  const ipKey = `sahigadget:assistant:ip:${identity.ip.slice(0, 80)}`
+  const sessionKey = `sahigadget:assistant:session:${identity.sessionId.slice(0, 128)}`
   const url = envValue('UPSTASH_REDIS_REST_URL')
   const token = envValue('UPSTASH_REDIS_REST_TOKEN')
   if (!url || !token) {
     if (process.env.NODE_ENV === 'production') return { allowed: false, configured: false, retryAfterSeconds: 3600 }
-    return localCheck(key)
+    const ipLimit = localCheck(ipKey)
+    if (!ipLimit.allowed) return ipLimit
+    return localCheck(sessionKey)
   }
   try {
-    const count = await upstashIncrement(key)
-    if (count > MAX_REQUESTS) return { allowed: false, configured: true, retryAfterSeconds: WINDOW_SECONDS }
+    const ipCount = await upstashIncrement(ipKey)
+    const sessionCount = await upstashIncrement(sessionKey)
+    if (ipCount > MAX_REQUESTS || sessionCount > MAX_REQUESTS) return { allowed: false, configured: true, retryAfterSeconds: WINDOW_SECONDS }
     return { allowed: true, configured: true }
   } catch {
     return { allowed: false, configured: true, retryAfterSeconds: 60 }

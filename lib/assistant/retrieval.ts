@@ -175,15 +175,20 @@ export function classifyIntent(message: string): AssistantIntent {
   return 'unclear'
 }
 
-export async function retrieveAssistantContext(message: string, intent: AssistantIntent, pageProductId?: string): Promise<RetrievalResult> {
+export async function retrieveAssistantContext(message: string, intent: AssistantIntent, pageProductId?: string, pagePathname?: string): Promise<RetrievalResult> {
   const retrievedAt = new Date().toISOString()
   if (intent === 'unsupported') return { context: [], sources: [], retrievedAt }
+  const pageSlug = pagePathname?.match(/^\/products\/([^/?#]+)$/)?.[1]
+  const pageProduct = pageProductId
+    ? await getProductById(pageProductId).catch(() => null)
+    : pageSlug
+      ? await getProductBySlug(decodeURIComponent(pageSlug)).catch(() => null)
+      : null
   if (intent === 'policy' || intent === 'store_information') {
     const topic = /warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি/i.test(message) ? 'warranty' : /return|রিটার্ন|রিপ্লেস/i.test(message) ? 'returns' : /cod|cash|ক্যাশ/i.test(message) ? 'cod' : /delivery|ঢাকা|ডেলিভারি|চার্জ/i.test(message) ? 'delivery' : /support|contact|যোগাযোগ|ইমেইল|ফোন/i.test(message) ? 'support' : 'store_information'
-    const policy = await getStorePolicy(topic)
+    const policy = await getStorePolicy(topic, pageProduct)
     return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text }
   }
-  const pageProduct = pageProductId ? await getProductById(pageProductId).catch(() => null) : null
   const budget = extractBudget(message)
   const products = pageProduct && intent !== 'product_search' ? [pageProduct] : await searchProducts({ query: message, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
   const context = products.map(toContext)
