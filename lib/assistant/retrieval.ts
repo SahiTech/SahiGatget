@@ -19,6 +19,7 @@ import {
 import type { StorefrontProduct } from '@/lib/services/storefront-utils'
 import type { AssistantIntent } from './contracts'
 import type { PublicProductCard } from './contracts'
+import { loadAssistantPolicyConfig } from './config'
 
 export type RetrievedSource = 'live_product' | 'live_variant' | 'public_policy' | 'site_config'
 
@@ -149,11 +150,24 @@ export async function getStorePolicy(topic: 'delivery' | 'delivery_charge' | 'wa
   const cod = settings.footer.payments.cash_on_delivery ? 'বর্তমান SahiGadget চেকআউটে Cash on Delivery পাওয়া যেতে পারে। অর্ডার নিশ্চিত করার আগে বিদ্যমান চেকআউটের যাচাই ও শর্ত প্রযোজ্য হবে।' : 'বর্তমান প্রকাশ্য তথ্য অনুযায়ী Cash on Delivery নিশ্চিত করা যাচ্ছে না।'
   const support = `সহায়তার জন্য ফোন ${siteConfig.contact.phone} অথবা ইমেইল ${siteConfig.contact.supportEmail} ব্যবহার করুন।`
   const store = `${siteConfig.name} বাংলাদেশে মোবাইল ফোন ও গ্যাজেট সরবরাহ করে। সাধারণ সহায়তার জন্য ${siteConfig.contact.supportEmail} অথবা ${siteConfig.contact.phone} ব্যবহার করুন।`
+  const overrides = await loadAssistantPolicyConfig()
+  const overrideMap: Record<typeof topic, string> = {
+    delivery: overrides.delivery,
+    delivery_charge: overrides.delivery,
+    warranty: overrides.warranty,
+    returns: overrides.returns,
+    cod: overrides.cod,
+    support: overrides.support,
+    store_information: overrides.storeInformation,
+  }
   const map: Record<typeof topic, string> = { delivery, delivery_charge: delivery, warranty, returns, cod, support, store_information: store }
-  const sources: RetrievedSource[] = topic === 'support' || topic === 'store_information'
-    ? ['site_config']
-    : ['public_policy']
-  return { topic, text: map[topic], settings, sources }
+  const selectedOverride = overrideMap[topic]?.trim()
+  const sources: RetrievedSource[] = selectedOverride
+    ? ['public_policy']
+    : topic === 'support' || topic === 'store_information'
+      ? ['site_config']
+      : ['public_policy']
+  return { topic, text: selectedOverride || map[topic], settings, sources }
 }
 
 export async function hydrateProductReferences(productIds: string[]) {

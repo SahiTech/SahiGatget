@@ -10,6 +10,7 @@ import {
   retrieveAssistantContext,
 } from './retrieval'
 import type { RetrievalResult } from './retrieval'
+import { loadAssistantControlConfig } from './config'
 
 const DEFAULT_FOLLOW_UPS = ['একটি পণ্য খুঁজে দিন', 'বাজেটের মধ্যে ফোন দেখান', 'ডেলিভারি সম্পর্কে জানতে চাই']
 
@@ -132,9 +133,14 @@ function isSafeModelOutput(output: AssistantModelOutput, intent: ReturnType<type
 }
 
 export async function buildAssistantResponse(request: AssistantRequest, requestId: string): Promise<AssistantResponse> {
+  const config = await loadAssistantControlConfig()
   const intent = classifyIntent(request.message)
+  const locale = requestedLocale(request)
+  if (!config.enabled) return { requestId, answer: locale === 'bn' ? 'সহকারীটি বর্তমানে বন্ধ আছে।' : 'The assistant is currently unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
+  if ((intent === 'policy' || intent === 'store_information') && !config.allowPolicyQuestions) return { requestId, answer: locale === 'bn' ? 'এই ধরনের প্রশ্নের উত্তর এখন সহকারী দিতে পারছে না।' : 'The assistant is not configured to answer this type of question right now.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
+  if (intent === 'product_search' && !config.allowProductSearch) return { requestId, answer: locale === 'bn' ? 'পণ্য খোঁজার সুবিধাটি এখন সাময়িকভাবে বন্ধ আছে।' : 'Product search is temporarily unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
   const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname)
-  const providerOutput = intent === 'product_search' && retrieval.context.length ? await callProvider(request, retrieval, intent) : null
+  const providerOutput = intent === 'product_search' && config.allowRecommendations && retrieval.context.length ? await callProvider(request, retrieval, intent) : null
   const modelOutput = providerOutput && isSafeModelOutput(providerOutput, intent, retrieval) ? providerOutput : null
   const output = modelOutput ?? deterministicOutput(request, retrieval, intent)
   const allowedIds = new Set(retrieval.context.map((item) => item.id))
