@@ -204,7 +204,10 @@ export async function retrieveAssistantContext(message: string, intent: Assistan
     return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text }
   }
   const budget = extractBudget(message)
-  const products = pageProduct && intent !== 'product_search' ? [pageProduct] : await searchProducts({ query: message, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
+  let products = pageProduct && intent !== 'product_search' ? [pageProduct] : await searchProducts({ query: message, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
+  if (!products.length && intent === 'product_search') {
+    products = await searchProducts({ maxPrice: budget, onlyAvailable: true, limit: MAX_RESULTS })
+  }
   const context = products.map(toContext)
   return { context, sources: context.length ? ['live_product', 'live_variant'] : [], retrievedAt }
 }
