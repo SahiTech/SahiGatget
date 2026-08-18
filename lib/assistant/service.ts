@@ -108,7 +108,7 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
   const config = providerConfig()
   if (!config) return { output: null, outcome: 'GEMINI_NOT_CONFIGURED' }
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000)
+  const timeout = setTimeout(() => controller.abort(), 20000)
   try {
     const response = await fetch(config.apiUrl, {
       method: 'POST',
