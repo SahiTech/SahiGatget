@@ -25,7 +25,12 @@ function providerConfig() {
   const apiKey = process.env.ASSISTANT_LLM_API_KEY?.trim()
   const model = process.env.ASSISTANT_LLM_MODEL?.trim()
   const configuredUrl = process.env.ASSISTANT_LLM_API_URL?.trim()
-  const apiUrl = provider === 'gemini' ? (configuredUrl || GEMINI_OPENAI_COMPATIBLE_URL) : configuredUrl
+  const rawUrl = provider === 'gemini' ? (configuredUrl || GEMINI_OPENAI_COMPATIBLE_URL) : configuredUrl
+  const apiUrl = rawUrl && provider === 'gemini'
+    ? rawUrl.replace(/\/$/, '').endsWith('/chat/completions')
+      ? rawUrl
+      : `${rawUrl.replace(/\/$/, '')}/chat/completions`
+    : rawUrl
   return apiUrl && apiKey && model ? { provider, apiUrl, apiKey, model } : null
 }
 
@@ -110,8 +115,6 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
       body: JSON.stringify({
         model: config.model,
-        temperature: 0.1,
-        max_tokens: 1400,
         messages: [
           { role: 'system', content: 'Output JSON only. Follow the schema exactly and ground every claim in the supplied context.' },
           { role: 'user', content: buildPrompt(request, retrieval, intent) },
