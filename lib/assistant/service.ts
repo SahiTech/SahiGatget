@@ -102,7 +102,7 @@ function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, inte
   ].join('\n\n')
 }
 
-type ProviderOutcome = 'NOT_ATTEMPTED' | 'GEMINI_NOT_CONFIGURED' | 'GEMINI_FAILED' | 'GEMINI_ACCEPTED' | 'FALLBACK_USED'
+type ProviderOutcome = 'NOT_ATTEMPTED' | 'GEMINI_NOT_CONFIGURED' | 'GEMINI_FAILED' | 'GEMINI_UPSTREAM_REJECTED' | 'GEMINI_TIMEOUT' | 'GEMINI_EMPTY_RESPONSE' | 'GEMINI_INVALID_OUTPUT' | 'GEMINI_ACCEPTED' | 'FALLBACK_USED'
 
 async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): Promise<{ output: AssistantModelOutput | null; outcome: Exclude<ProviderOutcome, 'NOT_ATTEMPTED' | 'FALLBACK_USED'> }> {
   const config = providerConfig()
@@ -124,15 +124,20 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
       signal: controller.signal,
       cache: 'no-store',
     })
-    if (!response.ok) throw new Error('LLM_UPSTREAM_ERROR')
+    if (!response.ok) return { output: null, outcome: 'GEMINI_UPSTREAM_REJECTED' }
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> }
     const content = payload.choices?.[0]?.message?.content
-    if (!content) throw new Error('LLM_EMPTY_RESPONSE')
-    const parsed = JSON.parse(content)
+    if (!content) return { output: null, outcome: 'GEMINI_EMPTY_RESPONSE' }
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(content)
+    } catch {
+      return { output: null, outcome: 'GEMINI_INVALID_OUTPUT' }
+    }
     const result = assistantModelOutputSchema.safeParse(parsed)
-    return result.success ? { output: result.data, outcome: 'GEMINI_ACCEPTED' } : { output: null, outcome: 'GEMINI_FAILED' }
-  } catch {
-    return { output: null, outcome: 'GEMINI_FAILED' }
+    return result.success ? { output: result.data, outcome: 'GEMINI_ACCEPTED' } : { output: null, outcome: 'GEMINI_INVALID_OUTPUT' }
+  } catch (error) {
+    return { output: null, outcome: error instanceof DOMException && error.name === 'AbortError' ? 'GEMINI_TIMEOUT' : 'GEMINI_FAILED' }
   } finally {
     clearTimeout(timeout)
   }
