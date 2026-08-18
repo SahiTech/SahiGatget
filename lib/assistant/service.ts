@@ -116,7 +116,7 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
           { role: 'system', content: 'Output JSON only. Follow the schema exactly and ground every claim in the supplied context.' },
           { role: 'user', content: buildPrompt(request, retrieval, intent) },
         ],
-        response_format: { type: 'json_schema', json_schema: { name: 'sahigadget_assistant_response', strict: true, schema: modelJsonSchema } },
+        response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
       cache: 'no-store',
