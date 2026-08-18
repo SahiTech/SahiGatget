@@ -14,11 +14,17 @@ import { loadAssistantControlConfig } from './config'
 
 const DEFAULT_FOLLOW_UPS = ['একটি পণ্য খুঁজে দিন', 'বাজেটের মধ্যে ফোন দেখান', 'ডেলিভারি সম্পর্কে জানতে চাই']
 
+const GEMINI_OPENAI_COMPATIBLE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
+
+type AssistantProvider = 'gemini' | 'openai-compatible'
+
 function providerConfig() {
-  const apiUrl = process.env.ASSISTANT_LLM_API_URL?.trim()
+  const provider = (process.env.ASSISTANT_LLM_PROVIDER?.trim().toLowerCase() || 'openai-compatible') as AssistantProvider
   const apiKey = process.env.ASSISTANT_LLM_API_KEY?.trim()
   const model = process.env.ASSISTANT_LLM_MODEL?.trim()
-  return apiUrl && apiKey && model ? { apiUrl, apiKey, model } : null
+  const configuredUrl = process.env.ASSISTANT_LLM_API_URL?.trim()
+  const apiUrl = provider === 'gemini' ? (configuredUrl || GEMINI_OPENAI_COMPATIBLE_URL) : configuredUrl
+  return apiUrl && apiKey && model ? { provider, apiUrl, apiKey, model } : null
 }
 
 function requestedLocale(request: AssistantRequest): 'bn' | 'en' {
@@ -163,6 +169,15 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
 
 export function isAssistantProviderConfigured() {
   return Boolean(providerConfig())
+}
+
+export function getAssistantProviderStatus() {
+  const config = providerConfig()
+  return {
+    provider: config?.provider === 'gemini' ? 'Gemini' : config ? 'OpenAI-compatible' : 'Not configured',
+    configured: Boolean(config),
+    modelConfigured: Boolean(config?.model),
+  }
 }
 
 export { getStorePolicy }
