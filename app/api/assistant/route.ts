@@ -58,11 +58,13 @@ export async function POST(request: Request) {
       void recordAssistantAnalytics('ASSISTANT_ERROR', { reason: 'provider_not_configured', latencyMs: Date.now() - requestStartedAt })
       return errorResponse(requestId, 503, 'UPSTREAM_UNAVAILABLE', 'সহকারীটি এখনো সম্পূর্ণভাবে সক্রিয় নয়। অনুগ্রহ করে কিছুক্ষণ পরে আবার চেষ্টা করুন।')
     }
-    const response = await buildAssistantResponse(parsed.data, requestId)
-    void recordAssistantAnalytics('ASSISTANT_REQUEST', { intent: response.intent, evidenceStatus: response.evidence.status, productCount: response.products.length, latencyMs: Date.now() - requestStartedAt })
+    const responseWithProvider = await buildAssistantResponse(parsed.data, requestId)
+    const { providerOutcome, ...response } = responseWithProvider
+    void recordAssistantAnalytics('ASSISTANT_REQUEST', { intent: response.intent, evidenceStatus: response.evidence.status, productCount: response.products.length, providerOutcome, latencyMs: Date.now() - requestStartedAt })
     if (response.evidence.status === 'no_evidence') void recordAssistantAnalytics('ASSISTANT_UNANSWERED', { pattern: `intent:${classifyIntent(parsed.data.message)}`, intent: response.intent })
     const result = NextResponse.json(response)
     result.headers.set('Cache-Control', 'no-store')
+    result.headers.set('X-SahiGadget-Provider-Outcome', providerOutcome)
     return result
   } catch {
     void recordAssistantAnalytics('ASSISTANT_ERROR', { reason: 'internal_error' })

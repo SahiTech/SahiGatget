@@ -95,9 +95,11 @@ function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, inte
   ].join('\n\n')
 }
 
-async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): Promise<AssistantModelOutput | null> {
+type ProviderOutcome = 'not_attempted' | 'not_configured' | 'failed' | 'accepted' | 'accepted_rejected'
+
+async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): Promise<{ output: AssistantModelOutput | null; outcome: Exclude<ProviderOutcome, 'not_attempted' | 'accepted_rejected'> }> {
   const config = providerConfig()
-  if (!config) return null
+  if (!config) return { output: null, outcome: 'not_configured' }
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
   try {
@@ -123,9 +125,9 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
     if (!content) throw new Error('LLM_EMPTY_RESPONSE')
     const parsed = JSON.parse(content)
     const result = assistantModelOutputSchema.safeParse(parsed)
-    return result.success ? result.data : null
+    return result.success ? { output: result.data, outcome: 'accepted' } : { output: null, outcome: 'failed' }
   } catch {
-    return null
+    return { output: null, outcome: 'failed' }
   } finally {
     clearTimeout(timeout)
   }
@@ -138,16 +140,18 @@ function isSafeModelOutput(output: AssistantModelOutput, intent: ReturnType<type
   return true
 }
 
-export async function buildAssistantResponse(request: AssistantRequest, requestId: string): Promise<AssistantResponse> {
+export async function buildAssistantResponse(request: AssistantRequest, requestId: string): Promise<AssistantResponse & { providerOutcome: ProviderOutcome }> {
   const config = await loadAssistantControlConfig()
   const intent = classifyIntent(request.message)
   const locale = requestedLocale(request)
-  if (!config.enabled) return { requestId, answer: locale === 'bn' ? 'সহকারীটি বর্তমানে বন্ধ আছে।' : 'The assistant is currently unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
-  if ((intent === 'policy' || intent === 'store_information') && !config.allowPolicyQuestions) return { requestId, answer: locale === 'bn' ? 'এই ধরনের প্রশ্নের উত্তর এখন সহকারী দিতে পারছে না।' : 'The assistant is not configured to answer this type of question right now.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
-  if (intent === 'product_search' && !config.allowProductSearch) return { requestId, answer: locale === 'bn' ? 'পণ্য খোঁজার সুবিধাটি এখন সাময়িকভাবে বন্ধ আছে।' : 'Product search is temporarily unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
+  if (!config.enabled) return { requestId, answer: locale === 'bn' ? 'সহকারীটি বর্তমানে বন্ধ আছে।' : 'The assistant is currently unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'not_attempted' }
+  if ((intent === 'policy' || intent === 'store_information') && !config.allowPolicyQuestions) return { requestId, answer: locale === 'bn' ? 'এই ধরনের প্রশ্নের উত্তর এখন সহকারী দিতে পারছে না।' : 'The assistant is not configured to answer this type of question right now.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'not_attempted' }
+  if (intent === 'product_search' && !config.allowProductSearch) return { requestId, answer: locale === 'bn' ? 'পণ্য খোঁজার সুবিধাটি এখন সাময়িকভাবে বন্ধ আছে।' : 'Product search is temporarily unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'not_attempted' }
   const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname)
-  const providerOutput = intent === 'product_search' && config.allowRecommendations && retrieval.context.length ? await callProvider(request, retrieval, intent) : null
-  const modelOutput = providerOutput && isSafeModelOutput(providerOutput, intent, retrieval) ? providerOutput : null
+  const providerAttempted = intent === 'product_search' && config.allowRecommendations && retrieval.context.length
+  const providerResult = providerAttempted ? await callProvider(request, retrieval, intent) : { output: null, outcome: 'not_attempted' as const }
+  const modelOutput = providerResult.output && isSafeModelOutput(providerResult.output, intent, retrieval) ? providerResult.output : null
+  const providerOutcome: ProviderOutcome = providerResult.outcome === 'accepted' && !modelOutput ? 'accepted_rejected' : providerResult.outcome
   const output = modelOutput ?? deterministicOutput(request, retrieval, intent)
   const allowedIds = new Set(retrieval.context.map((item) => item.id))
   const safeIds = output.productIds.filter((id) => allowedIds.has(id)).slice(0, 6)
@@ -164,6 +168,7 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
     products,
     evidence: { status: finalOutput.evidenceStatus === 'verified' ? 'verified' : finalOutput.evidenceStatus === 'partial' ? 'partial' : 'no_evidence', sourceTypes: retrieval.sources, retrievedAt: retrieval.retrievedAt },
     followUps: finalOutput.followUps,
+    providerOutcome,
   }
 }
 
