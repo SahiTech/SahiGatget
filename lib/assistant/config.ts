@@ -65,7 +65,7 @@ export async function loadAssistantControlConfig(): Promise<AssistantControlConf
 }
 
 export function getAssistantConfigurationStatus(config: AssistantControlConfig) {
-  const provider = process.env.ASSISTANT_LLM_PROVIDER?.trim().toLowerCase() || 'openai-compatible'
+  const provider = process.env.ASSISTANT_LLM_PROVIDER?.trim().toLowerCase() || 'gemini'
   const hasKey = Boolean(process.env.ASSISTANT_LLM_API_KEY?.trim())
   const hasModel = Boolean(process.env.ASSISTANT_LLM_MODEL?.trim())
   const hasUrl = provider === 'gemini'
@@ -73,8 +73,8 @@ export function getAssistantConfigurationStatus(config: AssistantControlConfig) 
     : Boolean(process.env.ASSISTANT_LLM_API_URL?.trim())
   return {
     enabled: config.enabled,
-    provider: provider === 'gemini' ? 'Gemini' : hasKey || hasModel || hasUrl ? 'OpenAI-compatible' : 'Not configured',
-    providerConfigured: hasKey && hasModel && hasUrl,
+    provider: provider === 'gemini' && hasKey && hasModel && hasUrl ? 'Gemini' : 'Not configured',
+    providerConfigured: provider === 'gemini' && hasKey && hasModel && hasUrl,
     modelConfigured: hasModel,
     rateLimitConfigured: Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim() && process.env.UPSTASH_REDIS_REST_TOKEN?.trim()),
     rateLimit: { maxRequestsPerWindow: config.maxRequestsPerWindow, windowSeconds: config.rateLimitWindowSeconds },

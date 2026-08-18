@@ -16,10 +16,12 @@ const DEFAULT_FOLLOW_UPS = ['একটি পণ্য খুঁজে দিন
 
 const GEMINI_OPENAI_COMPATIBLE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
 
-type AssistantProvider = 'gemini' | 'openai-compatible'
+type AssistantProvider = 'gemini'
 
 function providerConfig() {
-  const provider = (process.env.ASSISTANT_LLM_PROVIDER?.trim().toLowerCase() || 'openai-compatible') as AssistantProvider
+  const configuredProvider = process.env.ASSISTANT_LLM_PROVIDER?.trim().toLowerCase()
+  if (configuredProvider && configuredProvider !== 'gemini') return null
+  const provider: AssistantProvider = 'gemini'
   const apiKey = process.env.ASSISTANT_LLM_API_KEY?.trim()
   const model = process.env.ASSISTANT_LLM_MODEL?.trim()
   const configuredUrl = process.env.ASSISTANT_LLM_API_URL?.trim()
@@ -95,11 +97,11 @@ function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, inte
   ].join('\n\n')
 }
 
-type ProviderOutcome = 'not_attempted' | 'not_configured' | 'failed' | 'accepted' | 'accepted_rejected'
+type ProviderOutcome = 'NOT_ATTEMPTED' | 'GEMINI_NOT_CONFIGURED' | 'GEMINI_FAILED' | 'GEMINI_ACCEPTED' | 'FALLBACK_USED'
 
-async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): Promise<{ output: AssistantModelOutput | null; outcome: Exclude<ProviderOutcome, 'not_attempted' | 'accepted_rejected'> }> {
+async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): Promise<{ output: AssistantModelOutput | null; outcome: Exclude<ProviderOutcome, 'NOT_ATTEMPTED' | 'FALLBACK_USED'> }> {
   const config = providerConfig()
-  if (!config) return { output: null, outcome: 'not_configured' }
+  if (!config) return { output: null, outcome: 'GEMINI_NOT_CONFIGURED' }
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
   try {
@@ -125,9 +127,9 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
     if (!content) throw new Error('LLM_EMPTY_RESPONSE')
     const parsed = JSON.parse(content)
     const result = assistantModelOutputSchema.safeParse(parsed)
-    return result.success ? { output: result.data, outcome: 'accepted' } : { output: null, outcome: 'failed' }
+    return result.success ? { output: result.data, outcome: 'GEMINI_ACCEPTED' } : { output: null, outcome: 'GEMINI_FAILED' }
   } catch {
-    return { output: null, outcome: 'failed' }
+    return { output: null, outcome: 'GEMINI_FAILED' }
   } finally {
     clearTimeout(timeout)
   }
@@ -144,14 +146,14 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
   const config = await loadAssistantControlConfig()
   const intent = classifyIntent(request.message)
   const locale = requestedLocale(request)
-  if (!config.enabled) return { requestId, answer: locale === 'bn' ? 'সহকারীটি বর্তমানে বন্ধ আছে।' : 'The assistant is currently unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'not_attempted' }
-  if ((intent === 'policy' || intent === 'store_information') && !config.allowPolicyQuestions) return { requestId, answer: locale === 'bn' ? 'এই ধরনের প্রশ্নের উত্তর এখন সহকারী দিতে পারছে না।' : 'The assistant is not configured to answer this type of question right now.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'not_attempted' }
-  if (intent === 'product_search' && !config.allowProductSearch) return { requestId, answer: locale === 'bn' ? 'পণ্য খোঁজার সুবিধাটি এখন সাময়িকভাবে বন্ধ আছে।' : 'Product search is temporarily unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'not_attempted' }
+  if (!config.enabled) return { requestId, answer: locale === 'bn' ? 'সহকারীটি বর্তমানে বন্ধ আছে।' : 'The assistant is currently unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'NOT_ATTEMPTED' }
+  if ((intent === 'policy' || intent === 'store_information') && !config.allowPolicyQuestions) return { requestId, answer: locale === 'bn' ? 'এই ধরনের প্রশ্নের উত্তর এখন সহকারী দিতে পারছে না।' : 'The assistant is not configured to answer this type of question right now.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'NOT_ATTEMPTED' }
+  if (intent === 'product_search' && !config.allowProductSearch) return { requestId, answer: locale === 'bn' ? 'পণ্য খোঁজার সুবিধাটি এখন সাময়িকভাবে বন্ধ আছে।' : 'Product search is temporarily unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [], providerOutcome: 'NOT_ATTEMPTED' }
   const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname)
   const providerAttempted = intent === 'product_search' && config.allowRecommendations && retrieval.context.length
-  const providerResult = providerAttempted ? await callProvider(request, retrieval, intent) : { output: null, outcome: 'not_attempted' as const }
+  const providerResult = providerAttempted ? await callProvider(request, retrieval, intent) : { output: null, outcome: 'NOT_ATTEMPTED' as const }
   const modelOutput = providerResult.output && isSafeModelOutput(providerResult.output, intent, retrieval) ? providerResult.output : null
-  const providerOutcome: ProviderOutcome = providerResult.outcome === 'accepted' && !modelOutput ? 'accepted_rejected' : providerResult.outcome
+  const providerOutcome: ProviderOutcome = providerResult.outcome === 'GEMINI_ACCEPTED' && !modelOutput ? 'FALLBACK_USED' : providerResult.outcome
   const output = modelOutput ?? deterministicOutput(request, retrieval, intent)
   const allowedIds = new Set(retrieval.context.map((item) => item.id))
   const safeIds = output.productIds.filter((id) => allowedIds.has(id)).slice(0, 6)
@@ -179,7 +181,7 @@ export function isAssistantProviderConfigured() {
 export function getAssistantProviderStatus() {
   const config = providerConfig()
   return {
-    provider: config?.provider === 'gemini' ? 'Gemini' : config ? 'OpenAI-compatible' : 'Not configured',
+    provider: config?.provider === 'gemini' ? 'Gemini' : 'Not configured',
     configured: Boolean(config),
     modelConfigured: Boolean(config?.model),
   }
