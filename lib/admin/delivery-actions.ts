@@ -8,6 +8,7 @@ import { requireAdmin } from './auth'
 import { writeAdminAuditLog } from './audit'
 import { DELIVERY_RISK_LEVELS, DELIVERY_STATUSES, getDeliveryRiskDetails } from './delivery-data'
 import { providerCatalogByCode } from '@/lib/delivery/provider-catalog'
+import { calculatePathaoPrice, listPathaoAreas, listPathaoCities, listPathaoStores, listPathaoZones, testPathaoConnection } from '@/lib/delivery/pathao'
 
 const providers = ['PATHAO', 'STEADFAST', 'REDX', 'CARRYBEE', 'ECOURIER'] as const
 type Provider = (typeof providers)[number]
@@ -26,6 +27,48 @@ function validStatus(value: string): value is ShipmentStatus {
 function refreshDelivery() {
   revalidatePath('/admin/delivery')
   revalidatePath('/admin/orders')
+}
+
+export async function testPathaoConnectionAction() {
+  const session = await requireAdmin()
+  const result = await testPathaoConnection()
+  const db = createAdminClient()
+  const passed = [result.authentication, result.store, result.city, result.price].every((item) => item.status === 'PASS')
+  await db.from('delivery_providers').update({
+    connection_state: passed ? 'CONNECTED' : 'DEGRADED',
+    is_enabled: passed,
+    capabilities: { CREATE_SHIPMENT: 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: 'UNVERIFIED', PRICE_QUOTE: result.price.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED' },
+    metadata: { environment: 'LIVE', last_connection_test_at: result.checkedAt, last_connection_test: { authentication: result.authentication.status, store: result.store.status, city: result.city.status, price: result.price.status }, store_count: result.store.stores.length, city_count: result.city.cities.length },
+    updated_at: result.checkedAt,
+  }).eq('provider', 'PATHAO')
+  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONNECTION_TESTED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'LIVE', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, price: result.price.status, shipment_creation: 'LOCKED_PHASE_2' } })
+  refreshDelivery()
+  return result
+}
+
+export async function getPathaoStoresAction() {
+  await requireAdmin()
+  return listPathaoStores()
+}
+
+export async function getPathaoCitiesAction() {
+  await requireAdmin()
+  return listPathaoCities()
+}
+
+export async function getPathaoZonesAction(cityId: number) {
+  await requireAdmin()
+  return listPathaoZones(cityId)
+}
+
+export async function getPathaoAreasAction(zoneId: number) {
+  await requireAdmin()
+  return listPathaoAreas(zoneId)
+}
+
+export async function calculatePathaoPriceAction(input: { storeId: number; itemType: 1 | 2; deliveryType: 12 | 48; itemWeight: number; recipientCity: number; recipientZone: number }) {
+  await requireAdmin()
+  return calculatePathaoPrice(input)
 }
 
 export async function testDeliveryProviderReadiness(providerCode: string) {

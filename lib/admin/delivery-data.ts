@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 import { requireAdmin } from './auth'
 import { mergeProviderCatalog } from '@/lib/delivery/provider-catalog'
+import { pathaoEnvironmentStatus } from '@/lib/delivery/pathao'
 
 export const DELIVERY_STATUSES = ['DRAFT', 'READY', 'CREATED', 'PICKUP_PENDING', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'DELIVERY_FAILED', 'CANCELLED', 'RETURN_REQUESTED', 'RETURN_IN_TRANSIT', 'RETURNED', 'EXCEPTION'] as const
 export const DELIVERY_RISK_LEVELS = ['NOT_ASSESSED', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
@@ -83,7 +84,7 @@ export async function getDeliveryOperationsData(filters: { query?: string; order
     db.from('shipments').select('*', { count: 'exact', head: true }).eq('status', 'DELIVERED'),
     db.from('shipments').select('*', { count: 'exact', head: true }).in('status', ['DELIVERY_FAILED', 'EXCEPTION']),
     db.from('shipments').select('*', { count: 'exact', head: true }).in('status', ['RETURN_REQUESTED', 'RETURN_IN_TRANSIT', 'RETURNED']),
-    db.from('delivery_providers').select('provider, display_name, connection_state, capabilities, is_enabled').order('display_name').limit(10),
+    db.from('delivery_providers').select('provider, display_name, connection_state, capabilities, is_enabled, metadata, updated_at').order('display_name').limit(10),
     ordersQuery,
   ])
 
@@ -100,7 +101,8 @@ export async function getDeliveryOperationsData(filters: { query?: string; order
 
   return {
     orders: normalizedOrders,
-    providers: (providers.data ?? []).map(mergeProviderCatalog),
+    providers: (providers.data ?? []).map((provider: any) => mergeProviderCatalog({ ...provider, metadata: provider.metadata ?? {}, updated_at: provider.updated_at ?? null })),
+    pathao: pathaoEnvironmentStatus(),
     metrics: {
       todayOrders,
       readyToDispatch: ready.count ?? 0,
