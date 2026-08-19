@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Boxes, ClipboardList, LayoutDashboard, PackageSearch, Settings2, UsersRound, Layout, MessageSquareText, Bot } from 'lucide-react'
+import { Boxes, ClipboardList, LayoutDashboard, PackageSearch, Settings2, UsersRound, Layout, MessageSquareText, Bot, Truck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 import type { AdminRole } from '@/lib/admin/auth'
@@ -14,6 +14,7 @@ const navigation: { href: string; label: string; icon: LucideIcon; roles: readon
   { href: '/admin/products', label: 'Catalogue', icon: PackageSearch, roles: ['OWNER', 'ADMIN'] },
   { href: '/admin/inventory', label: 'Inventory', icon: Boxes, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/orders', label: 'Orders', icon: ClipboardList, roles: ['OWNER', 'ADMIN', 'STAFF'] },
+  { href: '/admin/delivery', label: 'Delivery', icon: Truck, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/customers', label: 'Customers', icon: UsersRound, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/support', label: 'Customer Support', icon: MessageSquareText, roles: ['OWNER', 'ADMIN', 'STAFF'] },
   { href: '/admin/ai-assistant', label: 'AI Assistant', icon: Bot, roles: ['OWNER', 'ADMIN'] },
