@@ -16,7 +16,7 @@ export type PathaoTestResult = {
   zone: { status: PathaoAuthStatus; message: string; zones: PathaoZone[] }
   area: { status: PathaoAuthStatus; message: string; areas: PathaoArea[] }
   price: { status: PathaoAuthStatus; message: string; quote?: PathaoPricePlan }
-  shipmentCreation: 'LOCKED — Phase 2'
+  shipmentCreation: 'AVAILABLE — guarded Admin single-create flow'
   checkedAt: string
 }
 
@@ -43,6 +43,29 @@ export type PathaoPricePlan = {
   cod_percentage: number | null
   additional_charge: number | null
   final_price: number | null
+}
+
+export type PathaoCreateOrderInput = {
+  storeId: number
+  merchantOrderId: string
+  recipientName: string
+  recipientPhone: string
+  recipientAddress: string
+  deliveryType: 12 | 48
+  itemType: 1 | 2
+  specialInstruction?: string | null
+  itemQuantity: number
+  itemWeight: number
+  itemDescription: string
+  amountToCollect: number
+}
+
+export type PathaoCreateOrderResult = {
+  consignmentId: string
+  providerOrderStatus: string | null
+  providerStatusSlug: string | null
+  deliveryFee: number | null
+  raw: Record<string, unknown>
 }
 
 class PathaoApiError extends Error {
@@ -178,11 +201,61 @@ export async function calculatePathaoPrice(input: { storeId: number; itemType: 1
   return unwrapData<PathaoPricePlan>(body)
 }
 
+function textValue(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function numberValue(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+export async function createPathaoOrder(input: PathaoCreateOrderInput): Promise<PathaoCreateOrderResult> {
+  if (!Number.isInteger(input.storeId) || input.storeId < 1) throw new Error('A valid Pathao store ID is required.')
+  if (!input.merchantOrderId.trim() || input.merchantOrderId.length > 100) throw new Error('A valid stable merchant order ID is required.')
+  if (!input.recipientName.trim() || input.recipientName.length > 120) throw new Error('Recipient name is required.')
+  if (!input.recipientPhone.trim() || input.recipientPhone.length > 30) throw new Error('Recipient phone is required.')
+  if (!input.recipientAddress.trim() || input.recipientAddress.length > 500) throw new Error('A complete recipient address is required.')
+  if (![12, 48].includes(input.deliveryType)) throw new Error('Pathao delivery type is invalid.')
+  if (![1, 2].includes(input.itemType)) throw new Error('Pathao item type must be Document or Parcel.')
+  if (!Number.isInteger(input.itemQuantity) || input.itemQuantity < 1) throw new Error('Pathao item quantity must be a positive integer.')
+  if (!Number.isFinite(input.itemWeight) || input.itemWeight < 0.5 || input.itemWeight > 10) throw new Error('Pathao item weight must be between 0.5 KG and 10 KG.')
+  if (!input.itemDescription.trim() || input.itemDescription.length > 500) throw new Error('A valid item description is required.')
+  if (!Number.isFinite(input.amountToCollect) || input.amountToCollect < 0) throw new Error('Pathao collectible amount must be a non-negative number.')
+
+  const token = await getAccessToken()
+  const payload: Record<string, unknown> = {
+    store_id: input.storeId,
+    merchant_order_id: input.merchantOrderId.trim(),
+    recipient_name: input.recipientName.trim(),
+    recipient_phone: input.recipientPhone.trim(),
+    recipient_address: input.recipientAddress.trim(),
+    delivery_type: input.deliveryType,
+    item_type: input.itemType,
+    item_quantity: input.itemQuantity,
+    item_weight: input.itemWeight.toFixed(2),
+    item_description: input.itemDescription.trim(),
+    amount_to_collect: Number(input.amountToCollect.toFixed(2)),
+  }
+  if (input.specialInstruction?.trim()) payload.special_instruction = input.specialInstruction.trim().slice(0, 500)
+
+  const body = await requestPathao<Record<string, unknown>>('/aladdin/api/v1/orders', { method: 'POST', body: JSON.stringify(payload) }, token)
+  const data = body && typeof body.data === 'object' && body.data !== null ? body.data as Record<string, unknown> : body
+  const consignmentId = textValue(data.consignment_id)
+  if (!consignmentId) throw new Error('Pathao accepted no usable consignment ID; shipment remains in exception review.')
+  return {
+    consignmentId,
+    providerOrderStatus: textValue(data.order_status),
+    providerStatusSlug: textValue(data.order_status_slug),
+    deliveryFee: numberValue(data.delivery_fee),
+    raw: body,
+  }
+}
+
 export async function testPathaoConnection(): Promise<PathaoTestResult> {
   const checkedAt = new Date().toISOString()
   try { await getAccessToken() } catch (error) {
     const message = error instanceof Error ? error.message : 'Pathao authentication failed.'
-    return { authentication: { status: 'FAIL', message }, store: { status: 'FAIL', message: 'Blocked by authentication failure.', stores: [] }, city: { status: 'FAIL', message: 'Blocked by authentication failure.', cities: [] }, zone: { status: 'FAIL', message: 'Blocked by authentication failure.', zones: [] }, area: { status: 'FAIL', message: 'Blocked by authentication failure.', areas: [] }, price: { status: 'FAIL', message: 'Blocked by authentication failure.' }, shipmentCreation: 'LOCKED — Phase 2', checkedAt }
+    return { authentication: { status: 'FAIL', message }, store: { status: 'FAIL', message: 'Blocked by authentication failure.', stores: [] }, city: { status: 'FAIL', message: 'Blocked by authentication failure.', cities: [] }, zone: { status: 'FAIL', message: 'Blocked by authentication failure.', zones: [] }, area: { status: 'FAIL', message: 'Blocked by authentication failure.', areas: [] }, price: { status: 'FAIL', message: 'Blocked by authentication failure.' }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
   }
   const authentication = { status: 'PASS' as const, message: 'Authentication and token validity passed.' }
   try {
@@ -194,16 +267,16 @@ export async function testPathaoConnection(): Promise<PathaoTestResult> {
     const city = { status: cities.length ? 'PASS' as const : 'FAIL' as const, message: `${cities.length} city record(s) retrieved.`, cities }
     const emptyZone = { status: 'FAIL' as const, message: 'Zone readiness requires at least one city.', zones: [] as PathaoZone[] }
     const emptyArea = { status: 'FAIL' as const, message: 'Area readiness requires at least one zone.', areas: [] as PathaoArea[] }
-    if (!activeStore || !cities.length) return { authentication, store, city, zone: emptyZone, area: emptyArea, price: { status: 'FAIL', message: 'Price readiness requires an active store and one city.' }, shipmentCreation: 'LOCKED — Phase 2', checkedAt }
+    if (!activeStore || !cities.length) return { authentication, store, city, zone: emptyZone, area: emptyArea, price: { status: 'FAIL', message: 'Price readiness requires an active store and one city.' }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
     const zones = await listPathaoZones(cities[0].city_id)
     const zone = { status: zones.length ? 'PASS' as const : 'FAIL' as const, message: `${zones.length} zone record(s) retrieved for the first city.`, zones }
-    if (!zones.length) return { authentication, store, city, zone, area: emptyArea, price: { status: 'FAIL', message: 'Price readiness requires a zone for the first city.' }, shipmentCreation: 'LOCKED — Phase 2', checkedAt }
+    if (!zones.length) return { authentication, store, city, zone, area: emptyArea, price: { status: 'FAIL', message: 'Price readiness requires a zone for the first city.' }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
     const areas = await listPathaoAreas(zones[0].zone_id)
     const area = { status: areas.length ? 'PASS' as const : 'FAIL' as const, message: `${areas.length} area record(s) retrieved for the first zone.`, areas }
     const quote = await calculatePathaoPrice({ storeId: activeStore.store_id, itemType: 2, deliveryType: 48, itemWeight: 0.5, recipientCity: cities[0].city_id, recipientZone: zones[0].zone_id })
-    return { authentication, store, city, zone, area, price: { status: 'PASS', message: 'Price calculation readiness passed with the minimum valid parcel weight.', quote }, shipmentCreation: 'LOCKED — Phase 2', checkedAt }
+    return { authentication, store, city, zone, area, price: { status: 'PASS', message: 'Price calculation readiness passed with the minimum valid parcel weight.', quote }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
   } catch (error) {
-    return { authentication, store: { status: 'FAIL', message: error instanceof Error ? error.message : 'Store retrieval failed.', stores: [] }, city: { status: 'FAIL', message: 'Location API verification failed.', cities: [] }, zone: { status: 'FAIL', message: 'Zone API verification failed.', zones: [] }, area: { status: 'FAIL', message: 'Area API verification failed.', areas: [] }, price: { status: 'FAIL', message: 'Price API verification failed.' }, shipmentCreation: 'LOCKED — Phase 2', checkedAt }
+    return { authentication, store: { status: 'FAIL', message: error instanceof Error ? error.message : 'Store retrieval failed.', stores: [] }, city: { status: 'FAIL', message: 'Location API verification failed.', cities: [] }, zone: { status: 'FAIL', message: 'Zone API verification failed.', zones: [] }, area: { status: 'FAIL', message: 'Area API verification failed.', areas: [] }, price: { status: 'FAIL', message: 'Price API verification failed.' }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
   }
 }
 
@@ -215,4 +288,4 @@ export function pathaoEnvironmentStatus() {
   }
 }
 
-export const pathaoShipmentCreationLocked = true
+export const pathaoShipmentCreationLocked = false

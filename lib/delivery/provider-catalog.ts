@@ -22,8 +22,8 @@ export const DELIVERY_PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     displayName: 'Pathao',
     readiness: 'READY_FOR_CREDENTIALS',
     officialDocsUrl: 'https://merchant.pathao.com/',
-    capabilities: [],
-    notes: 'Merchant onboarding, tracking, price calculation, COD, and reverse logistics are documented; API contract requires merchant access before implementation.',
+    capabilities: ['CREATE_SHIPMENT'],
+    notes: 'Official Pathao merchant material verifies single-order creation at /aladdin/api/v1/orders. Tracking, bulk, webhooks, returns, labels, balance, and settlement API contracts remain unverified.',
   },
   {
     provider: 'STEADFAST',

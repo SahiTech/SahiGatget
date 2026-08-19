@@ -1,5 +1,7 @@
 'use server'
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase relation payloads are revalidated at the server-action boundary. */
+
 import { revalidatePath } from 'next/cache'
 
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -8,7 +10,7 @@ import { requireAdmin } from './auth'
 import { writeAdminAuditLog } from './audit'
 import { DELIVERY_RISK_LEVELS, DELIVERY_STATUSES, getDeliveryRiskDetails } from './delivery-data'
 import { providerCatalogByCode } from '@/lib/delivery/provider-catalog'
-import { calculatePathaoPrice, listPathaoAreas, listPathaoCities, listPathaoStores, listPathaoZones, testPathaoConnection } from '@/lib/delivery/pathao'
+import { calculatePathaoPrice, createPathaoOrder, listPathaoAreas, listPathaoCities, listPathaoStores, listPathaoZones, testPathaoConnection } from '@/lib/delivery/pathao'
 
 const providers = ['PATHAO', 'STEADFAST', 'REDX', 'CARRYBEE', 'ECOURIER'] as const
 type Provider = (typeof providers)[number]
@@ -37,11 +39,11 @@ export async function testPathaoConnectionAction() {
   await db.from('delivery_providers').update({
     connection_state: passed ? 'CONNECTED' : 'DEGRADED',
     is_enabled: passed,
-    capabilities: { CREATE_SHIPMENT: 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: 'UNVERIFIED', PRICE_QUOTE: result.price.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED' },
+    capabilities: { CREATE_SHIPMENT: result.authentication.status === 'PASS' && result.store.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: 'UNVERIFIED', PRICE_QUOTE: result.price.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED' },
     metadata: { environment: 'LIVE', last_connection_test_at: result.checkedAt, last_connection_test: { authentication: result.authentication.status, store: result.store.status, city: result.city.status, price: result.price.status }, store_count: result.store.stores.length, city_count: result.city.cities.length },
     updated_at: result.checkedAt,
   }).eq('provider', 'PATHAO')
-  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONNECTION_TESTED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'LIVE', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, price: result.price.status, shipment_creation: 'LOCKED_PHASE_2' } })
+  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONNECTION_TESTED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'LIVE', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, price: result.price.status, shipment_creation: 'GUARDED_PHASE_2_SINGLE_CREATE' } })
   refreshDelivery()
   return result
 }
@@ -82,6 +84,78 @@ export async function testDeliveryProviderReadiness(providerCode: string) {
     return { ok: false, state: 'CREDENTIALS_REQUIRED', message: `${provider.display_name} credentials are required before any courier API call.` }
   }
   return { ok: true, state: 'READY', message: `${provider.display_name} is marked connected. A provider-specific connection test will be enabled only after its official credentials and adapter are configured.`, capabilities: catalog?.capabilities ?? [] }
+}
+
+const PATHAO_ELIGIBLE_ORDER_STATUSES = new Set(['CONFIRMED', 'PROCESSING', 'READY_TO_SHIP'])
+
+function normalizePhone(value: unknown) {
+  return typeof value === 'string' ? value.replace(/[\s-]/g, '').trim() : ''
+}
+
+function buildCompleteAddress(order: any) {
+  return [order.shipping_address, order.shipping_area, order.shipping_district, order.shipping_division, order.shipping_postal_code].filter((value) => typeof value === 'string' && value.trim()).join(', ').trim()
+}
+
+export async function createPathaoShipmentAction(input: { orderId: string; storeId?: number; deliveryType: 12 | 48; itemType: 1 | 2; itemWeight: number; specialInstruction?: string }) {
+  const session = await requireAdmin()
+  if (!input.orderId || (input.storeId !== undefined && (!Number.isInteger(input.storeId) || input.storeId < 1))) return { ok: false, message: 'A valid order is required.' }
+  if (![12, 48].includes(input.deliveryType) || ![1, 2].includes(input.itemType)) return { ok: false, message: 'Invalid Pathao delivery or item type.' }
+  if (!Number.isFinite(input.itemWeight) || input.itemWeight < 0.5 || input.itemWeight > 10) return { ok: false, message: 'Parcel weight must be between 0.5 KG and 10 KG.' }
+
+  const db = createAdminClient()
+  const { data: order, error: orderError } = await db.from('orders').select('id, order_number, grand_total, payment_method, order_status, notes, customer_name_snapshot, customer_phone_snapshot, customer_email_snapshot, shipping_address, shipping_area, shipping_district, shipping_division, shipping_postal_code, order_items(id, product_name_snapshot, variant_title_snapshot, quantity, line_total), shipments(id, provider, status, provider_shipment_id, merchant_order_id, provider_order_status, provider_status_slug, provider_updated_at, delivery_fee, amount_to_collect, provider_snapshot)').eq('id', input.orderId).maybeSingle()
+  if (orderError || !order) return { ok: false, message: 'Order not found or could not be loaded.' }
+  if (!PATHAO_ELIGIBLE_ORDER_STATUSES.has(order.order_status)) return { ok: false, message: `Order status ${order.order_status} is not eligible for courier creation.` }
+
+  const existing = (order.shipments ?? []).find((item: any) => item.provider === 'PATHAO' && item.provider_shipment_id)
+  if (existing) return { ok: true, duplicate: true, shipmentId: existing.id, consignmentId: existing.provider_shipment_id, message: 'Shipment already created.' }
+
+  const recipientName = typeof order.customer_name_snapshot === 'string' ? order.customer_name_snapshot.trim() : ''
+  const recipientPhone = normalizePhone(order.customer_phone_snapshot)
+  const recipientAddress = buildCompleteAddress(order)
+  const items = Array.isArray(order.order_items) ? order.order_items : []
+  const itemQuantity = items.reduce((sum: number, item: any) => sum + Number(item.quantity ?? 0), 0)
+  const itemDescription = items.map((item: any) => [item.product_name_snapshot, item.variant_title_snapshot].filter(Boolean).join(' — ')).filter(Boolean).join('; ').slice(0, 500)
+  const codAmount = String(order.payment_method ?? '').toUpperCase() === 'COD' ? Number(order.grand_total ?? 0) : 0
+  if (!recipientName || !recipientPhone || !recipientAddress || !items.length || !Number.isInteger(itemQuantity) || itemQuantity < 1 || !itemDescription || !Number.isFinite(codAmount) || codAmount < 0) return { ok: false, message: 'Order is missing a required recipient, parcel, or collectible-amount field.' }
+
+  const { data: provider, error: providerError } = await db.from('delivery_providers').select('provider, connection_state, is_enabled, metadata').eq('provider', 'PATHAO').maybeSingle()
+  if (providerError || !provider || provider.connection_state !== 'CONNECTED' || !provider.is_enabled) return { ok: false, message: 'Pathao is not marked connected. Run the connection test first.' }
+  const stores = await listPathaoStores()
+  const selectedStore = stores.find((store) => (input.storeId === undefined || store.store_id === input.storeId) && store.is_active !== false && store.status?.toLowerCase() !== 'inactive')
+  if (!selectedStore) return { ok: false, message: 'No active Pathao merchant store is available.' }
+
+  const merchantOrderId = String(order.order_number).trim()
+  const idempotencyKey = `pathao:${order.id}`
+  const reservationSnapshot = { merchantOrderId, submissionState: 'PENDING', storeId: selectedStore.store_id, deliveryType: input.deliveryType, itemType: input.itemType, itemWeight: input.itemWeight, internalOnly: false }
+  const { data: reservation, error: reservationError } = await db.from('shipments').insert({ order_id: order.id, provider: 'PATHAO', status: 'READY', merchant_order_id: merchantOrderId, idempotency_key: idempotencyKey, amount_to_collect: codAmount, risk_level: 'NOT_ASSESSED', recipient_snapshot: { name: recipientName, phone: recipientPhone, email: order.customer_email_snapshot, address: recipientAddress }, parcel_snapshot: { itemType: input.itemType, deliveryType: input.deliveryType, itemWeight: input.itemWeight, itemQuantity, itemDescription, items }, provider_snapshot: reservationSnapshot, attempt_count: 1 }).select('id').single()
+  if (reservationError) {
+    if (reservationError.code === '23505') return { ok: false, duplicate: true, message: 'A Pathao shipment attempt already exists for this order. Review the existing shipment before retrying.' }
+    return { ok: false, message: 'Shipment reservation failed. The order was preserved.' }
+  }
+
+  await db.from('shipment_history').insert({ shipment_id: reservation.id, provider: 'PATHAO', previous_status: 'DRAFT', new_status: 'READY', source: 'ADMIN', notes: 'Pathao submission reserved; provider call pending.', payload: { merchantOrderId, storeId: selectedStore.store_id } })
+  await db.from('delivery_audit_logs').insert({ shipment_id: reservation.id, order_id: order.id, provider: 'PATHAO', actor_user_id: session.userId, action: 'PATHAO_SHIPMENT_SUBMISSION_RESERVED', details: { merchantOrderId, deliveryType: input.deliveryType, itemType: input.itemType } })
+
+  try {
+    const result = await createPathaoOrder({ storeId: selectedStore.store_id, merchantOrderId, recipientName, recipientPhone, recipientAddress, deliveryType: input.deliveryType, itemType: input.itemType, specialInstruction: input.specialInstruction || order.notes, itemQuantity, itemWeight: input.itemWeight, itemDescription, amountToCollect: codAmount })
+    const now = new Date().toISOString()
+    const { error: updateError } = await db.from('shipments').update({ status: 'CREATED', provider_shipment_id: result.consignmentId, merchant_order_id: merchantOrderId, provider_order_status: result.providerOrderStatus, provider_status_slug: result.providerStatusSlug, provider_updated_at: now, delivery_fee: result.deliveryFee, amount_to_collect: codAmount, provider_snapshot: { merchantOrderId, consignmentId: result.consignmentId, providerOrderStatus: result.providerOrderStatus, providerStatusSlug: result.providerStatusSlug, deliveryFee: result.deliveryFee, submissionState: 'CREATED' }, updated_at: now, last_error: null }).eq('id', reservation.id)
+    if (updateError) throw new Error('Pathao created the shipment but local persistence failed; manual reconciliation is required.')
+    await db.from('shipment_history').insert({ shipment_id: reservation.id, provider: 'PATHAO', previous_status: 'READY', new_status: 'CREATED', source: 'PROVIDER_API', notes: 'Pathao shipment created.', payload: { consignmentId: result.consignmentId, providerOrderStatus: result.providerOrderStatus, providerStatusSlug: result.providerStatusSlug, deliveryFee: result.deliveryFee } })
+    await db.from('delivery_audit_logs').insert({ shipment_id: reservation.id, order_id: order.id, provider: 'PATHAO', actor_user_id: session.userId, action: 'PATHAO_SHIPMENT_CREATED', details: { merchantOrderId, consignmentId: result.consignmentId, providerOrderStatus: result.providerOrderStatus } })
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_SHIPMENT_CREATED', entityType: 'shipment', entityId: reservation.id, details: { provider: 'PATHAO', merchant_order_id: merchantOrderId, consignment_id: result.consignmentId } })
+    refreshDelivery()
+    return { ok: true, duplicate: false, shipmentId: reservation.id, consignmentId: result.consignmentId, message: 'Pathao shipment created successfully.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Pathao shipment creation failed.'
+    const now = new Date().toISOString()
+    await db.from('shipments').update({ status: 'EXCEPTION', last_error: message.slice(0, 500), provider_snapshot: { ...reservationSnapshot, submissionState: 'EXCEPTION' }, updated_at: now }).eq('id', reservation.id)
+    await db.from('shipment_history').insert({ shipment_id: reservation.id, provider: 'PATHAO', previous_status: 'READY', new_status: 'EXCEPTION', source: 'PROVIDER_API', notes: 'Pathao shipment creation failed or returned an indeterminate result.', payload: { error: message.slice(0, 300) } })
+    await db.from('delivery_audit_logs').insert({ shipment_id: reservation.id, order_id: order.id, provider: 'PATHAO', actor_user_id: session.userId, action: 'PATHAO_SHIPMENT_FAILED', details: { merchantOrderId, error: message.slice(0, 300) } })
+    refreshDelivery()
+    return { ok: false, shipmentId: reservation.id, message: 'Pathao shipment creation failed or is indeterminate. Review the exception before retrying.' }
+  }
 }
 
 export async function prepareInternalShipment(input: { orderId: string; provider: string }) {
