@@ -10,7 +10,7 @@ import { requireAdmin } from './auth'
 import { writeAdminAuditLog } from './audit'
 import { DELIVERY_RISK_LEVELS, DELIVERY_STATUSES, getDeliveryRiskDetails } from './delivery-data'
 import { providerCatalogByCode } from '@/lib/delivery/provider-catalog'
-import { calculatePathaoPrice, createPathaoOrder, listPathaoAreas, listPathaoCities, listPathaoStores, listPathaoZones, testPathaoConnection } from '@/lib/delivery/pathao'
+import { calculatePathaoPrice, createPathaoOrder, getPathaoOrderInfo, listPathaoAreas, listPathaoCities, listPathaoStores, listPathaoZones, testPathaoConnection } from '@/lib/delivery/pathao'
 
 const providers = ['PATHAO', 'STEADFAST', 'REDX', 'CARRYBEE', 'ECOURIER'] as const
 type Provider = (typeof providers)[number]
@@ -156,6 +156,56 @@ export async function createPathaoShipmentAction(input: { orderId: string; store
     refreshDelivery()
     return { ok: false, shipmentId: reservation.id, message: 'Pathao shipment creation failed or is indeterminate. Review the exception before retrying.' }
   }
+}
+
+const PATHAO_PROVIDER_STATUS_MAP: Record<string, ShipmentStatus> = Object.fromEntries(['CREATED', 'PICKUP_PENDING', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'DELIVERY_FAILED', 'CANCELLED', 'RETURN_REQUESTED', 'RETURN_IN_TRANSIT', 'RETURNED', 'EXCEPTION'].map((status) => [status, status])) as Record<string, ShipmentStatus>
+
+export async function refreshPathaoShipmentStatusAction(input: { shipmentId: string }) {
+  const session = await requireAdmin()
+  if (!input.shipmentId) return { ok: false, message: 'Shipment is required.' }
+  const db = createAdminClient()
+  const { data: shipment, error } = await db.from('shipments').select('id, order_id, provider, status, provider_shipment_id, provider_snapshot').eq('id', input.shipmentId).maybeSingle()
+  if (error || !shipment || shipment.provider !== 'PATHAO') return { ok: false, message: 'Pathao shipment not found.' }
+  if (!shipment.provider_shipment_id) return { ok: false, message: 'Pathao consignment ID is not available.' }
+
+  try {
+    const info = await getPathaoOrderInfo(shipment.provider_shipment_id)
+    const providerStatusKey = `${info.providerStatusSlug ?? ''}`.trim().toUpperCase() || `${info.providerOrderStatus ?? ''}`.trim().toUpperCase()
+    const mappedStatus = PATHAO_PROVIDER_STATUS_MAP[providerStatusKey]
+    const nextStatus = mappedStatus ?? shipment.status
+    const now = new Date().toISOString()
+    const providerSnapshot = { ...(shipment.provider_snapshot ?? {}), consignmentId: info.consignmentId, merchantOrderId: info.merchantOrderId, providerOrderStatus: info.providerOrderStatus, providerStatusSlug: info.providerStatusSlug, providerUpdatedAt: info.providerUpdatedAt, invoiceId: info.invoiceId, statusRefreshState: 'REFRESHED' }
+    const { error: updateError } = await db.from('shipments').update({ status: nextStatus, merchant_order_id: info.merchantOrderId ?? undefined, provider_order_status: info.providerOrderStatus, provider_status_slug: info.providerStatusSlug, provider_updated_at: info.providerUpdatedAt ?? now, provider_snapshot: providerSnapshot, updated_at: now }).eq('id', shipment.id)
+    if (updateError) return { ok: false, message: 'Provider status was received but local persistence failed.' }
+    if (nextStatus !== shipment.status) await db.from('shipment_history').insert({ shipment_id: shipment.id, provider: 'PATHAO', previous_status: shipment.status, new_status: nextStatus, source: 'PROVIDER_API', notes: 'Pathao order information refreshed.', payload: { providerOrderStatus: info.providerOrderStatus, providerStatusSlug: info.providerStatusSlug } })
+    await db.from('delivery_audit_logs').insert({ shipment_id: shipment.id, order_id: shipment.order_id, provider: 'PATHAO', actor_user_id: session.userId, action: 'PATHAO_STATUS_REFRESHED', details: { consignmentId: info.consignmentId, providerOrderStatus: info.providerOrderStatus, providerStatusSlug: info.providerStatusSlug, mappedStatus: nextStatus } })
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_STATUS_REFRESHED', entityType: 'shipment', entityId: shipment.id, details: { provider: 'PATHAO', consignment_id: info.consignmentId, provider_status: info.providerOrderStatus, provider_status_slug: info.providerStatusSlug } })
+    refreshDelivery()
+    return { ok: true, status: nextStatus, providerOrderStatus: info.providerOrderStatus, providerStatusSlug: info.providerStatusSlug, providerUpdatedAt: info.providerUpdatedAt, invoiceId: info.invoiceId, message: 'Pathao status refreshed.' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Pathao status refresh failed.'
+    await db.from('shipments').update({ last_error: message.slice(0, 500), updated_at: new Date().toISOString() }).eq('id', shipment.id)
+    await db.from('delivery_audit_logs').insert({ shipment_id: shipment.id, order_id: shipment.order_id, provider: 'PATHAO', actor_user_id: session.userId, action: 'PATHAO_STATUS_REFRESH_FAILED', details: { error: message.slice(0, 300) } })
+    return { ok: false, message: 'Pathao status refresh failed. Review the shipment exception state.' }
+  }
+}
+
+export async function requestManualPathaoReversePickupAction(input: { shipmentId: string; reason: string }) {
+  const session = await requireAdmin()
+  const reason = input.reason.trim().slice(0, 300)
+  if (!input.shipmentId || !reason) return { ok: false, message: 'Shipment and return reason are required.' }
+  const db = createAdminClient()
+  const { data: shipment, error } = await db.from('shipments').select('id, order_id, provider, status, provider_shipment_id, provider_snapshot').eq('id', input.shipmentId).maybeSingle()
+  if (error || !shipment || shipment.provider !== 'PATHAO') return { ok: false, message: 'Pathao shipment not found.' }
+  if (!shipment.provider_shipment_id) return { ok: false, message: 'A Pathao consignment is required before recording a reverse-pickup request.' }
+  const now = new Date().toISOString()
+  const providerSnapshot = { ...(shipment.provider_snapshot ?? {}), manualReversePickup: { state: 'REQUESTED', reason, requestedAt: now, providerAction: 'MERCHANT_PANEL_REQUIRED' } }
+  const { error: updateError } = await db.from('shipments').update({ status: 'RETURN_REQUESTED', provider_snapshot: providerSnapshot, updated_at: now }).eq('id', shipment.id)
+  if (updateError) return { ok: false, message: 'The internal reverse-pickup request could not be recorded.' }
+  await db.from('shipment_history').insert({ shipment_id: shipment.id, provider: 'PATHAO', previous_status: shipment.status, new_status: 'RETURN_REQUESTED', source: 'ADMIN', notes: 'Manual reverse-pickup request recorded; Pathao Merchant Panel action required.', payload: { reason, providerAction: 'MERCHANT_PANEL_REQUIRED' } })
+  await db.from('delivery_audit_logs').insert({ shipment_id: shipment.id, order_id: shipment.order_id, provider: 'PATHAO', actor_user_id: session.userId, action: 'PATHAO_REVERSE_PICKUP_MANUAL_REQUESTED', details: { consignmentId: shipment.provider_shipment_id, reason, providerAction: 'MERCHANT_PANEL_REQUIRED' } })
+  refreshDelivery()
+  return { ok: true, message: 'Internal reverse-pickup request recorded. Complete the provider action in the Pathao Merchant Panel.' }
 }
 
 export async function prepareInternalShipment(input: { orderId: string; provider: string }) {

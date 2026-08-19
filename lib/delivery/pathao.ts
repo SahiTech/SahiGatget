@@ -68,6 +68,16 @@ export type PathaoCreateOrderResult = {
   raw: Record<string, unknown>
 }
 
+export type PathaoOrderInfoResult = {
+  consignmentId: string
+  merchantOrderId: string | null
+  providerOrderStatus: string | null
+  providerStatusSlug: string | null
+  providerUpdatedAt: string | null
+  invoiceId: string | null
+  raw: Record<string, unknown>
+}
+
 class PathaoApiError extends Error {
   constructor(readonly status: number, message: string) {
     super(message)
@@ -207,6 +217,24 @@ function textValue(value: unknown) {
 
 function numberValue(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+export async function getPathaoOrderInfo(consignmentId: string): Promise<PathaoOrderInfoResult> {
+  const normalized = consignmentId.trim()
+  if (!normalized || normalized.length > 120) throw new Error('A valid Pathao consignment ID is required.')
+  const token = await getAccessToken()
+  const body = await requestPathao<Record<string, unknown>>(`/aladdin/api/v1/orders/${encodeURIComponent(normalized)}/info`, { method: 'GET' }, token)
+  const data = body && typeof body.data === 'object' && body.data !== null ? body.data as Record<string, unknown> : body
+  const returnedConsignmentId = textValue(data.consignment_id) ?? normalized
+  return {
+    consignmentId: returnedConsignmentId,
+    merchantOrderId: textValue(data.merchant_order_id),
+    providerOrderStatus: textValue(data.order_status),
+    providerStatusSlug: textValue(data.order_status_slug),
+    providerUpdatedAt: textValue(data.updated_at) ?? textValue(data.order_updated_at),
+    invoiceId: textValue(data.invoice_id),
+    raw: body,
+  }
 }
 
 export async function createPathaoOrder(input: PathaoCreateOrderInput): Promise<PathaoCreateOrderResult> {
