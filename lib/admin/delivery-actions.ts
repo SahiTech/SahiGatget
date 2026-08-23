@@ -35,15 +35,15 @@ export async function testPathaoConnectionAction() {
   const session = await requireAdmin()
   const result = await testPathaoConnection()
   const db = createAdminClient()
-  const passed = [result.authentication, result.store, result.city, result.price].every((item) => item.status === 'PASS')
+  const passed = [result.authentication, result.store, result.city, result.zone, result.area, result.price].every((item) => item.status === 'PASS')
   await db.from('delivery_providers').update({
     connection_state: passed ? 'CONNECTED' : 'DEGRADED',
     is_enabled: passed,
     capabilities: { CREATE_SHIPMENT: result.authentication.status === 'PASS' && result.store.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: 'UNVERIFIED', PRICE_QUOTE: result.price.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED' },
-    metadata: { environment: 'LIVE', last_connection_test_at: result.checkedAt, last_connection_test: { authentication: result.authentication.status, store: result.store.status, city: result.city.status, price: result.price.status }, store_count: result.store.stores.length, city_count: result.city.cities.length },
+    metadata: { environment: 'LIVE', last_connection_test_at: result.checkedAt, last_connection_test: { authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status }, store_count: result.store.stores.length, city_count: result.city.cities.length, zone_count: result.zone.zones.length, area_count: result.area.areas.length },
     updated_at: result.checkedAt,
   }).eq('provider', 'PATHAO')
-  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONNECTION_TESTED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'LIVE', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, price: result.price.status, shipment_creation: 'GUARDED_PHASE_2_SINGLE_CREATE' } })
+  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONNECTION_TESTED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'LIVE', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status, shipment_creation: 'GUARDED_PHASE_2_SINGLE_CREATE' } })
   refreshDelivery()
   return result
 }

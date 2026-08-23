@@ -16,6 +16,7 @@ import type {
   TrackingResult,
 } from './contracts'
 import { DELIVERY_CAPABILITIES, DELIVERY_PROVIDERS } from './contracts'
+import { pathaoDeliveryAdapter } from './pathao-adapter'
 
 export class DeliveryError extends Error {
   constructor(
@@ -42,6 +43,8 @@ export function getDeliveryAdapter(provider: DeliveryProviderCode) {
 export function listRegisteredDeliveryAdapters() {
   return [...adapters.values()]
 }
+
+registerDeliveryAdapter(pathaoDeliveryAdapter)
 
 export function assertCapability(adapter: DeliveryAdapter, capability: DeliveryCapability) {
   if (!adapter.capabilities.has(capability)) throw new DeliveryError(`${adapter.provider} does not support ${capability}.`, 'NOT_SUPPORTED')
