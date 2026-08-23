@@ -105,6 +105,15 @@ export function DeliveryOperationsCenter({ data }: { data: any }) {
     })
   }
 
+  useEffect(() => {
+    if (!selectedConfigurationProvider) return
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSelectedConfigurationProvider(null)
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [selectedConfigurationProvider])
+
   return <>
     <div className="print:hidden">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Delivery operations</p><h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Logistics control center</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Prepare internal shipments, review risk, and keep courier handoff explicit. Pathao single-shipment creation is available only from the guarded Admin Orders flow; unsupported courier operations remain manual.</p></div><div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800"><Truck className="h-4 w-4" /> All couriers not connected</div></div>
