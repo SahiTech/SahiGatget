@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 import { requireAdmin } from './auth'
 import { mergeProviderCatalog } from '@/lib/delivery/provider-catalog'
+import { pathaoEnvironmentStatus } from '@/lib/delivery/pathao'
 
 export const DELIVERY_STATUSES = ['DRAFT', 'READY', 'CREATED', 'PICKUP_PENDING', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'DELIVERY_FAILED', 'CANCELLED', 'RETURN_REQUESTED', 'RETURN_IN_TRANSIT', 'RETURNED', 'EXCEPTION'] as const
 export const DELIVERY_RISK_LEVELS = ['NOT_ASSESSED', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
@@ -25,8 +26,14 @@ function normalizeShipment(shipment: any) {
     provider: shipment.provider,
     status: shipment.status,
     providerShipmentId: shipment.provider_shipment_id,
+    merchantOrderId: shipment.merchant_order_id,
+    providerOrderStatus: shipment.provider_order_status,
+    providerStatusSlug: shipment.provider_status_slug,
+    providerUpdatedAt: shipment.provider_updated_at,
     trackingNumber: shipment.tracking_number,
     labelReference: shipment.label_reference,
+    deliveryFee: shipment.delivery_fee == null ? null : Number(shipment.delivery_fee),
+    amountToCollect: shipment.amount_to_collect == null ? null : Number(shipment.amount_to_collect),
     riskLevel: shipment.risk_level,
     recipientSnapshot: shipment.recipient_snapshot ?? {},
     parcelSnapshot: shipment.parcel_snapshot ?? {},
@@ -68,7 +75,7 @@ export async function getDeliveryOperationsData(filters: { query?: string; order
 
   let ordersQuery = db
     .from('orders')
-    .select('id, order_number, customer_id, grand_total, payment_method, payment_status, order_status, shipping_address, shipping_area, shipping_division, shipping_district, shipping_postal_code, customer_name_snapshot, customer_phone_snapshot, customer_email_snapshot, created_at, order_items(id, sku, product_name_snapshot, variant_title_snapshot, quantity, line_total), shipments(id, provider, status, provider_shipment_id, tracking_number, label_reference, risk_level, recipient_snapshot, parcel_snapshot, created_at, updated_at, shipment_history(id, previous_status, new_status, source, notes, created_at))')
+    .select('id, order_number, customer_id, grand_total, payment_method, payment_status, order_status, shipping_address, shipping_area, shipping_division, shipping_district, shipping_postal_code, customer_name_snapshot, customer_phone_snapshot, customer_email_snapshot, created_at, order_items(id, sku, product_name_snapshot, variant_title_snapshot, quantity, line_total), shipments(id, provider, status, provider_shipment_id, merchant_order_id, provider_order_status, provider_status_slug, provider_updated_at, tracking_number, label_reference, risk_level, recipient_snapshot, parcel_snapshot, delivery_fee, amount_to_collect, last_error, created_at, updated_at, shipment_history(id, previous_status, new_status, source, notes, created_at))')
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -83,7 +90,7 @@ export async function getDeliveryOperationsData(filters: { query?: string; order
     db.from('shipments').select('*', { count: 'exact', head: true }).eq('status', 'DELIVERED'),
     db.from('shipments').select('*', { count: 'exact', head: true }).in('status', ['DELIVERY_FAILED', 'EXCEPTION']),
     db.from('shipments').select('*', { count: 'exact', head: true }).in('status', ['RETURN_REQUESTED', 'RETURN_IN_TRANSIT', 'RETURNED']),
-    db.from('delivery_providers').select('provider, display_name, connection_state, capabilities, is_enabled').order('display_name').limit(10),
+    db.from('delivery_providers').select('provider, display_name, connection_state, capabilities, is_enabled, metadata, updated_at').order('display_name').limit(10),
     ordersQuery,
   ])
 
@@ -100,7 +107,8 @@ export async function getDeliveryOperationsData(filters: { query?: string; order
 
   return {
     orders: normalizedOrders,
-    providers: (providers.data ?? []).map(mergeProviderCatalog),
+    providers: (providers.data ?? []).map((provider: any) => mergeProviderCatalog({ ...provider, metadata: provider.metadata ?? {}, updated_at: provider.updated_at ?? null })),
+    pathao: await pathaoEnvironmentStatus(),
     metrics: {
       todayOrders,
       readyToDispatch: ready.count ?? 0,

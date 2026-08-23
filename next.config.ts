@@ -4,21 +4,20 @@ const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://cckgkieqnyhgdtsstwmz.supabase.co https://ncknpaezdhsqiicdjtgr.supabase.co;
+    img-src 'self' blob: data: https://ncknpaezdhsqiicdjtgr.supabase.co;
     font-src 'self' data:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';
     frame-src 'self' https://www.openstreetmap.org;
-    connect-src 'self' https://cckgkieqnyhgdtsstwmz.supabase.co https://ncknpaezdhsqiicdjtgr.supabase.co;
+    connect-src 'self' https://ncknpaezdhsqiicdjtgr.supabase.co;
     upgrade-insecure-requests;
 `.replace(/\s{2,}/g, ' ').trim();
 
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'cckgkieqnyhgdtsstwmz.supabase.co' },
       { protocol: 'https', hostname: 'ncknpaezdhsqiicdjtgr.supabase.co' },
     ],
     formats: ['image/avif', 'image/webp'],
