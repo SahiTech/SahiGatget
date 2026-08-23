@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 import { decryptSecret, encryptSecret } from './secrets'
 
-const PATHAO_BASE_URL = 'https://api-hermes.pathao.com'
+export const PATHAO_BASE_URL = 'https://api-hermes.pathao.com'
 const TOKEN_SKEW_SECONDS = 60
 
 export type PathaoAuthStatus = 'PASS' | 'FAIL'
@@ -85,16 +85,59 @@ class PathaoApiError extends Error {
   }
 }
 
-function getCredentialConfig() {
-  const required = ['PATHAO_CLIENT_ID', 'PATHAO_CLIENT_SECRET', 'PATHAO_USERNAME', 'PATHAO_PASSWORD', 'PATHAO_TOKEN_ENCRYPTION_KEY'] as const
-  const missing = required.filter((name) => !process.env[name])
-  if (missing.length) throw new Error(`Missing Pathao server configuration: ${missing.join(', ')}`)
-  return {
-    clientId: process.env.PATHAO_CLIENT_ID as string,
-    clientSecret: process.env.PATHAO_CLIENT_SECRET as string,
-    username: process.env.PATHAO_USERNAME as string,
-    password: process.env.PATHAO_PASSWORD as string,
+type PathaoCredentialConfig = {
+  clientId: string
+  clientSecret: string
+  username: string
+  password: string
+}
+
+type StoredPathaoConfiguration = {
+  client_id: string | null
+  username: string | null
+  encrypted_client_secret: string | null
+  encrypted_password: string | null
+  base_url: string | null
+  environment: string | null
+}
+
+async function readStoredPathaoConfiguration(): Promise<StoredPathaoConfiguration | null> {
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('delivery_provider_credentials')
+    .select('client_id, username, encrypted_client_secret, encrypted_password, base_url, environment')
+    .eq('provider', 'PATHAO')
+    .maybeSingle()
+  if (error) return null
+  return data as StoredPathaoConfiguration | null
+}
+
+function hasAnyStoredConfiguration(stored: StoredPathaoConfiguration | null) {
+  return Boolean(stored?.client_id || stored?.username || stored?.encrypted_client_secret || stored?.encrypted_password)
+}
+
+async function getCredentialConfig(): Promise<PathaoCredentialConfig> {
+  const stored = await readStoredPathaoConfiguration()
+  if (hasAnyStoredConfiguration(stored)) {
+    if (stored?.base_url && stored.base_url !== PATHAO_BASE_URL) throw new Error('Pathao Production configuration has an invalid API base URL.')
+    if (stored?.environment && stored.environment !== 'PRODUCTION') throw new Error('Pathao Production configuration has an invalid environment.')
+    if (!stored?.client_id || !stored.username || !stored.encrypted_client_secret || !stored.encrypted_password) throw new Error('Pathao Production credentials are incomplete.')
+    return {
+      clientId: stored.client_id,
+      clientSecret: decryptSecret(stored.encrypted_client_secret),
+      username: stored.username,
+      password: decryptSecret(stored.encrypted_password),
+    }
   }
+
+  const fallback = {
+    clientId: process.env.PATHAO_CLIENT_ID,
+    clientSecret: process.env.PATHAO_CLIENT_SECRET,
+    username: process.env.PATHAO_USERNAME,
+    password: process.env.PATHAO_PASSWORD,
+  }
+  if (!fallback.clientId || !fallback.clientSecret || !fallback.username || !fallback.password || !process.env.PATHAO_TOKEN_ENCRYPTION_KEY) throw new Error('Pathao Production credentials are not configured.')
+  return fallback as PathaoCredentialConfig
 }
 
 async function requestPathao<T>(path: string, init: RequestInit, token: string): Promise<T> {
@@ -109,7 +152,7 @@ async function requestPathao<T>(path: string, init: RequestInit, token: string):
 }
 
 async function issueToken() {
-  const config = getCredentialConfig()
+  const config = await getCredentialConfig()
   const response = await fetch(`${PATHAO_BASE_URL}/aladdin/api/v1/issue-token`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -122,7 +165,7 @@ async function issueToken() {
 }
 
 async function refreshToken(refreshToken: string) {
-  const config = getCredentialConfig()
+  const config = await getCredentialConfig()
   const response = await fetch(`${PATHAO_BASE_URL}/aladdin/api/v1/issue-token`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -157,7 +200,7 @@ function unwrapData<T>(body: { data?: T } | T): T {
 }
 
 async function getAccessToken(): Promise<string> {
-  getCredentialConfig()
+  await getCredentialConfig()
   const db = createAdminClient()
   const { data: stored, error } = await db.from('delivery_provider_credentials').select('encrypted_access_token, encrypted_refresh_token, access_token_expires_at').eq('provider', 'PATHAO').maybeSingle()
   if (error) throw new Error('Pathao token state could not be read.')
@@ -308,11 +351,27 @@ export async function testPathaoConnection(): Promise<PathaoTestResult> {
   }
 }
 
-export function pathaoEnvironmentStatus() {
+export async function pathaoEnvironmentStatus() {
+  let stored: StoredPathaoConfiguration | null = null
+  try {
+    stored = await readStoredPathaoConfiguration()
+  } catch {
+    stored = null
+  }
+  const storedConfigured = Boolean(stored?.client_id && stored.username && stored.encrypted_client_secret && stored.encrypted_password)
+  const storedPartial = hasAnyStoredConfiguration(stored) && !storedConfigured
+  const environmentConfigured = Boolean(process.env.PATHAO_CLIENT_ID && process.env.PATHAO_CLIENT_SECRET && process.env.PATHAO_USERNAME && process.env.PATHAO_PASSWORD && process.env.PATHAO_TOKEN_ENCRYPTION_KEY)
+  const adminSource = storedConfigured || storedPartial
   return {
     live: true,
-    configured: Boolean(process.env.PATHAO_CLIENT_ID && process.env.PATHAO_CLIENT_SECRET && process.env.PATHAO_USERNAME && process.env.PATHAO_PASSWORD && process.env.PATHAO_TOKEN_ENCRYPTION_KEY),
+    configured: storedConfigured || (!storedPartial && environmentConfigured),
+    source: adminSource ? 'ADMIN' : environmentConfigured ? 'ENVIRONMENT' : 'NONE',
+    environment: 'PRODUCTION',
     baseUrl: PATHAO_BASE_URL,
+    clientIdConfigured: adminSource ? Boolean(stored?.client_id) : Boolean(process.env.PATHAO_CLIENT_ID),
+    usernameConfigured: adminSource ? Boolean(stored?.username) : Boolean(process.env.PATHAO_USERNAME),
+    clientSecretConfigured: adminSource ? Boolean(stored?.encrypted_client_secret) : Boolean(process.env.PATHAO_CLIENT_SECRET),
+    passwordConfigured: adminSource ? Boolean(stored?.encrypted_password) : Boolean(process.env.PATHAO_PASSWORD),
   }
 }
 

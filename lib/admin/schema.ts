@@ -172,3 +172,12 @@ export const bannerSchema = z.object({
 })
 
 export type BannerInput = z.infer<typeof bannerSchema>
+
+export const pathaoConfigurationSchema = z.object({
+  clientId: z.string().trim().max(255).optional().or(z.literal('')),
+  clientSecret: z.string().max(500).optional().or(z.literal('')),
+  username: z.string().trim().max(255).optional().or(z.literal('')),
+  password: z.string().max(500).optional().or(z.literal('')),
+})
+
+export type PathaoConfigurationInput = z.infer<typeof pathaoConfigurationSchema>

@@ -108,7 +108,7 @@ export async function getDeliveryOperationsData(filters: { query?: string; order
   return {
     orders: normalizedOrders,
     providers: (providers.data ?? []).map((provider: any) => mergeProviderCatalog({ ...provider, metadata: provider.metadata ?? {}, updated_at: provider.updated_at ?? null })),
-    pathao: pathaoEnvironmentStatus(),
+    pathao: await pathaoEnvironmentStatus(),
     metrics: {
       todayOrders,
       readyToDispatch: ready.count ?? 0,

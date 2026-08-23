@@ -10,7 +10,9 @@ import { requireAdmin } from './auth'
 import { writeAdminAuditLog } from './audit'
 import { DELIVERY_RISK_LEVELS, DELIVERY_STATUSES, getDeliveryRiskDetails } from './delivery-data'
 import { providerCatalogByCode } from '@/lib/delivery/provider-catalog'
-import { calculatePathaoPrice, createPathaoOrder, getPathaoOrderInfo, listPathaoAreas, listPathaoCities, listPathaoStores, listPathaoZones, testPathaoConnection } from '@/lib/delivery/pathao'
+import { pathaoConfigurationSchema } from './schema'
+import { encryptSecret } from '@/lib/delivery/secrets'
+import { calculatePathaoPrice, createPathaoOrder, getPathaoOrderInfo, listPathaoAreas, listPathaoCities, listPathaoStores, listPathaoZones, pathaoEnvironmentStatus, PATHAO_BASE_URL, testPathaoConnection } from '@/lib/delivery/pathao'
 
 const providers = ['PATHAO', 'STEADFAST', 'REDX', 'CARRYBEE', 'ECOURIER'] as const
 type Provider = (typeof providers)[number]
@@ -31,19 +33,81 @@ function refreshDelivery() {
   revalidatePath('/admin/orders')
 }
 
+export async function getPathaoConfigurationStatusAction() {
+  await requireAdmin(['OWNER', 'ADMIN'])
+  return pathaoEnvironmentStatus()
+}
+
+export async function savePathaoConfigurationAction(input: unknown) {
+  const session = await requireAdmin(['OWNER', 'ADMIN'])
+  const parsed = pathaoConfigurationSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: 'Enter a valid Client ID, Username / Email, and any new secret values.' }
+
+  const db = createAdminClient()
+  const { data: existing, error: existingError } = await db
+    .from('delivery_provider_credentials')
+    .select('client_id, username, encrypted_client_secret, encrypted_password')
+    .eq('provider', 'PATHAO')
+    .maybeSingle()
+  if (existingError) return { ok: false, message: 'Pathao configuration could not be read.' }
+  const clientId = parsed.data.clientId?.trim() || existing?.client_id || ''
+  const username = parsed.data.username?.trim() || existing?.username || ''
+  if (!clientId) return { ok: false, message: 'Enter the Pathao Client ID before saving.' }
+  if (!username) return { ok: false, message: 'Enter the Pathao Username / Email before saving.' }
+  if (!parsed.data.clientSecret && !existing?.encrypted_client_secret) return { ok: false, message: 'Enter the Pathao Client Secret before saving.' }
+  if (!parsed.data.password && !existing?.encrypted_password) return { ok: false, message: 'Enter the Pathao Password before saving.' }
+
+  const now = new Date().toISOString()
+  let encryptedClientSecret = existing?.encrypted_client_secret
+  let encryptedPassword = existing?.encrypted_password
+  try {
+    if (parsed.data.clientSecret) encryptedClientSecret = encryptSecret(parsed.data.clientSecret)
+    if (parsed.data.password) encryptedPassword = encryptSecret(parsed.data.password)
+  } catch {
+    return { ok: false, message: 'Server-side credential encryption is not configured.' }
+  }
+  const { error } = await db.from('delivery_provider_credentials').upsert({
+    provider: 'PATHAO',
+    environment: 'PRODUCTION',
+    base_url: PATHAO_BASE_URL,
+    client_id: clientId,
+    username,
+    encrypted_client_secret: encryptedClientSecret,
+    encrypted_password: encryptedPassword,
+    last_error: null,
+    updated_at: now,
+  }, { onConflict: 'provider' })
+  if (error) return { ok: false, message: 'Pathao configuration could not be saved.' }
+
+  const { error: providerError } = await db.from('delivery_providers').update({
+    connection_state: 'NOT_CONNECTED',
+    is_enabled: false,
+    capabilities: { CREATE_SHIPMENT: 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: 'UNVERIFIED', PRICE_QUOTE: 'UNVERIFIED' },
+    metadata: { environment: 'PRODUCTION', configuration_source: 'ADMIN', configuration_status: 'CONFIGURED', configuration_updated_at: now },
+    updated_at: now,
+  }).eq('provider', 'PATHAO')
+  if (providerError) return { ok: false, message: 'Pathao credentials were saved but provider readiness could not be reset. Test the connection before use.' }
+
+  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONFIG_UPDATED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'PRODUCTION', configuration_source: 'ADMIN', client_id_configured: true, username_configured: true, client_secret_configured: true, password_configured: true } })
+  revalidatePath('/admin/delivery')
+  revalidatePath('/admin/orders')
+  return { ok: true, message: 'Pathao Production configuration saved. Test the connection before creating shipments.' }
+}
+
 export async function testPathaoConnectionAction() {
-  const session = await requireAdmin()
+  const session = await requireAdmin(['OWNER', 'ADMIN'])
   const result = await testPathaoConnection()
+  const configStatus = await pathaoEnvironmentStatus()
   const db = createAdminClient()
   const passed = [result.authentication, result.store, result.city, result.zone, result.area, result.price].every((item) => item.status === 'PASS')
   await db.from('delivery_providers').update({
     connection_state: passed ? 'CONNECTED' : 'DEGRADED',
     is_enabled: passed,
-    capabilities: { CREATE_SHIPMENT: result.authentication.status === 'PASS' && result.store.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: 'UNVERIFIED', PRICE_QUOTE: result.price.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED' },
-    metadata: { environment: 'LIVE', last_connection_test_at: result.checkedAt, last_connection_test: { authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status }, store_count: result.store.stores.length, city_count: result.city.cities.length, zone_count: result.zone.zones.length, area_count: result.area.areas.length },
+    capabilities: { CREATE_SHIPMENT: passed ? 'SUPPORTED' : 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: 'UNVERIFIED', PRICE_QUOTE: result.price.status === 'PASS' ? 'SUPPORTED' : 'UNVERIFIED' },
+    metadata: { environment: 'PRODUCTION', configuration_source: configStatus.source, configuration_status: configStatus.configured ? 'CONFIGURED' : 'NOT_CONFIGURED', last_connection_test_at: result.checkedAt, last_connection_test: { authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status }, store_count: result.store.stores.length, city_count: result.city.cities.length, zone_count: result.zone.zones.length, area_count: result.area.areas.length },
     updated_at: result.checkedAt,
   }).eq('provider', 'PATHAO')
-  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONNECTION_TESTED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'LIVE', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status, shipment_creation: 'GUARDED_PHASE_2_SINGLE_CREATE' } })
+  await writeAdminAuditLog({ actorUserId: session.userId, action: passed ? 'PATHAO_CONNECTION_TESTED' : 'PATHAO_CONNECTION_FAILED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'PRODUCTION', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status, shipment_creation: 'GUARDED_PHASE_2_SINGLE_CREATE' } })
   refreshDelivery()
   return result
 }
