@@ -2,7 +2,7 @@
 
 ## Scope and isolation
 
-Phase 5 builds administration only in the `phase-5-admin-operations` branch of the isolated `SahiTech/SahiGatget` repository. The target database is `cckgkieqnyhgdtsstwmz` and the target deployment project is `sahi-gatget`. No legacy repository, legacy Supabase project, DNS record, Cloudflare configuration, `sahigadget.shop`, or default Vercel alias is in scope.
+Phase 5 builds administration only in the `phase-5-admin-operations` branch of the isolated `SahiTech/SahiGatget` repository. The target database is the authorized Supabase production project and the target deployment project is `sahi-gatget`. No legacy repository, legacy Supabase project, DNS record, Cloudflare configuration, `sahigadget.shop`, or default Vercel alias is in scope.
 
 ## Trust boundary
 
