@@ -1,6 +1,6 @@
 # SahiGadget Database & Core Commerce Architecture
 
-This document defines the production-grade relational database schema and architecture for **SahiGadget** (`SahiTech/SahiGatget`), hosted in the dedicated Supabase development project (`cckgkieqnyhgdtsstwmz`).
+This document defines the production-grade relational database schema and architecture for **SahiGadget** (`SahiTech/SahiGatget`), hosted in the authorized Supabase Production project.
 
 ---
 
