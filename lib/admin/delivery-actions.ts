@@ -88,7 +88,7 @@ export async function savePathaoConfigurationAction(input: unknown) {
   }).eq('provider', 'PATHAO')
   if (providerError) return { ok: false, message: 'Pathao credentials were saved but provider readiness could not be reset. Test the connection before use.' }
 
-  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONFIG_UPDATED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'PRODUCTION', configuration_source: 'ADMIN', client_id_configured: true, username_configured: true, client_secret_configured: true, password_configured: true } })
+  await writeAdminAuditLog({ actorUserId: session.userId, action: 'PATHAO_CONFIG_UPDATED', entityType: 'delivery_provider', entityId: null, details: { provider: 'PATHAO', environment: 'PRODUCTION', configuration_source: 'ADMIN', client_id_configured: true, username_configured: true, client_secret_configured: true, password_configured: true } })
   revalidatePath('/admin/delivery')
   revalidatePath('/admin/orders')
   return { ok: true, message: 'Pathao Production configuration saved. Test the connection before creating shipments.' }
@@ -107,7 +107,7 @@ export async function testPathaoConnectionAction() {
     metadata: { environment: 'PRODUCTION', configuration_source: configStatus.source, configuration_status: configStatus.configured ? 'CONFIGURED' : 'NOT_CONFIGURED', last_connection_test_at: result.checkedAt, last_connection_test: { authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status }, store_count: result.store.stores.length, city_count: result.city.cities.length, zone_count: result.zone.zones.length, area_count: result.area.areas.length },
     updated_at: result.checkedAt,
   }).eq('provider', 'PATHAO')
-  await writeAdminAuditLog({ actorUserId: session.userId, action: passed ? 'PATHAO_CONNECTION_TESTED' : 'PATHAO_CONNECTION_FAILED', entityType: 'delivery_provider', entityId: 'PATHAO', details: { environment: 'PRODUCTION', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status, shipment_creation: 'GUARDED_PHASE_2_SINGLE_CREATE' } })
+  await writeAdminAuditLog({ actorUserId: session.userId, action: passed ? 'PATHAO_CONNECTION_TESTED' : 'PATHAO_CONNECTION_FAILED', entityType: 'delivery_provider', entityId: null, details: { provider: 'PATHAO', environment: 'PRODUCTION', passed, authentication: result.authentication.status, store: result.store.status, city: result.city.status, zone: result.zone.status, area: result.area.status, price: result.price.status, shipment_creation: 'GUARDED_PHASE_2_SINGLE_CREATE' } })
   refreshDelivery()
   return result
 }
