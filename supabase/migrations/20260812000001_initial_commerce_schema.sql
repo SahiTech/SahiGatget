@@ -1,6 +1,6 @@
 -- ============================================================================
 -- SahiGadget Commerce Foundation Schema Migration (Complete & Audited)
--- Target Supabase Project: SahiGatget (cckgkieqnyhgdtsstwmz)
+-- Target Supabase Project: Authorized SahiGatget Production
 -- ============================================================================
 
 -- Enable UUID extension
