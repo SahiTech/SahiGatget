@@ -50,7 +50,7 @@ async function ensureInvoice(orderId: string) {
   return { invoiceId: String(data[0].invoice_id), invoiceNumber: String(data[0].invoice_number) }
 }
 
-async function loadInvoiceById(invoiceId: string): Promise<InvoiceDocument> {
+async function loadInvoiceById(invoiceId: string, includeSensitiveIdentifiers: boolean): Promise<InvoiceDocument> {
   const db = createAdminClient()
   const { data, error } = await db
     .from('invoices')
@@ -67,9 +67,9 @@ async function loadInvoiceById(invoiceId: string): Promise<InvoiceDocument> {
     sku: textValue(item.sku),
     productName: textValue(item.product_name_snapshot),
     variantTitle: textValue(item.variant_title_snapshot),
-    imei: optionalText(item.imei_snapshot),
-    imei2: optionalText(item.imei_2_snapshot),
-    serialNumber: optionalText(item.serial_number_snapshot),
+    imei: includeSensitiveIdentifiers ? optionalText(item.imei_snapshot) : null,
+    imei2: includeSensitiveIdentifiers ? optionalText(item.imei_2_snapshot) : null,
+    serialNumber: includeSensitiveIdentifiers ? optionalText(item.serial_number_snapshot) : null,
     unitPrice: numberValue(item.unit_price),
     compareAtPrice: item.compare_at_price_snapshot === null ? null : numberValue(item.compare_at_price_snapshot),
     discountAmount: numberValue(item.discount_amount),
@@ -114,14 +114,14 @@ async function loadInvoiceById(invoiceId: string): Promise<InvoiceDocument> {
   }
 }
 
-async function loadInvoiceForOrder(orderId: string) {
+async function loadInvoiceForOrder(orderId: string, includeSensitiveIdentifiers: boolean) {
   const ensured = await ensureInvoice(orderId)
-  return loadInvoiceById(ensured.invoiceId)
+  return loadInvoiceById(ensured.invoiceId, includeSensitiveIdentifiers)
 }
 
 export async function getAdminInvoiceDocument(orderId: string) {
   await requireAdmin(['OWNER', 'ADMIN'])
-  return loadInvoiceForOrder(orderId)
+  return loadInvoiceForOrder(orderId, true)
 }
 
 export async function getGuestInvoiceDocument(orderNumber: string, phone: string) {
@@ -136,7 +136,7 @@ export async function getGuestInvoiceDocument(orderNumber: string, phone: string
   if (error || !order || normalizePhone(String(order.customer_phone_snapshot)) !== normalizePhone(phone)) {
     throw new Error('We could not verify this order. Check the order number and mobile number, then try again.')
   }
-  return loadInvoiceForOrder(String(order.id))
+  return loadInvoiceForOrder(String(order.id), false)
 }
 
 export async function getPublicInvoiceVerification(token: string) {
