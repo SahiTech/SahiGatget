@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useTransition } from 'react'
 import { Edit2, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { deleteHomepageBanner, updateHomepageBanner } from '@/lib/admin/homepage-actions'
@@ -44,7 +45,7 @@ export function BannerList({ banners, onEdit, onRefresh }: BannerListProps) {
         <div key={banner.id} className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-md ${!banner.is_active ? 'opacity-60 grayscale' : ''}`}>
           <div className="flex flex-col md:flex-row">
             <div className="relative h-40 w-full shrink-0 md:h-auto md:w-72 bg-slate-100">
-              <img src={banner.desktop_image_url} alt={banner.heading} className="h-full w-full object-cover" />
+              <Image src={banner.desktop_image_url} alt={banner.heading} fill unoptimized sizes="(max-width: 768px) 100vw, 288px" className="object-cover" />
               <div className="absolute left-3 top-3 rounded-full bg-slate-950/80 px-2 py-1 text-[10px] font-black text-white backdrop-blur">
                 Order: {banner.sort_order}
               </div>

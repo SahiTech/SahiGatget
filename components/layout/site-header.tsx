@@ -21,6 +21,103 @@ const navItems = [
 // Real popular searches based on available catalogue data
 const popularSearches = ['Samsung', 'Feature Phone', 'Smartwatch', 'SKMEI', 'Watch']
 
+type SearchDropdownProps = {
+  showDropdown: boolean
+  query: string
+  isSearching: boolean
+  suggestions: StorefrontProduct[]
+  isMobile?: boolean
+  onPopularSearch: (term: string) => void
+  onViewAll: () => void
+  onProductClick: () => void
+}
+
+function SearchDropdown({ showDropdown, query, isSearching, suggestions, isMobile = false, onPopularSearch, onViewAll, onProductClick }: SearchDropdownProps) {
+  if (!showDropdown) return null
+
+  const isEmpty = query.trim().length === 0
+  const isTooShort = !isEmpty && query.trim().length < 2
+
+  return (
+    <div className={`motion-safe:animate-[dropdown-in_160ms_ease-out_both] motion-reduce:animate-none absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ${isMobile ? 'max-h-[60vh] overflow-y-auto' : ''}`}>
+      {isEmpty ? (
+        <div className="p-4">
+          <p className="mb-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> Popular searches
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {popularSearches.map((term) => (
+              <button
+                key={term}
+                type="button"
+                onClick={() => onPopularSearch(term)}
+                className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-950 hover:text-white"
+              >
+                {term}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : isSearching ? (
+        <div className="flex items-center justify-center p-8 text-slate-500">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="ml-2 text-sm font-medium">Searching catalogue...</span>
+        </div>
+      ) : isTooShort ? (
+        <div className="p-4 text-center text-xs text-slate-500">Type at least 2 characters to search...</div>
+      ) : suggestions.length > 0 ? (
+        <div className="py-2">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Catalogue matches ({suggestions.length})</p>
+            <button
+              type="button"
+              onClick={onViewAll}
+              className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline"
+            >
+              View all <ArrowRight className="h-3 w-3" />
+            </button>
+          </div>
+          {suggestions.map((product) => {
+            const imageUrl = getProductPrimaryImage(product)
+            const priceRange = getProductPriceRange(product)
+            const availability = getProductAvailability(product)
+            return (
+              <Link
+                key={product.id}
+                href={`/products/${product.slug}`}
+                onClick={onProductClick}
+                className="flex items-center gap-3 border-b border-slate-50 px-4 py-3 transition hover:bg-slate-50 last:border-0"
+              >
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs font-black text-slate-300">SG</div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-slate-900">{product.name}</p>
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <span className="text-xs font-black text-emerald-600">{priceRange}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${availability.tone === 'in' ? 'text-emerald-500' : availability.tone === 'low' ? 'text-amber-500' : 'text-rose-500'}`}>
+                      {availability.label}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="p-8 text-center">
+          <p className="text-sm font-bold text-slate-950">No products found for “{query}”</p>
+          <p className="mt-1 text-xs text-slate-500">Try searching for brand names, watch, phone, or SKU.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function SiteHeader() {
   const pathname = usePathname()
   const router = useRouter()
@@ -45,11 +142,7 @@ export function SiteHeader() {
 
   useEffect(() => {
     const trimmed = query.trim()
-    if (trimmed.length < 2) {
-      setSuggestions([])
-      setIsSearching(false)
-      return
-    }
+    if (trimmed.length < 2) return
 
     const timer = setTimeout(async () => {
       setIsSearching(true)
@@ -67,6 +160,24 @@ export function SiteHeader() {
     return () => clearTimeout(timer)
   }, [query])
 
+  function selectPopularSearch(term: string) {
+    setQuery(term)
+    router.push(`/search?q=${encodeURIComponent(term)}`)
+    setShowDropdown(false)
+    setMenuOpen(false)
+  }
+
+  function submitViewAll() {
+    router.push(`/search?q=${encodeURIComponent(query)}`)
+    setShowDropdown(false)
+    setMenuOpen(false)
+  }
+
+  function closeSearchDropdown() {
+    setShowDropdown(false)
+    setMenuOpen(false)
+  }
+
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const value = query.trim()
@@ -74,105 +185,6 @@ export function SiteHeader() {
     setMenuOpen(false)
     if (value) router.push(`/search?q=${encodeURIComponent(value)}`)
     else router.push('/search')
-  }
-
-  const SearchDropdown = ({ isMobile = false }: { isMobile?: boolean }) => {
-    if (!showDropdown) return null
-
-    const isEmpty = query.trim().length === 0
-    const isTooShort = !isEmpty && query.trim().length < 2
-
-    return (
-      <div className={`motion-safe:animate-[dropdown-in_160ms_ease-out_both] motion-reduce:animate-none absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ${isMobile ? 'max-h-[60vh] overflow-y-auto' : ''}`}>
-        {isEmpty ? (
-          <div className="p-4">
-            <p className="mb-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> Popular searches
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {popularSearches.map((term) => (
-                <button
-                  key={term}
-                  type="button"
-                  onClick={() => {
-                    setQuery(term)
-                    router.push(`/search?q=${encodeURIComponent(term)}`)
-                    setShowDropdown(false)
-                    setMenuOpen(false)
-                  }}
-                  className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-950 hover:text-white"
-                >
-                  {term}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : isSearching ? (
-          <div className="flex items-center justify-center p-8 text-slate-500">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="ml-2 text-sm font-medium">Searching catalogue...</span>
-          </div>
-        ) : isTooShort ? (
-          <div className="p-4 text-center text-xs text-slate-500">Type at least 2 characters to search...</div>
-        ) : suggestions.length > 0 ? (
-          <div className="py-2">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Catalogue matches ({suggestions.length})</p>
-              <button 
-                type="submit" 
-                onClick={(e) => {
-                  e.preventDefault()
-                  router.push(`/search?q=${encodeURIComponent(query)}`)
-                  setShowDropdown(false)
-                  setMenuOpen(false)
-                }}
-                className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:underline"
-              >
-                View all <ArrowRight className="h-3 w-3" />
-              </button>
-            </div>
-            {suggestions.map((product) => {
-              const imageUrl = getProductPrimaryImage(product)
-              const priceRange = getProductPriceRange(product)
-              const availability = getProductAvailability(product)
-              return (
-                <Link
-                  key={product.id}
-                  href={`/products/${product.slug}`}
-                  onClick={() => {
-                    setShowDropdown(false)
-                    setMenuOpen(false)
-                  }}
-                  className="flex items-center gap-3 border-b border-slate-50 px-4 py-3 transition hover:bg-slate-50 last:border-0"
-                >
-                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-                    {imageUrl ? (
-                      <img src={imageUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs font-black text-slate-300">SG</div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-slate-900">{product.name}</p>
-                    <div className="mt-0.5 flex items-center gap-2">
-                      <span className="text-xs font-black text-emerald-600">{priceRange}</span>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider ${availability.tone === 'in' ? 'text-emerald-500' : availability.tone === 'low' ? 'text-amber-500' : 'text-rose-500'}`}>
-                        {availability.label}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="p-8 text-center">
-            <p className="text-sm font-bold text-slate-950">No products found for “{query}”</p>
-            <p className="mt-1 text-xs text-slate-500">Try searching for brand names, watch, phone, or SKU.</p>
-          </div>
-        )}
-      </div>
-    )
   }
 
   return (
@@ -237,7 +249,7 @@ export function SiteHeader() {
                 <button type="submit" className="border-l border-slate-200 pl-3 text-xs font-bold text-slate-500 transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2">Search</button>
               </div>
             </form>
-            <SearchDropdown />
+            <SearchDropdown showDropdown={showDropdown} query={query} isSearching={isSearching} suggestions={suggestions} onPopularSearch={selectPopularSearch} onViewAll={submitViewAll} onProductClick={closeSearchDropdown} />
           </div>
 
           <div className="flex items-center gap-2">
@@ -280,7 +292,7 @@ export function SiteHeader() {
                 )}
                 <button type="submit" className="border-l border-slate-200 pl-2 text-xs font-bold text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2">Search</button>
               </form>
-              <SearchDropdown isMobile />
+              <SearchDropdown showDropdown={showDropdown} query={query} isSearching={isSearching} suggestions={suggestions} isMobile onPopularSearch={selectPopularSearch} onViewAll={submitViewAll} onProductClick={closeSearchDropdown} />
             </div>
             
             <nav className="grid gap-1 border-t border-slate-100 pt-3" aria-label="Mobile navigation">

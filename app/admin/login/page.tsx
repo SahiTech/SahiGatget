@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { redirect } from 'next/navigation'
-import { ShieldCheck, Store } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 
 import { AdminLoginForm } from '@/components/admin/admin-login-form'
 import { getAdminSession } from '@/lib/admin/auth'

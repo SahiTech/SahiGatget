@@ -1,6 +1,4 @@
 import { Metadata } from 'next'
-import { Plus } from 'lucide-react'
-
 import { requireAdmin } from '@/lib/admin/auth'
 import { AdminShell, AdminPageHeader } from '@/components/admin/admin-shell'
 import { getHomepageBanners } from '@/lib/admin/homepage-actions'

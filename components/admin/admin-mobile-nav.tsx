@@ -5,20 +5,16 @@ import { Menu, X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 export function AdminMobileNav({ children }: { children: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [openPath, setOpenPath] = useState<string | null>(null)
   const pathname = usePathname()
+  const isOpen = openPath === pathname
   const menuRef = useRef<HTMLDivElement>(null)
-
-  // Close menu on route change
-  useEffect(() => {
-    setIsOpen(false)
-  }, [pathname])
 
   // Close menu on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
+        setOpenPath(null)
       }
     }
     if (isOpen) {
@@ -33,7 +29,7 @@ export function AdminMobileNav({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        setIsOpen(false)
+        setOpenPath(null)
       }
     }
     if (isOpen) {
@@ -47,7 +43,7 @@ export function AdminMobileNav({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative md:hidden" ref={menuRef}>
       <button 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setOpenPath(isOpen ? null : pathname)}
         className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
         aria-expanded={isOpen}
         aria-label={isOpen ? 'Close admin navigation' : 'Open admin navigation'}

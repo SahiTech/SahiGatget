@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   try {
     const result = await getProducts({ query: q, pageSize: 6 })
     return NextResponse.json({ products: result.products })
-  } catch (e) {
+  } catch {
     return NextResponse.json({ products: [] }, { status: 500 })
   }
 }
