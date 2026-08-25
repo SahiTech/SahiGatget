@@ -217,7 +217,7 @@ export async function retrieveAssistantContext(message: string, intent: Assistan
       ? await getProductBySlug(decodeURIComponent(pageSlug)).catch(() => null)
       : null
   if (intent === 'policy' || intent === 'store_information') {
-    const topic = /warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি/i.test(message) ? 'warranty' : /return|রিটার্ন|রিপ্লেস/i.test(message) ? 'returns' : /cod|cash|ক্যাশ|payment|পেমেন্ট/i.test(message) ? 'cod' : /delivery|ঢাকা|ডেলিভারি|চার্জ/i.test(message) ? 'delivery' : /support|contact|যোগাযোগ|ইমেইল|ফোন/i.test(message) ? 'support' : 'store_information'
+    const topic = /warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি/i.test(message) ? 'warranty' : /return|রিটার্ন|রিপ্লেস/i.test(message) ? 'returns' : /cod|cash|ক্যাশ|payment|পেমেন্ট/i.test(message) ? 'cod' : /delivery|ঢাকা|ডেলিভারি|চার্জ|\bwhen\b|\bhow many days\b|\bget it\b|কতদিন|কবে|পাবো|দিনের মধ্যে|সময়/i.test(message) ? 'delivery' : /support|contact|যোগাযোগ|ইমেইল|ফোন/i.test(message) ? 'support' : 'store_information'
     const policy = await getStorePolicy(topic, pageProduct)
     return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text }
   }
