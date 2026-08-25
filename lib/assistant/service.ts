@@ -155,7 +155,7 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
   const products = await hydrateProductReferences(safeIds)
   const finalOutput = products.length === safeIds.length ? output : { ...output, productIds: products.map((product) => product.id), evidenceStatus: products.length ? output.evidenceStatus : 'no_evidence' as const }
   const answer = finalOutput.evidenceStatus === 'no_evidence' && finalOutput.intent !== 'unsupported'
-    ? (requestedLocale(request) === 'bn' ? 'দুঃখিত, এই বিষয়ে যাচাই করা তথ্য পাওয়া যাচ্ছে না। অন্যভাবে লিখে চেষ্টা করুন অথবা hello@sahigadget.shop-এ যোগাযোগ করুন।' : 'I could not verify that information. Please try another wording or contact hello@sahigadget.shop.')
+    ? (requestedLocale(request) === 'bn' ? 'দুঃখিত, এই বিষয়ে নিশ্চিত তথ্য পাওয়া যাচ্ছে না। চাইলে Customer Service-এর সাথে সরাসরি যোগাযোগ করুন।' : 'I could not verify that information. You can contact Customer Service directly for help.')
     : finalOutput.answer
   return {
     requestId,
@@ -163,6 +163,7 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
     locale: finalOutput.locale,
     intent: finalOutput.intent,
     products,
+    supportCta: retrieval.supportCta,
     evidence: { status: finalOutput.evidenceStatus === 'verified' ? 'verified' : finalOutput.evidenceStatus === 'partial' ? 'partial' : 'no_evidence', sourceTypes: retrieval.sources, retrievedAt: retrieval.retrievedAt },
     followUps: finalOutput.followUps,
   }
