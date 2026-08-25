@@ -94,19 +94,19 @@ function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, inte
   ].join('\n\n')
 }
 
-async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): Promise<AssistantModelOutput | null> {
+async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>, controls: Awaited<ReturnType<typeof loadAssistantControlConfig>>): Promise<AssistantModelOutput | null> {
   const config = await providerConfig()
   if (!config) return null
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000)
+  const timeout = setTimeout(() => controller.abort(), controls.requestTimeoutMs)
   try {
     const response = await fetch(config.apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
       body: JSON.stringify({
         model: config.model,
-        temperature: 0.1,
-        max_tokens: 1400,
+        temperature: controls.temperature,
+        max_tokens: controls.maxTokens,
         messages: [
           { role: 'system', content: 'Output JSON only. Follow the schema exactly and ground every claim in the supplied context.' },
           { role: 'user', content: buildPrompt(request, retrieval, intent) },
@@ -147,7 +147,7 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
   if ((intent === 'policy' || intent === 'store_information') && !config.allowPolicyQuestions) return { requestId, answer: locale === 'bn' ? 'এই ধরনের প্রশ্নের উত্তর এখন সহকারী দিতে পারছে না।' : 'The assistant is not configured to answer this type of question right now.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
   if (intent === 'product_search' && !config.allowProductSearch) return { requestId, answer: locale === 'bn' ? 'পণ্য খোঁজার সুবিধাটি এখন সাময়িকভাবে বন্ধ আছে।' : 'Product search is temporarily unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
   const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname, request.conversation)
-  const providerOutput = !['unsupported', 'policy', 'store_information'].includes(intent) && config.allowRecommendations && retrieval.context.length ? await callProvider(request, retrieval, intent) : null
+  const providerOutput = !['unsupported', 'policy', 'store_information'].includes(intent) && config.allowRecommendations && retrieval.context.length ? await callProvider(request, retrieval, intent, config) : null
   const modelOutput = providerOutput && isSafeModelOutput(providerOutput, intent, retrieval) ? providerOutput : null
   const output = modelOutput ?? deterministicOutput(request, retrieval, intent)
   const allowedIds = new Set(retrieval.context.map((item) => item.id))
