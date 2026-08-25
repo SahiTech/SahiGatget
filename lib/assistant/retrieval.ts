@@ -198,6 +198,7 @@ export function getSupportCta() {
 export function classifyIntent(message: string): AssistantIntent {
   const normalized = message.trim()
   if (isPrivateRequest(normalized)) return 'unsupported'
+  if (/create\s+(?:an?\s+)?order|place\s+(?:an?\s+)?order\s+for\s+me|make\s+(?:a\s+)?payment|send\s+money|book\s+(?:it|this)|create\s+(?:a\s+)?shipment|আমার\s+হয়ে\s+অর্ডার|শিপমেন্ট\s+কর/i.test(normalized)) return 'unsupported'
   if (/^(?:hi|hello|hey|হ্যালো|হাই|আসসালামু\s+আলাইকুম|সালাম|good\s+(?:morning|afternoon|evening)|কেমন\s+আছেন)(?:[\s,!?.]+.*)?$/i.test(normalized)) return 'greeting'
   if (/^(?:thanks|thank\s+you|ধন্যবাদ|অনেক\s+ধন্যবাদ)\W*$/i.test(normalized)) return 'thanks'
   if (/^(?:bye|goodbye|see\s+you|বিদায়|আবার\s+দেখা\s+হবে)\W*$/i.test(normalized)) return 'goodbye'

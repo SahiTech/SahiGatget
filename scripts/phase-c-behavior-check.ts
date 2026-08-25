@@ -1,3 +1,4 @@
+import { assistantRequestSchema } from '../lib/assistant/contracts'
 import { classifyIntent, extractBudget, getSupportCta, isPrivateAssistantRequest } from '../lib/assistant/retrieval'
 
 const checks = [
@@ -38,6 +39,9 @@ const checks = [
   ['public payment question is not private', !isPrivateAssistantRequest('Payment কীভাবে করব?')],
   ['public customer service number is not private', !isPrivateAssistantRequest('Customer service number কী?')],
   ['budget still routes to search', classifyIntent('১৫ হাজারের মধ্যে ভালো ফোন') === 'budget_search'],
+  ['prohibited order creation is unsupported', classifyIntent('Place an order for me') === 'unsupported'],
+  ['invalid request schema is rejected', !assistantRequestSchema.safeParse({ message: 'Hello' }).success],
+  ['invalid session schema is rejected', !assistantRequestSchema.safeParse({ message: 'Hello', sessionId: 'short' }).success],
 ]
 
 const failed = checks.filter(([, passed]) => !passed)
