@@ -16,14 +16,14 @@ export const assistantRequestSchema = z.object({
 export const assistantModelOutputSchema = z.object({
   answer: z.string().trim().min(1).max(1200),
   locale: z.enum(['bn', 'en']),
-  intent: z.enum(['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'unsupported', 'unclear']),
+  intent: z.enum(['greeting', 'casual_conversation', 'thanks', 'goodbye', 'product_search', 'product_detail', 'product_comparison', 'product_recommendation', 'budget_search', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'private_customer_data', 'order_lookup', 'unsupported', 'general_knowledge', 'clarification_required', 'unclear']),
   productIds: z.array(uuidSchema).max(6),
   evidenceStatus: z.enum(['verified', 'partial', 'no_evidence']),
   fallbackReason: z.enum(['none', 'no_matching_products', 'private_request', 'unsupported_topic', 'missing_source', 'ambiguous_request']),
   followUps: z.array(z.string().min(1).max(80)).max(3),
 }).strict()
 
-export const assistantIntentSchema = z.enum(['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'unsupported', 'unclear'])
+export const assistantIntentSchema = z.enum(['greeting', 'casual_conversation', 'thanks', 'goodbye', 'product_search', 'product_detail', 'product_comparison', 'product_recommendation', 'budget_search', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'private_customer_data', 'order_lookup', 'unsupported', 'general_knowledge', 'clarification_required', 'unclear'])
 
 export const publicProductCardSchema = z.object({
   id: uuidSchema,
@@ -64,7 +64,7 @@ export const modelJsonSchema = {
   properties: {
     answer: { type: 'string', minLength: 1, maxLength: 1200 },
     locale: { type: 'string', enum: ['bn', 'en'] },
-    intent: { type: 'string', enum: ['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'unsupported', 'unclear'] },
+    intent: { type: 'string', enum: ['greeting', 'casual_conversation', 'thanks', 'goodbye', 'product_search', 'product_detail', 'product_comparison', 'product_recommendation', 'budget_search', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'private_customer_data', 'order_lookup', 'unsupported', 'general_knowledge', 'clarification_required', 'unclear'] },
     productIds: { type: 'array', maxItems: 6, items: { type: 'string', format: 'uuid' } },
     evidenceStatus: { type: 'string', enum: ['verified', 'partial', 'no_evidence'] },
     fallbackReason: { type: 'string', enum: ['none', 'no_matching_products', 'private_request', 'unsupported_topic', 'missing_source', 'ambiguous_request'] },
