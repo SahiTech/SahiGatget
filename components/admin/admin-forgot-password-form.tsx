@@ -30,7 +30,7 @@ export function AdminForgotPasswordForm() {
         // Always show success message to prevent enumeration
         setMessage('If an account exists for this email address, a password reset link has been sent.')
         setIsSubmitted(true)
-      } catch (error) {
+      } catch {
         // Even on error, we might want to show success to prevent enumeration, 
         // but here we can show a generic error if something actually broke.
         setMessage('If an account exists for this email address, a password reset link has been sent.')

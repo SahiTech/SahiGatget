@@ -51,7 +51,8 @@ export function DeliveryOperationsCenter({ data }: { data: any }) {
   const persistedPathaoCheckedAt = pathaoProvider?.metadata?.last_connection_test_at
   const selectedOrders = useMemo(() => data.orders.filter((order: any) => selectedIds.includes(order.id)), [data.orders, selectedIds])
   const selectedConfiguration = data.providers.find((item: any) => item.provider === selectedConfigurationProvider)
-  const pathaoVerified = pathaoProvider?.metadata?.last_connection_test?.authentication === 'PASS'
+  const pathaoChecks = pathaoProvider?.metadata?.last_connection_test
+  const pathaoVerified = ['authentication', 'store', 'city', 'zone', 'area', 'price'].every((key) => pathaoChecks?.[key] === 'PASS')
 
   function providerStatus(item: any) {
     if (item.provider === 'PATHAO') return pathaoVerified ? 'VERIFIED' : item.credentialsRequired ? 'NOT CONFIGURED' : 'API UNVERIFIED'

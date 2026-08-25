@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       const message = configured === 'RATE_LIMITED' ? 'অনেকগুলো অনুরোধ পাঠানো হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।' : 'সহকারীটি এখন সাময়িকভাবে ব্যস্ত। কিছুক্ষণ পরে আবার চেষ্টা করুন।'
       return errorResponse(requestId, configured === 'RATE_LIMITED' ? 429 : 503, configured, message, limit.retryAfterSeconds)
     }
-    if (process.env.NODE_ENV === 'production' && !isAssistantProviderConfigured()) {
+    if (process.env.NODE_ENV === 'production' && !(await isAssistantProviderConfigured())) {
       void recordAssistantAnalytics('ASSISTANT_ERROR', { reason: 'provider_not_configured', latencyMs: Date.now() - requestStartedAt })
       return errorResponse(requestId, 503, 'UPSTREAM_UNAVAILABLE', 'সহকারীটি এখনো সম্পূর্ণভাবে সক্রিয় নয়। অনুগ্রহ করে কিছুক্ষণ পরে আবার চেষ্টা করুন।')
     }

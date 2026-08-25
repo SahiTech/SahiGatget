@@ -130,12 +130,6 @@ function VariantSelector({ section, product, selectedVariantId, onSelect, quanti
   </section>
 }
 
-function Countdown({ section }: { section: Extract<LandingSection, { type: 'countdown' }> }) {
-  const [remaining, setRemaining] = useState('')
-  useEffect(() => { const tick = () => { const ms = new Date(section.endsAt).getTime() - Date.now(); if (ms <= 0) return setRemaining('ক্যাম্পেইন শেষ হয়েছে'); const totalSeconds = Math.floor(ms / 1000); const days = Math.floor(totalSeconds / 86400); const hours = Math.floor((totalSeconds % 86400) / 3600); const minutes = Math.floor((totalSeconds % 3600) / 60); const seconds = totalSeconds % 60; setRemaining(`${days} দিন ${hours} ঘণ্টা ${minutes} মিনিট ${seconds} সেকেন্ড`) }; tick(); const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer) }, [section.endsAt])
-  return <section role="timer" aria-live="polite" className={`mx-auto max-w-5xl px-4 py-4 sm:px-6 ${visibility(section)}`}><div className="rounded-2xl bg-slate-950 p-5 text-white"><p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">অফারের সময়</p><h2 className="mt-2 text-xl font-black">{customerText(section.title)}</h2>{section.body ? <p className="mt-2 text-sm leading-6 text-slate-300">{customerText(section.body)}</p> : null}<p className="mt-4 text-xl font-black text-emerald-300">{remaining || 'হিসাব হচ্ছে…'}</p></div></section>
-}
-
 function TextSection({ section, title, tone = 'plain' }: { section: Extract<LandingSection, { type: 'delivery_info' | 'warranty' | 'trust' | 'social_proof' }>; title?: string; tone?: 'plain' | 'green' }) {
   return <section className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 ${visibility(section)}`}><div className={`border-b border-slate-100 py-4 ${tone === 'green' ? 'bg-emerald-50 px-5' : ''}`}><h2 className="text-xl font-black tracking-tight text-slate-950">{customerText(title || section.title)}</h2>{'body' in section ? <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{customerText(section.body)}</p> : null}{'items' in section ? <ul className="mt-4 grid gap-2 sm:grid-cols-2">{section.items.map((item) => <li key={item} className="text-sm font-semibold text-slate-700">✓ {customerText(item)}</li>)}</ul> : null}{'disclaimer' in section && section.disclaimer ? <p className="mt-4 text-xs font-semibold text-slate-500">{customerText(section.disclaimer)}</p> : null}</div></section>
 }

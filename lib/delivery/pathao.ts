@@ -322,32 +322,106 @@ export async function createPathaoOrder(input: PathaoCreateOrderInput): Promise<
   }
 }
 
+function pathaoFailureMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback
+}
+
 export async function testPathaoConnection(): Promise<PathaoTestResult> {
   const checkedAt = new Date().toISOString()
-  try { await getAccessToken() } catch (error) {
-    const message = error instanceof Error ? error.message : 'Pathao authentication failed.'
-    return { authentication: { status: 'FAIL', message }, store: { status: 'FAIL', message: 'Blocked by authentication failure.', stores: [] }, city: { status: 'FAIL', message: 'Blocked by authentication failure.', cities: [] }, zone: { status: 'FAIL', message: 'Blocked by authentication failure.', zones: [] }, area: { status: 'FAIL', message: 'Blocked by authentication failure.', areas: [] }, price: { status: 'FAIL', message: 'Blocked by authentication failure.' }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
-  }
-  const authentication = { status: 'PASS' as const, message: 'Authentication and token validity passed.' }
   try {
-    const stores = await listPathaoStores()
-    const activeStores = stores.filter((item) => item.is_active !== false && item.status?.toLowerCase() !== 'inactive')
-    const activeStore = activeStores[0]
-    const store = { status: activeStores.length ? 'PASS' as const : 'FAIL' as const, message: activeStores.length ? `${stores.length} merchant store(s) retrieved; ${activeStores.length} active store(s).` : 'No active merchant store was returned.', stores, activeStore }
-    const cities = await listPathaoCities()
-    const city = { status: cities.length ? 'PASS' as const : 'FAIL' as const, message: `${cities.length} city record(s) retrieved.`, cities }
-    const emptyZone = { status: 'FAIL' as const, message: 'Zone readiness requires at least one city.', zones: [] as PathaoZone[] }
-    const emptyArea = { status: 'FAIL' as const, message: 'Area readiness requires at least one zone.', areas: [] as PathaoArea[] }
-    if (!activeStore || !cities.length) return { authentication, store, city, zone: emptyZone, area: emptyArea, price: { status: 'FAIL', message: 'Price readiness requires an active store and one city.' }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
-    const zones = await listPathaoZones(cities[0].city_id)
-    const zone = { status: zones.length ? 'PASS' as const : 'FAIL' as const, message: `${zones.length} zone record(s) retrieved for the first city.`, zones }
-    if (!zones.length) return { authentication, store, city, zone, area: emptyArea, price: { status: 'FAIL', message: 'Price readiness requires a zone for the first city.' }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
-    const areas = await listPathaoAreas(zones[0].zone_id)
-    const area = { status: areas.length ? 'PASS' as const : 'FAIL' as const, message: `${areas.length} area record(s) retrieved for the first zone.`, areas }
-    const quote = await calculatePathaoPrice({ storeId: activeStore.store_id, itemType: 2, deliveryType: 48, itemWeight: 0.5, recipientCity: cities[0].city_id, recipientZone: zones[0].zone_id })
-    return { authentication, store, city, zone, area, price: { status: 'PASS', message: 'Price calculation readiness passed with the minimum valid parcel weight.', quote }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
+    await getAccessToken()
   } catch (error) {
-    return { authentication, store: { status: 'FAIL', message: error instanceof Error ? error.message : 'Store retrieval failed.', stores: [] }, city: { status: 'FAIL', message: 'Location API verification failed.', cities: [] }, zone: { status: 'FAIL', message: 'Zone API verification failed.', zones: [] }, area: { status: 'FAIL', message: 'Area API verification failed.', areas: [] }, price: { status: 'FAIL', message: 'Price API verification failed.' }, shipmentCreation: 'AVAILABLE — guarded Admin single-create flow', checkedAt }
+    const message = pathaoFailureMessage(error, 'Pathao authentication failed.')
+    return {
+      authentication: { status: 'FAIL', message },
+      store: { status: 'FAIL', message: 'Blocked by authentication failure.', stores: [] },
+      city: { status: 'FAIL', message: 'Blocked by authentication failure.', cities: [] },
+      zone: { status: 'FAIL', message: 'Blocked by authentication failure.', zones: [] },
+      area: { status: 'FAIL', message: 'Blocked by authentication failure.', areas: [] },
+      price: { status: 'FAIL', message: 'Blocked by authentication failure.' },
+      shipmentCreation: 'AVAILABLE — guarded Admin single-create flow',
+      checkedAt,
+    }
+  }
+
+  const authentication = { status: 'PASS' as const, message: 'Authentication and token validity passed.' }
+  let stores: PathaoStore[] = []
+  let cities: PathaoCity[] = []
+  let zones: PathaoZone[] = []
+  let areas: PathaoArea[] = []
+  let activeStore: PathaoStore | undefined
+  let store: PathaoTestResult['store']
+  let city: PathaoTestResult['city']
+  let zone: PathaoTestResult['zone']
+  let area: PathaoTestResult['area']
+  let price: PathaoTestResult['price']
+
+  try {
+    stores = await listPathaoStores()
+    const activeStores = stores.filter((item) => item.is_active !== false && item.status?.toLowerCase() !== 'inactive')
+    activeStore = activeStores[0]
+    store = {
+      status: activeStores.length ? 'PASS' : 'FAIL',
+      message: activeStores.length ? `${stores.length} merchant store(s) retrieved; ${activeStores.length} active store(s).` : 'No active merchant store was returned.',
+      stores,
+      activeStore,
+    }
+  } catch (error) {
+    store = { status: 'FAIL', message: pathaoFailureMessage(error, 'Store retrieval failed.'), stores: [] }
+  }
+
+  try {
+    cities = await listPathaoCities()
+    city = { status: cities.length ? 'PASS' : 'FAIL', message: `${cities.length} city record(s) retrieved.`, cities }
+  } catch (error) {
+    city = { status: 'FAIL', message: pathaoFailureMessage(error, 'City API verification failed.'), cities: [] }
+  }
+
+  if (cities.length) {
+    try {
+      zones = await listPathaoZones(cities[0].city_id)
+      zone = { status: zones.length ? 'PASS' : 'FAIL', message: `${zones.length} zone record(s) retrieved for the first city.`, zones }
+    } catch (error) {
+      zone = { status: 'FAIL', message: pathaoFailureMessage(error, 'Zone API verification failed.'), zones: [] }
+    }
+  } else {
+    zone = { status: 'FAIL', message: 'Zone readiness requires at least one city.', zones: [] }
+  }
+
+  if (zones.length) {
+    try {
+      areas = await listPathaoAreas(zones[0].zone_id)
+      area = { status: areas.length ? 'PASS' : 'FAIL', message: `${areas.length} area record(s) retrieved for the first zone.`, areas }
+    } catch (error) {
+      area = { status: 'FAIL', message: pathaoFailureMessage(error, 'Area API verification failed.'), areas: [] }
+    }
+  } else {
+    area = { status: 'FAIL', message: 'Area readiness requires at least one zone.', areas: [] }
+  }
+
+  if (!activeStore || !cities.length || !zones.length) {
+    price = {
+      status: 'FAIL',
+      message: !activeStore ? 'Price readiness requires an active merchant store.' : !cities.length ? 'Price readiness requires at least one city.' : 'Price readiness requires a zone for the first city.',
+    }
+  } else {
+    try {
+      const quote = await calculatePathaoPrice({ storeId: activeStore.store_id, itemType: 2, deliveryType: 48, itemWeight: 0.5, recipientCity: cities[0].city_id, recipientZone: zones[0].zone_id })
+      price = { status: 'PASS', message: 'Price calculation readiness passed with the minimum valid parcel weight.', quote }
+    } catch (error) {
+      price = { status: 'FAIL', message: pathaoFailureMessage(error, 'Price API verification failed.') }
+    }
+  }
+
+  return {
+    authentication,
+    store,
+    city,
+    zone,
+    area,
+    price,
+    shipmentCreation: 'AVAILABLE — guarded Admin single-create flow',
+    checkedAt,
   }
 }
 

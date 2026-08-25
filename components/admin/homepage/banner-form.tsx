@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useTransition, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
@@ -127,7 +128,7 @@ export function BannerForm({ initialData, onSuccess, onCancel }: BannerFormProps
       <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <div className="flex items-center justify-between gap-3"><div><label className={labelClass}>Homepage Banner Image</label><p className="text-xs text-slate-500">Recommended: wide artwork around 2.8:1. The same image is used on mobile and desktop.</p></div><span className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">One image</span></div>
         {preview ? <div className="space-y-3">
-          <div className="relative aspect-[2.8/1] overflow-hidden rounded-xl border bg-slate-950"><img src={preview} alt="Banner preview" className="h-full w-full object-cover" /></div>
+          <div className="relative aspect-[2.8/1] overflow-hidden rounded-xl border bg-slate-950"><Image src={preview} alt="Banner preview" fill unoptimized sizes="(max-width: 768px) 100vw, 700px" className="object-cover" /></div>
           {bannerFile ? <p className="truncate text-xs text-slate-500"><span className="font-bold text-slate-700">{bannerFile.name}</span> · {Math.round(bannerFile.size / 1024)} KB</p> : null}
           <div className="flex flex-wrap gap-2"><label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-bold text-white hover:bg-slate-800"><RefreshCw className="h-3.5 w-3.5" /> Change Image<input type="file" className="hidden" accept="image/jpeg,image/png,image/webp,image/avif" onChange={handleFileSelect} /></label><button type="button" onClick={removeImage} className="inline-flex h-9 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-bold text-rose-700 hover:bg-rose-100"><Trash2 className="h-3.5 w-3.5" /> Remove</button></div>
         </div> : <label className="flex aspect-[2.8/1] w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-6 hover:border-emerald-500 hover:bg-emerald-50/50"><ImagePlus className="h-8 w-8 text-slate-400" /><span className="mt-2 text-xs font-bold text-slate-700">Choose Banner Image</span><span className="mt-1 text-[10px] text-slate-400">JPEG, PNG, WebP, or AVIF · max 5MB</span><input type="file" className="hidden" accept="image/jpeg,image/png,image/webp,image/avif" onChange={handleFileSelect} /></label>}

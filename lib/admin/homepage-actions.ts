@@ -22,7 +22,7 @@ function refreshAdminRoutes() {
 }
 
 export async function getHomepageBanners() {
-  const session = await requireAdmin(['OWNER', 'ADMIN', 'STAFF'])
+  await requireAdmin(['OWNER', 'ADMIN', 'STAFF'])
   const supabase = await createClient()
   
   const { data, error } = await supabase
@@ -37,7 +37,7 @@ export async function getHomepageBanners() {
 
 export async function uploadBannerImageAction(formData: FormData): Promise<AdminActionResult & { url?: string }> {
   try {
-    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    await requireAdmin(['OWNER', 'ADMIN'])
     const file = formData.get('file') as File
     const type = formData.get('type') as string
 
@@ -72,9 +72,9 @@ export async function uploadBannerImageAction(formData: FormData): Promise<Admin
       .getPublicUrl(data.path)
 
     return { ok: true, message: 'Image uploaded successfully.', url: publicUrl }
-  } catch (err: any) {
-    console.error('Server action upload error:', err)
-    return { ok: false, message: err.message || 'Server upload failed.' }
+  } catch (error: unknown) {
+    console.error('Server action upload error:', error)
+    return { ok: false, message: error instanceof Error ? error.message : 'Server upload failed.' }
   }
 }
 
@@ -98,7 +98,7 @@ export async function createHomepageBanner(payload: Omit<HomepageBanner, 'id' | 
 
 export async function updateHomepageBanner(id: string, payload: Partial<HomepageBanner>): Promise<AdminActionResult> {
   try {
-    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    await requireAdmin(['OWNER', 'ADMIN'])
     const db = createAdminClient()
 
     const { error } = await db
@@ -117,7 +117,7 @@ export async function updateHomepageBanner(id: string, payload: Partial<Homepage
 
 export async function deleteHomepageBanner(id: string): Promise<AdminActionResult> {
   try {
-    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    await requireAdmin(['OWNER', 'ADMIN'])
     const db = createAdminClient()
 
     const { error } = await db
