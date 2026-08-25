@@ -30,6 +30,14 @@ function formatBdt(value: number | null) {
   return `৳${new Intl.NumberFormat('en-BD', { maximumFractionDigits: 0 }).format(value)}`
 }
 
+function generalKnowledgeFallback(message: string, locale: 'bn' | 'en') {
+  const normalized = message.toLowerCase()
+  if (/amoled/.test(normalized)) return locale === 'bn' ? 'AMOLED হলো এমন একটি ডিসপ্লে প্রযুক্তি যেখানে প্রতিটি পিক্সেল নিজে আলো তৈরি করে। তাই কালো অংশ গভীর হয়, কনট্রাস্ট ভালো হয় এবং সাধারণত পাতলা ডিজাইন সম্ভব হয়।' : 'AMOLED is a display technology where each pixel produces its own light. That enables deep blacks, strong contrast, and typically thinner displays.'
+  if (/\bram\b|র‍্যাম|রাম/.test(normalized)) return locale === 'bn' ? 'RAM হলো ফোনের অস্থায়ী কাজের মেমোরি। RAM বেশি হলে একসাথে বেশি অ্যাপ চালানো ও দ্রুত অ্যাপ বদলানো সহজ হয়, তবে বাস্তব পারফরম্যান্স প্রসেসর ও সফটওয়্যারের উপরও নির্ভর করে।' : 'RAM is a device’s short-term working memory. More RAM can make multitasking smoother, although real-world performance also depends on the processor and software.'
+  if (/\bhttp\b|https/.test(normalized)) return locale === 'bn' ? 'HTTP হলো ওয়েব ব্রাউজার ও সার্ভারের মধ্যে তথ্য আদান-প্রদানের একটি নিয়ম। HTTPS একই কাজ এনক্রিপশনসহ করে, তাই সংবেদনশীল ওয়েব যোগাযোগে এটি বেশি নিরাপদ।' : 'HTTP is a set of rules for exchanging information between a web browser and a server. HTTPS adds encryption, making sensitive web communication safer.'
+  return locale === 'bn' ? 'এটি একটি সাধারণ জ্ঞানভিত্তিক প্রশ্ন। আরও নির্দিষ্ট করে লিখলে আমি সংক্ষেপে ব্যাখ্যা করতে পারব।' : 'That is a general-knowledge question. Add a little detail and I can explain it briefly.'
+}
+
 function deterministicOutput(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): AssistantModelOutput {
   const locale = requestedLocale(request)
   const names = retrieval.context.slice(0, 3).map((item) => item.name)
@@ -62,6 +70,10 @@ function deterministicOutput(request: AssistantRequest, retrieval: RetrievalResu
   if (intent === 'clarification_required') {
     answer = locale === 'bn' ? 'অবশ্যই। আপনি কি কোনো পণ্য খুঁজছেন, নাকি অর্ডার ও ডেলিভারি সম্পর্কে জানতে চাইছেন?' : 'Sure. Are you looking for a product, or do you need help with ordering and delivery?'
     return { answer, locale, intent, productIds: [], evidenceStatus: 'partial', fallbackReason: 'ambiguous_request', followUps: DEFAULT_FOLLOW_UPS }
+  }
+  if (intent === 'general_knowledge' || intent === 'casual_conversation') {
+    answer = intent === 'casual_conversation' ? (locale === 'bn' ? 'অবশ্যই, সময় নিয়ে দেখুন। কোনো পণ্য বা তথ্য জানতে চাইলে বলুন।' : 'Of course—take your time. Ask me about any product or store information when you are ready.') : generalKnowledgeFallback(request.message, locale)
+    return { answer, locale, intent, productIds: [], evidenceStatus: 'partial', fallbackReason: 'none', followUps: DEFAULT_FOLLOW_UPS }
   }
   if (intent === 'support' && isFrustratedAssistantRequest(request.message)) {
     answer = locale === 'bn' ? 'দুঃখিত, আমি বিষয়টি ঠিকভাবে ধরতে পারিনি। সরাসরি Customer Service Team-এর সাথে WhatsApp-এ কথা বলুন—তারা আপনাকে সাহায্য করবে।' : 'Sorry, I did not understand the issue correctly. Please speak with our Customer Service Team on WhatsApp for help.'
