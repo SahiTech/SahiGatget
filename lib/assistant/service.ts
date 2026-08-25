@@ -58,15 +58,19 @@ function deterministicOutput(request: AssistantRequest, retrieval: RetrievalResu
 
   const price = formatBdt(Math.min(...first.variants.map((variant) => variant.price)))
   const availability = first.variants.some((variant) => variant.isInStock) ? 'available' : 'currently unavailable'
+  const description = first.description.replace(/\s+/g, ' ').trim().slice(0, 260)
+  const variantSummary = first.variants.map((variant) => [variant.title, variant.ram, variant.storage].filter(Boolean).join(' · ')).filter(Boolean).join(', ')
   if (locale === 'bn') {
     if (intent === 'price') answer = `${first.name}-এর বর্তমান শুরু মূল্য ${price ?? 'নির্ধারণ করা যায়নি'}। ভ্যারিয়েন্টভেদে মূল্য পরিবর্তন হতে পারে।`
     else if (intent === 'availability') answer = `${first.name} বর্তমানে ${availability === 'available' ? 'উপলভ্য' : 'স্টকে নেই'}। নির্দিষ্ট ভ্যারিয়েন্ট নির্বাচন করার আগে লাইভ স্ট্যাটাস দেখুন।`
-    else if (intent === 'variant') answer = `${first.name}-এর পাওয়া ভ্যারিয়েন্ট: ${first.variants.map((variant) => variant.title).filter(Boolean).join(', ') || 'ভ্যারিয়েন্ট তথ্য পাওয়া যায়নি'}।`
+    else if (intent === 'variant') answer = `${first.name}-এর পাওয়া ভ্যারিয়েন্ট: ${variantSummary || 'ভ্যারিয়েন্ট তথ্য পাওয়া যায়নি'}।`
+    else if (intent === 'product_detail' && description) answer = `${first.name}: ${description}${first.description.length > description.length ? '…' : ''}`
     else answer = `আপনার জন্য ${names.join(', ')} পাওয়া গেছে। লাইভ মূল্য, ছবি এবং প্রাপ্যতা দেখতে পণ্যটি খুলুন।`
   } else {
     if (intent === 'price') answer = `The current starting price for ${first.name} is ${price ?? 'not available'}. Price may vary by variant.`
     else if (intent === 'availability') answer = `${first.name} is ${availability}. Check the live status after selecting a specific variant.`
-    else if (intent === 'variant') answer = `Available variants for ${first.name}: ${first.variants.map((variant) => variant.title).filter(Boolean).join(', ') || 'variant information is unavailable'}.`
+    else if (intent === 'variant') answer = `Available variants for ${first.name}: ${variantSummary || 'variant information is unavailable'}.`
+    else if (intent === 'product_detail' && description) answer = `${first.name}: ${description}${first.description.length > description.length ? '…' : ''}`
     else answer = `I found ${names.join(', ')} for you. Open a product card to see its live price, image, and availability.`
   }
   return { answer, locale, intent, productIds: retrieval.context.slice(0, 3).map((item) => item.id), evidenceStatus, fallbackReason: 'none', followUps: DEFAULT_FOLLOW_UPS }
@@ -74,15 +78,19 @@ function deterministicOutput(request: AssistantRequest, retrieval: RetrievalResu
 
 function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>) {
   const context = JSON.stringify({ products: retrieval.context, policy: retrieval.policyText ?? null })
+  const conversation = JSON.stringify((request.conversation ?? []).slice(-6))
   return [
-    'You are the SahiGadget public customer assistant.',
-    'Answer primarily in Bengali when the customer uses Bengali. Use only the verified context below.',
-    'Never invent facts. Never reveal private data. Never provide exact stock counts. Never claim that you created or checked an order.',
+    'You are the SahiGadget public customer assistant and sales-support representative.',
+    'Answer naturally in Bengali for Bengali or Banglish customers, and in English when the customer clearly prefers English.',
+    'Use only the verified context below for product, price, stock, specification, warranty, policy, or delivery claims. Current store data always wins over general knowledge.',
+    'Never invent facts, prices, products, stock, specifications, warranty terms, delivery estimates, or policy. Never reveal private data or claim that you created or checked an order.',
+    'Use the recent public conversation only to resolve references such as “এর মধ্যে”, “এটা”, “this phone”, or “which one”. Do not request or infer sensitive personal information.',
     'The only permitted productIds are IDs present in the verified product context.',
     `Detected intent: ${intent}`,
     `Customer message: ${request.message}`,
+    `Recent conversation: ${conversation}`,
     `Verified context: ${context}`,
-    'Return only the required JSON schema.',
+    'Keep simple answers concise, explain useful trade-offs for recommendations, and return only the required JSON schema.',
   ].join('\n\n')
 }
 
@@ -123,10 +131,12 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
 }
 
 function isSafeModelOutput(output: AssistantModelOutput, intent: ReturnType<typeof classifyIntent>, retrieval: RetrievalResult) {
-  if (intent !== 'product_search' || output.intent !== 'product_search' || output.evidenceStatus === 'no_evidence' || output.fallbackReason !== 'none') return false
+  const groundedIntents = new Set(['product_search', 'product_detail', 'price', 'availability', 'variant'])
+  const intentMatches = output.intent === intent || (intent === 'unclear' && groundedIntents.has(output.intent))
+  if (!groundedIntents.has(output.intent) || !intentMatches || output.evidenceStatus === 'no_evidence' || output.fallbackReason !== 'none') return false
   if (!retrieval.context.length) return false
-  if (/[৳₹$€]|\b\d{2,}\b|স্টক|স্টকে|available|availability|দাম|মূল্য|price|discount|ছাড়|ডেলিভারি|delivery|ওয়ারেন্টি|warranty|গ্যারান্টি|guarantee/i.test(output.answer)) return false
-  return true
+  const allowedIds = new Set(retrieval.context.map((item) => item.id))
+  return output.productIds.every((id) => allowedIds.has(id)) && output.productIds.length > 0
 }
 
 export async function buildAssistantResponse(request: AssistantRequest, requestId: string): Promise<AssistantResponse> {
@@ -136,8 +146,8 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
   if (!config.enabled) return { requestId, answer: locale === 'bn' ? 'সহকারীটি বর্তমানে বন্ধ আছে।' : 'The assistant is currently unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
   if ((intent === 'policy' || intent === 'store_information') && !config.allowPolicyQuestions) return { requestId, answer: locale === 'bn' ? 'এই ধরনের প্রশ্নের উত্তর এখন সহকারী দিতে পারছে না।' : 'The assistant is not configured to answer this type of question right now.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
   if (intent === 'product_search' && !config.allowProductSearch) return { requestId, answer: locale === 'bn' ? 'পণ্য খোঁজার সুবিধাটি এখন সাময়িকভাবে বন্ধ আছে।' : 'Product search is temporarily unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
-  const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname)
-  const providerOutput = intent === 'product_search' && config.allowRecommendations && retrieval.context.length ? await callProvider(request, retrieval, intent) : null
+  const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname, request.conversation)
+  const providerOutput = !['unsupported', 'policy', 'store_information'].includes(intent) && config.allowRecommendations && retrieval.context.length ? await callProvider(request, retrieval, intent) : null
   const modelOutput = providerOutput && isSafeModelOutput(providerOutput, intent, retrieval) ? providerOutput : null
   const output = modelOutput ?? deterministicOutput(request, retrieval, intent)
   const allowedIds = new Set(retrieval.context.map((item) => item.id))
