@@ -47,6 +47,42 @@ export type Database = {
         }
         Relationships: []
       }
+      assistant_provider_configurations: {
+        Row: {
+          api_url: string
+          created_at: string
+          enabled: boolean
+          encrypted_api_key: string
+          id: string
+          model: string
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          api_url: string
+          created_at?: string
+          enabled?: boolean
+          encrypted_api_key: string
+          id?: string
+          model: string
+          provider: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          api_url?: string
+          created_at?: string
+          enabled?: boolean
+          encrypted_api_key?: string
+          id?: string
+          model?: string
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string

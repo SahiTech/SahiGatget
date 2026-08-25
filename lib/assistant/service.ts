@@ -10,15 +10,12 @@ import {
   retrieveAssistantContext,
 } from './retrieval'
 import type { RetrievalResult } from './retrieval'
-import { loadAssistantControlConfig } from './config'
+import { loadAssistantControlConfig, resolveAssistantProviderConfig } from './config'
 
 const DEFAULT_FOLLOW_UPS = ['একটি পণ্য খুঁজে দিন', 'বাজেটের মধ্যে ফোন দেখান', 'ডেলিভারি সম্পর্কে জানতে চাই']
 
-function providerConfig() {
-  const apiUrl = process.env.ASSISTANT_LLM_API_URL?.trim()
-  const apiKey = process.env.ASSISTANT_LLM_API_KEY?.trim()
-  const model = process.env.ASSISTANT_LLM_MODEL?.trim()
-  return apiUrl && apiKey && model ? { apiUrl, apiKey, model } : null
+async function providerConfig() {
+  return resolveAssistantProviderConfig()
 }
 
 function requestedLocale(request: AssistantRequest): 'bn' | 'en' {
@@ -90,7 +87,7 @@ function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, inte
 }
 
 async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): Promise<AssistantModelOutput | null> {
-  const config = providerConfig()
+  const config = await providerConfig()
   if (!config) return null
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
@@ -161,8 +158,28 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
   }
 }
 
-export function isAssistantProviderConfigured() {
-  return Boolean(providerConfig())
+export async function isAssistantProviderConfigured() {
+  return Boolean(await providerConfig())
+}
+
+export async function testAssistantProviderConnection(input: { provider: string; apiUrl: string; apiKey: string; model: string }) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+  try {
+    const response = await fetch(input.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${input.apiKey}` },
+      body: JSON.stringify({ model: input.model, temperature: 0, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with OK.' }] }),
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+    if (!response.ok) return { ok: false, message: `Provider connection failed with HTTP ${response.status}.` }
+    return { ok: true, message: 'Provider connection succeeded.' }
+  } catch (error) {
+    return { ok: false, message: error instanceof Error && error.name === 'AbortError' ? 'Provider connection timed out.' : 'Provider connection failed.' }
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export { getStorePolicy }

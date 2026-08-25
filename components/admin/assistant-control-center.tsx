@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
-import { Activity, AlertTriangle, BarChart3, Bot, CheckCircle2, Clock3, Database, Gauge, Save, ShieldCheck, SlidersHorizontal } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Bot, CheckCircle2, Clock3, Database, Gauge, Save, Settings2, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 
-import { saveAssistantControls, saveAssistantPolicy } from '@/lib/admin/assistant-actions'
+import { saveAIConfigurationAction, saveAssistantControls, saveAssistantPolicy, testAIConfigurationAction, toggleAIConfigurationAction } from '@/lib/admin/assistant-actions'
 import type { AssistantControlConfig, AssistantPolicyConfig } from '@/lib/assistant/config'
 
 type Props = {
@@ -17,6 +17,14 @@ type Props = {
     rateLimit: { maxRequestsPerWindow: number; windowSeconds: number }
     dailyRequestBudget: number
     secretsStoredInSettings: boolean
+    providerSource: 'ADMIN' | 'ENV' | 'NONE'
+    provider: string | null
+    apiUrl: string | null
+    model: string | null
+    apiKeyConfigured: boolean
+    maskedApiKey: string | null
+    adminConfigExists: boolean
+    adminConfigEnabled: boolean | null
   }
   analytics: {
     totalRequests: number
@@ -47,6 +55,28 @@ export function AssistantControlCenter({ config: initialConfig, policy: initialP
   const [policy, setPolicy] = useState(initialPolicy)
   const [notice, setNotice] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [providerPending, startProviderTransition] = useTransition()
+  const [providerOpen, setProviderOpen] = useState(false)
+  const [providerNotice, setProviderNotice] = useState('')
+  const [providerForm, setProviderForm] = useState({ provider: configurationStatus.provider ?? 'OPENAI_COMPATIBLE', apiUrl: configurationStatus.apiUrl ?? '', apiKey: '', model: configurationStatus.model ?? '', enabled: configurationStatus.adminConfigEnabled ?? true })
+  const updateProvider = (key: 'provider' | 'apiUrl' | 'apiKey' | 'model' | 'enabled', value: string | boolean) => setProviderForm((current) => ({ ...current, [key]: value }))
+  function testProvider() {
+    setProviderNotice('')
+    startProviderTransition(async () => setProviderNotice((await testAIConfigurationAction(providerForm)).message))
+  }
+  function saveProvider() {
+    setProviderNotice('')
+    startProviderTransition(async () => {
+      const result = await saveAIConfigurationAction(providerForm)
+      setProviderNotice(result.message)
+      if (result.ok) window.location.reload()
+    })
+  }
+  function toggleProvider() {
+    const enabled = !providerForm.enabled
+    updateProvider('enabled', enabled)
+    startProviderTransition(async () => setProviderNotice((await toggleAIConfigurationAction(enabled)).message))
+  }
   const updateConfig = <K extends keyof AssistantControlConfig>(key: K, value: AssistantControlConfig[K]) => setConfig((current) => ({ ...current, [key]: value }))
   const updatePolicy = <K extends keyof AssistantPolicyConfig>(key: K, value: AssistantPolicyConfig[K]) => setPolicy((current) => ({ ...current, [key]: value }))
 
@@ -61,6 +91,7 @@ export function AssistantControlCenter({ config: initialConfig, policy: initialP
 
   return <div className="space-y-6">
     {notice ? <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div> : null}
+    <section className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">AI Assistant</p><h2 className="mt-1 text-lg font-semibold text-slate-950">Provider configuration</h2><p className="mt-1 text-sm text-slate-500">Admin configuration takes priority over deployment fallback. Secrets remain server-side.</p><p className="mt-2 text-xs text-slate-500">Source: {configurationStatus.providerSource} · {configurationStatus.provider ?? 'No provider'} · {configurationStatus.model ?? 'No model'} · Key: {configurationStatus.maskedApiKey ?? 'Not configured'}</p></div><div className="flex items-center gap-2"><StatusPill ok={configurationStatus.providerConfigured} label={configurationStatus.providerConfigured ? 'Configured' : 'Not configured'} /><button type="button" onClick={() => setProviderOpen((open) => !open)} aria-expanded={providerOpen} aria-controls="ai-provider-configuration" aria-label="Open AI provider configuration" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition hover:border-teal-300 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"><Settings2 className="h-4 w-4" /></button></div></div>{providerOpen ? <div id="ai-provider-configuration" role="dialog" aria-label="AI provider configuration" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm text-slate-600">Provider<select value={providerForm.provider} onChange={(event) => updateProvider('provider', event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"><option value="OPENAI_COMPATIBLE">OpenAI-compatible</option><option value="OPENAI">OpenAI</option><option value="GEMINI">Gemini-compatible endpoint</option></select></label><label className="text-sm text-slate-600">Model<input value={providerForm.model} onChange={(event) => updateProvider('model', event.target.value)} maxLength={200} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" /></label><label className="text-sm text-slate-600 sm:col-span-2">API Base URL<input type="url" value={providerForm.apiUrl} onChange={(event) => updateProvider('apiUrl', event.target.value)} placeholder="https://api.example.com/v1/chat/completions" className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" /></label><label className="text-sm text-slate-600 sm:col-span-2">API Key<input type="password" value={providerForm.apiKey} onChange={(event) => updateProvider('apiKey', event.target.value)} placeholder={configurationStatus.apiKeyConfigured ? 'Encrypted key stored; leave blank to preserve it' : 'Enter provider API key'} autoComplete="new-password" className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" /></label></div><label className="mt-4 flex items-center gap-3 text-sm text-slate-700"><input type="checkbox" checked={providerForm.enabled} onChange={(event) => updateProvider('enabled', event.target.checked)} className="h-4 w-4 accent-teal-700" />Enable Admin provider configuration</label>{providerNotice ? <p role="status" className="mt-3 rounded-lg bg-white px-3 py-2 text-sm text-slate-700">{providerNotice}</p> : null}<div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={testProvider} disabled={providerPending} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:border-teal-300 disabled:opacity-50">{providerPending ? 'Working…' : 'Test Connection'}</button><button type="button" onClick={saveProvider} disabled={providerPending} className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"><Save className="h-4 w-4" />Save</button>{configurationStatus.adminConfigExists ? <button type="button" onClick={toggleProvider} disabled={providerPending} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">{providerForm.enabled ? 'Disable' : 'Enable'}</button> : null}</div></div> : null}</section>
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between"><Bot className="h-5 w-5 text-teal-700" /><StatusPill ok={configurationStatus.enabled} label={configurationStatus.enabled ? 'Enabled' : 'Disabled'} /></div><p className="mt-3 text-2xl font-bold text-slate-950">{analytics.totalRequests}</p><p className="text-sm text-slate-500">Requests recorded</p></div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between"><Clock3 className="h-5 w-5 text-teal-700" /><span className="text-xs text-slate-500">p50 sample</span></div><p className="mt-3 text-2xl font-bold text-slate-950">{analytics.averageLatencyMs}ms</p><p className="text-sm text-slate-500">Average response latency</p></div>

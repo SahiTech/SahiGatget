@@ -55,7 +55,7 @@ export async function getAssistantControlCenterData(options: { range?: Assistant
     session: { role: session.role, fullName: session.fullName },
     config,
     policy,
-    configurationStatus: getAssistantConfigurationStatus(config),
+    configurationStatus: await getAssistantConfigurationStatus(config),
     settings,
     analytics: {
       totalRequests,
