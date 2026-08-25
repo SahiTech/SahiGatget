@@ -230,7 +230,7 @@ export async function retrieveAssistantContext(message: string, intent: Assistan
   if (intent === 'policy' || intent === 'store_information' || intent === 'support') {
     const topic = intent === 'support' ? 'support' : /কিভাবে\s*অর্ডার|অর্ডার\s*(?:করব|করতে|করার)|how to order|order process/i.test(message) ? 'order' : /warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি/i.test(message) ? 'warranty' : /return|রিটার্ন|রিপ্লেস/i.test(message) ? 'returns' : /cod|cash|ক্যাশ|payment|পেমেন্ট/i.test(message) ? 'cod' : /delivery|ঢাকা|ডেলিভারি|চার্জ|\bwhen\b|\bhow many days\b|\bget it\b|কতদিন|কবে|পাবো|দিনের মধ্যে|সময়/i.test(message) ? 'delivery' : /support|contact|যোগাযোগ|ইমেইল|ফোন/i.test(message) ? 'support' : 'store_information'
     const policy = await getStorePolicy(topic, pageProduct)
-    return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text, supportCta: getSupportCta() }
+    return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text, supportCta: intent === 'support' ? getSupportCta() : undefined }
   }
   const budget = extractBudget(message)
   const referencedIds = referencedProductIds(message, conversation)
