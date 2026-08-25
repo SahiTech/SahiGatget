@@ -51,6 +51,7 @@ export type RetrievalResult = {
   sources: RetrievedSource[]
   retrievedAt: string
   policyText?: string
+  supportCta?: { label: string; href: string }
 }
 
 const MAX_RESULTS = 6
@@ -151,7 +152,7 @@ export async function getAvailableProducts(input: { query?: string; maxPrice?: n
   return searchProducts({ ...input, onlyAvailable: true })
 }
 
-export async function getStorePolicy(topic: 'delivery' | 'delivery_charge' | 'warranty' | 'returns' | 'cod' | 'support' | 'store_information', product?: StorefrontProduct | null) {
+export async function getStorePolicy(topic: 'delivery' | 'delivery_charge' | 'warranty' | 'returns' | 'cod' | 'order' | 'support' | 'store_information', product?: StorefrontProduct | null) {
   const [settings, overrides] = await Promise.all([getStorefrontSettings(), loadAssistantPolicyConfig()])
   const delivery = `ঢাকার মধ্যে ডেলিভারি চার্জ ${siteConfig.currency.symbol}${settings.delivery.dhakaCharge} এবং ঢাকার বাইরে ${siteConfig.currency.symbol}${settings.delivery.outsideDhakaCharge}। ডেলিভারি সময় লোকেশন, কুরিয়ার, আবহাওয়া, ছুটির দিন, ঠিকানা এবং অর্ডার যাচাইয়ের উপর নির্ভর করতে পারে।`
   const defaultWarranty = `${settings.warranty.guaranteeDays} দিনের গ্যারান্টি এবং ${settings.warranty.serviceWarrantyYears} বছরের সার্ভিস ওয়ারেন্টি প্রযোজ্য হতে পারে। পণ্যের নির্দিষ্ট ওয়ারেন্টি নীতি এবং প্রস্তুতকারকের শর্ত অগ্রাধিকার পাবে।`
@@ -159,6 +160,7 @@ export async function getStorePolicy(topic: 'delivery' | 'delivery_charge' | 'wa
   const warranty = productWarranty || defaultWarranty
   const returns = 'পণ্য বা ডেলিভারি-সংক্রান্ত সমস্যা থাকলে গ্রহণের পর যুক্তিসঙ্গত সময়ের মধ্যে এবং সাধারণত ৭ দিনের মধ্যে SahiGadget-কে জানাতে হবে। ছবি, ভিডিও, অর্ডার ও পণ্যের তথ্য যাচাইয়ের জন্য প্রয়োজন হতে পারে। যাচাই ছাড়া স্বয়ংক্রিয় রিফান্ড বা রিপ্লেসমেন্টের নিশ্চয়তা নেই; রিপ্লেসমেন্ট পণ্য ও স্টকের প্রাপ্যতার উপর নির্ভর করতে পারে।'
   const cod = settings.footer.payments.cash_on_delivery ? 'বর্তমান SahiGadget চেকআউটে Cash on Delivery পাওয়া যেতে পারে। অর্ডার নিশ্চিত করার আগে বিদ্যমান চেকআউটের যাচাই ও শর্ত প্রযোজ্য হবে।' : 'বর্তমান প্রকাশ্য তথ্য অনুযায়ী Cash on Delivery নিশ্চিত করা যাচ্ছে না।'
+  const order = 'অর্ডার করতে প্রথমে লাইভ ক্যাটালগ থেকে পণ্য, রঙ, RAM ও স্টোরেজ ভ্যারিয়েন্ট বেছে নিন। এরপর নাম, মোবাইল নম্বর ও সম্পূর্ণ ডেলিভারি ঠিকানা দিন, মোট মূল্য ও ডেলিভারি চার্জ যাচাই করে Cash on Delivery অর্ডার নিশ্চিত করুন। কুরিয়ার পণ্য পৌঁছে দিলে গ্রহণের সময় নগদ মূল্য পরিশোধ করুন।'
   const support = `সহায়তার জন্য ফোন ${siteConfig.contact.phone} অথবা ইমেইল ${siteConfig.contact.supportEmail} ব্যবহার করুন।`
   const store = `${siteConfig.name} বাংলাদেশে মোবাইল ফোন ও গ্যাজেট সরবরাহ করে। সাধারণ সহায়তার জন্য ${siteConfig.contact.supportEmail} অথবা ${siteConfig.contact.phone} ব্যবহার করুন।`
   const overrideMap: Record<typeof topic, string> = {
@@ -167,10 +169,11 @@ export async function getStorePolicy(topic: 'delivery' | 'delivery_charge' | 'wa
     warranty: overrides.warranty,
     returns: overrides.returns,
     cod: overrides.cod,
+    order: '',
     support: overrides.support,
     store_information: overrides.storeInformation,
   }
-  const map: Record<typeof topic, string> = { delivery, delivery_charge: delivery, warranty, returns, cod, support, store_information: store }
+  const map: Record<typeof topic, string> = { delivery, delivery_charge: delivery, warranty, returns, cod, order, support, store_information: store }
   const selectedOverride = overrideMap[topic]?.trim()
   const sources: RetrievedSource[] = selectedOverride
     ? ['public_policy']
@@ -186,8 +189,15 @@ export async function hydrateProductReferences(productIds: string[]) {
   return products.filter((product): product is StorefrontProduct => Boolean(product)).map(getProductCard)
 }
 
+export function getSupportCta() {
+  const digits = siteConfig.contact.phone.replace(/\D/g, '')
+  const normalized = digits.startsWith('0') ? `880${digits.slice(1)}` : digits.startsWith('880') ? digits : `880${digits}`
+  return { label: 'WhatsApp Customer Service', href: `https://wa.me/${normalized}` }
+}
+
 export function classifyIntent(message: string): AssistantIntent {
   if (isPrivateRequest(message)) return 'unsupported'
+  if (/customer\s*service|human\s+support|talk\s+to\s+(?:a\s+)?(?:human|person|someone)|support\s+(?:please|help)|whatsapp|কাস্টমার\s*সার্ভিস|মানুষের\s+সাথে|সাপোর্ট|হোয়াটসঅ্যাপ|হোয়াটসঅ্যাপ/i.test(message)) return 'support'
   if (/delivery|ঢাকা|ডেলিভারি|কুরিয়ার|charge|চার্জ|\border\b|অর্ডার/i.test(message)) return 'policy'
   if (/warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি|returns?|রিটার্ন|রিপ্লেস|COD|cash on delivery|ক্যাশ অন ডেলিভারি|payment|পেমেন্ট|অর্ডার করার পদ্ধতি|how to order/i.test(message)) return 'policy'
   if (extractBudget(message) || /(?:under|within|below|budget|max|less than|এর মধ্যে|বাজেটের মধ্যে)/i.test(message)) return 'product_search'
@@ -210,17 +220,17 @@ function referencedProductIds(message: string, conversation?: ConversationTurn[]
 
 export async function retrieveAssistantContext(message: string, intent: AssistantIntent, pageProductId?: string, pagePathname?: string, conversation?: ConversationTurn[]): Promise<RetrievalResult> {
   const retrievedAt = new Date().toISOString()
-  if (intent === 'unsupported') return { context: [], sources: [], retrievedAt }
+  if (intent === 'unsupported') return { context: [], sources: [], retrievedAt, supportCta: getSupportCta() }
   const pageSlug = pagePathname?.match(/^\/products\/([^/?#]+)$/)?.[1]
   const pageProduct = pageProductId
     ? await getProductById(pageProductId).catch(() => null)
     : pageSlug
       ? await getProductBySlug(decodeURIComponent(pageSlug)).catch(() => null)
       : null
-  if (intent === 'policy' || intent === 'store_information') {
-    const topic = /warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি/i.test(message) ? 'warranty' : /return|রিটার্ন|রিপ্লেস/i.test(message) ? 'returns' : /cod|cash|ক্যাশ|payment|পেমেন্ট/i.test(message) ? 'cod' : /delivery|ঢাকা|ডেলিভারি|চার্জ|\bwhen\b|\bhow many days\b|\bget it\b|কতদিন|কবে|পাবো|দিনের মধ্যে|সময়/i.test(message) ? 'delivery' : /support|contact|যোগাযোগ|ইমেইল|ফোন/i.test(message) ? 'support' : 'store_information'
+  if (intent === 'policy' || intent === 'store_information' || intent === 'support') {
+    const topic = intent === 'support' ? 'support' : /কিভাবে\s*অর্ডার|অর্ডার\s*(?:করব|করতে|করার)|how to order|order process/i.test(message) ? 'order' : /warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি/i.test(message) ? 'warranty' : /return|রিটার্ন|রিপ্লেস/i.test(message) ? 'returns' : /cod|cash|ক্যাশ|payment|পেমেন্ট/i.test(message) ? 'cod' : /delivery|ঢাকা|ডেলিভারি|চার্জ|\bwhen\b|\bhow many days\b|\bget it\b|কতদিন|কবে|পাবো|দিনের মধ্যে|সময়/i.test(message) ? 'delivery' : /support|contact|যোগাযোগ|ইমেইল|ফোন/i.test(message) ? 'support' : 'store_information'
     const policy = await getStorePolicy(topic, pageProduct)
-    return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text }
+    return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text, supportCta: getSupportCta() }
   }
   const budget = extractBudget(message)
   const referencedIds = referencedProductIds(message, conversation)
@@ -231,7 +241,7 @@ export async function retrieveAssistantContext(message: string, intent: Assistan
       ? referencedProducts
       : await searchProducts({ query: budget ? undefined : message, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
   const context = products.map(toContext)
-  return { context, sources: context.length ? ['live_product', 'live_variant'] : [], retrievedAt }
+  return { context, sources: context.length ? ['live_product', 'live_variant'] : [], retrievedAt, supportCta: context.length ? undefined : getSupportCta() }
 }
 
 export function toPublicCard(product: StorefrontProduct): PublicProductCard {

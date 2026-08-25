@@ -16,14 +16,14 @@ export const assistantRequestSchema = z.object({
 export const assistantModelOutputSchema = z.object({
   answer: z.string().trim().min(1).max(1200),
   locale: z.enum(['bn', 'en']),
-  intent: z.enum(['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'unsupported', 'unclear']),
+  intent: z.enum(['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'unsupported', 'unclear']),
   productIds: z.array(uuidSchema).max(6),
   evidenceStatus: z.enum(['verified', 'partial', 'no_evidence']),
   fallbackReason: z.enum(['none', 'no_matching_products', 'private_request', 'unsupported_topic', 'missing_source', 'ambiguous_request']),
   followUps: z.array(z.string().min(1).max(80)).max(3),
 }).strict()
 
-export const assistantIntentSchema = z.enum(['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'unsupported', 'unclear'])
+export const assistantIntentSchema = z.enum(['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'unsupported', 'unclear'])
 
 export const publicProductCardSchema = z.object({
   id: uuidSchema,
@@ -43,6 +43,7 @@ export const assistantResponseSchema = z.object({
   locale: z.enum(['bn', 'en']),
   intent: assistantIntentSchema,
   products: z.array(publicProductCardSchema).max(6),
+  supportCta: z.object({ label: z.string().min(1).max(80), href: z.string().url().refine((value) => value.startsWith('https://wa.me/'), 'Support links must use the official WhatsApp deep-link domain.') }).optional(),
   evidence: z.object({
     status: z.enum(['verified', 'no_evidence', 'partial']),
     sourceTypes: z.array(z.enum(['live_product', 'live_variant', 'public_policy', 'site_config'])).max(4),
@@ -63,7 +64,7 @@ export const modelJsonSchema = {
   properties: {
     answer: { type: 'string', minLength: 1, maxLength: 1200 },
     locale: { type: 'string', enum: ['bn', 'en'] },
-    intent: { type: 'string', enum: ['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'unsupported', 'unclear'] },
+    intent: { type: 'string', enum: ['product_search', 'product_detail', 'price', 'availability', 'variant', 'policy', 'store_information', 'support', 'unsupported', 'unclear'] },
     productIds: { type: 'array', maxItems: 6, items: { type: 'string', format: 'uuid' } },
     evidenceStatus: { type: 'string', enum: ['verified', 'partial', 'no_evidence'] },
     fallbackReason: { type: 'string', enum: ['none', 'no_matching_products', 'private_request', 'unsupported_topic', 'missing_source', 'ambiguous_request'] },
