@@ -61,7 +61,8 @@ function isPrivateRequest(message: string) {
   const explicitPrivateBangla = /অন্য\s*(?:গ্রাহক|কাস্টমার|customer|ব্যক্তি)[^\n]{0,80}(?:অর্ডার|order|ইনভয়েস|invoice|পেমেন্ট|payment|ফোন|phone|ঠিকানা|address|অ্যাকাউন্ট|account|তথ্য)|(?:অ্যাডমিন|এডমিন)\s*পাসওয়ার্ড|এপিআই\s*কি|API\s*key|গোপন\s*(?:ক্রেডেনশিয়াল|তথ্য)|অন্যের\s*(?:অর্ডার|পেমেন্ট|ঠিকানা|অ্যাকাউন্ট)/i.test(normalized)
   const privateOrderLookup = /\bmy\s+(?:order|invoice|payment|tracking|track|refund|cancel)\b/i.test(normalized) && /\b(?:status|details|show|where|track)\b/i.test(normalized)
   const privateOrderLookupBangla = /আমার\s*(?:অর্ডার|ইনভয়েস|পেমেন্ট|ট্র্যাকিং|রিফান্ড|বাতিল)[^\n]{0,40}(?:অবস্থা|বিস্তারিত|দেখাও|দেখান|কোথায়|কোথায়|ট্র্যাক)/i.test(normalized)
-  return explicitPrivateEnglish || explicitPrivateBangla || privateOrderLookup || privateOrderLookupBangla
+  const privateOrderLookupMixed = /আমার\s*(?:order|invoice|payment|tracking|track|refund|cancel)[^\n]{0,60}(?:phone|number|address|details|status|show|where|track|নম্বর|ফোন|ঠিকানা|বিস্তারিত|অবস্থা)/i.test(normalized)
+  return explicitPrivateEnglish || explicitPrivateBangla || privateOrderLookup || privateOrderLookupBangla || privateOrderLookupMixed
 }
 
 function toEnglishDigits(value: string) {
