@@ -151,7 +151,7 @@ export async function getAvailableProducts(input: { query?: string; maxPrice?: n
 }
 
 export async function getStorePolicy(topic: 'delivery' | 'delivery_charge' | 'warranty' | 'returns' | 'cod' | 'support' | 'store_information', product?: StorefrontProduct | null) {
-  const settings = await getStorefrontSettings()
+  const [settings, overrides] = await Promise.all([getStorefrontSettings(), loadAssistantPolicyConfig()])
   const delivery = `ঢাকার মধ্যে ডেলিভারি চার্জ ${siteConfig.currency.symbol}${settings.delivery.dhakaCharge} এবং ঢাকার বাইরে ${siteConfig.currency.symbol}${settings.delivery.outsideDhakaCharge}। ডেলিভারি সময় লোকেশন, কুরিয়ার, আবহাওয়া, ছুটির দিন, ঠিকানা এবং অর্ডার যাচাইয়ের উপর নির্ভর করতে পারে।`
   const defaultWarranty = `${settings.warranty.guaranteeDays} দিনের গ্যারান্টি এবং ${settings.warranty.serviceWarrantyYears} বছরের সার্ভিস ওয়ারেন্টি প্রযোজ্য হতে পারে। পণ্যের নির্দিষ্ট ওয়ারেন্টি নীতি এবং প্রস্তুতকারকের শর্ত অগ্রাধিকার পাবে।`
   const productWarranty = product?.warranty_policy?.trim()
@@ -160,7 +160,6 @@ export async function getStorePolicy(topic: 'delivery' | 'delivery_charge' | 'wa
   const cod = settings.footer.payments.cash_on_delivery ? 'বর্তমান SahiGadget চেকআউটে Cash on Delivery পাওয়া যেতে পারে। অর্ডার নিশ্চিত করার আগে বিদ্যমান চেকআউটের যাচাই ও শর্ত প্রযোজ্য হবে।' : 'বর্তমান প্রকাশ্য তথ্য অনুযায়ী Cash on Delivery নিশ্চিত করা যাচ্ছে না।'
   const support = `সহায়তার জন্য ফোন ${siteConfig.contact.phone} অথবা ইমেইল ${siteConfig.contact.supportEmail} ব্যবহার করুন।`
   const store = `${siteConfig.name} বাংলাদেশে মোবাইল ফোন ও গ্যাজেট সরবরাহ করে। সাধারণ সহায়তার জন্য ${siteConfig.contact.supportEmail} অথবা ${siteConfig.contact.phone} ব্যবহার করুন।`
-  const overrides = await loadAssistantPolicyConfig()
   const overrideMap: Record<typeof topic, string> = {
     delivery: overrides.delivery,
     delivery_charge: overrides.delivery,
