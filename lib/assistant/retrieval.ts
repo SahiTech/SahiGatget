@@ -228,7 +228,7 @@ export async function retrieveAssistantContext(message: string, intent: Assistan
     ? [pageProduct]
     : referencedProducts.length
       ? referencedProducts
-      : await searchProducts({ query: message, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
+      : await searchProducts({ query: budget ? undefined : message, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
   const context = products.map(toContext)
   return { context, sources: context.length ? ['live_product', 'live_variant'] : [], retrievedAt }
 }
