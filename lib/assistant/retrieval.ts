@@ -17,8 +17,7 @@ import {
   getCompareAtPrice,
 } from '@/lib/services/storefront-utils'
 import type { StorefrontProduct } from '@/lib/services/storefront-utils'
-import type { AssistantIntent } from './contracts'
-import type { PublicProductCard } from './contracts'
+import type { AssistantIntent, PublicProductCard } from './contracts'
 import { loadAssistantPolicyConfig } from './config'
 
 export type RetrievedSource = 'live_product' | 'live_variant' | 'public_policy' | 'site_config'
@@ -84,6 +83,25 @@ export function extractBudget(message: string) {
   return Number.isFinite(value) && value > 0 && value <= 10000000 ? Math.floor(value) : undefined
 }
 
+function normalizeSearchText(value: string) {
+  return value
+    .replace(/[০-৯]/g, (digit) => toEnglishDigits(digit))
+    .replace(/[,৳]/g, ' ')
+    .replace(/\b(?:under|within|below|budget|max|less than|taka|tk|টাকা|হাজার)\b/gi, ' ')
+    .replace(/\b\d{1,7}\b/g, ' ')
+    .replace(/(?:দেখান|দেখাও|খুঁজে দিন|খুঁজছি|খুঁজুন|চাই|একটা|একটি|কোনো|কোন|ভালো|সেরা|দামের|মধ্যে|জন্য|পণ্য|প্রোডাক্ট|product|please|show|find|give|me)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+}
+
+function productSearchQuery(message: string, budget?: number) {
+  const cleaned = normalizeSearchText(message)
+  if (cleaned.length < 2) return undefined
+  if (budget && /^(?:টাকা|taka|tk)$/i.test(cleaned)) return undefined
+  return cleaned
+}
+
 function toContext(product: StorefrontProduct): PublicProductContext {
   return {
     id: product.id,
@@ -132,7 +150,7 @@ export async function searchProducts(input: { query?: string; maxPrice?: number;
     availability: input.onlyAvailable ? 'in-stock' : 'all',
     pageSize: limit,
     page: 1,
-    sort: 'newest',
+    sort: input.query ? 'newest' : 'price-asc',
   })
   return result.products.slice(0, limit)
 }
@@ -204,8 +222,10 @@ export function classifyIntent(message: string): AssistantIntent {
   if (/^(?:bye|goodbye|see\s+you|বিদায়|আবার\s+দেখা\s+হবে)\W*$/i.test(normalized)) return 'goodbye'
   if (/^(?:how are you|আমি শুধু দেখছি|just browsing|আচ্ছা|ঠিক আছে)\W*$/i.test(normalized)) return 'casual_conversation'
   if (/customer\s*service|human\s+support|talk\s+to\s+(?:a\s+)?(?:human|person|someone)|support\s+(?:please|help)|whatsapp|আপনি\s+বুঝতে\s+পারছেন\s+না|বারবার\s+একই|কাজ\s+হচ্ছে\s+না|ভুল\s+তথ্য|you\s+don'?t\s+understand|same\s+thing|not\s+working|wrong\s+(?:information|answer)|কাস্টমার\s*সার্ভিস|মানুষের\s+সাথে|সাপোর্ট|হোয়াটসঅ্যাপ|হোয়াটসঅ্যাপ/i.test(normalized)) return 'support'
+  if (/\b(?:cancel|cancellation)\b|ক্যানসেল|বাতিল\s+করতে|অর্ডার\s+বাতিল/i.test(normalized)) return 'support'
   if (/delivery|ঢাকা|ডেলিভারি|কুরিয়ার|charge|চার্জ|\border\b|অর্ডার/i.test(normalized)) return 'policy'
   if (/warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি|returns?|রিটার্ন|রিপ্লেস|COD|cash on delivery|ক্যাশ অন ডেলিভারি|payment|পেমেন্ট|অর্ডার করার পদ্ধতি|how to order/i.test(normalized)) return 'policy'
+  if (/কীভাবে\s+সাহায্য|কিভাবে\s+সাহায্য|কি\s+কি\s+(?:তথ্য|জানাতে)|কী\s+কি\s+(?:তথ্য|জানাতে)|what\s+can\s+you\s+(?:do|help)|how\s+can\s+you\s+help|what\s+information\s+can\s+you\s+provide/i.test(normalized)) return 'store_information'
   if (extractBudget(normalized) || /(?:under|within|below|budget|max|less than|বাজেটের মধ্যে)/i.test(normalized)) return 'budget_search'
   if (/comparison|compare|তুলনা|দুটোর মধ্যে|দুইটার মধ্যে|vs\.?/i.test(normalized)) return 'product_comparison'
   if (/(?:recommend|best|better|ভালো|সেরা|জন্য ভালো|কোনটা নেব)/i.test(normalized) && /phone|mobile|ফোন|মোবাইল|camera|ক্যামেরা|battery|ব্যাটারি|দাম|price/i.test(normalized)) return 'product_recommendation'
@@ -215,7 +235,7 @@ export function classifyIntent(message: string): AssistantIntent {
   if (/variant|color|colour|ram|storage|রঙ|কালার|ভ্যারিয়েন্ট|স্টোরেজ|র‍্যাম/i.test(normalized)) return 'variant'
   if (/details|spec|camera|battery|processor|display|চার্জার|ক্যামেরা|ব্যাটারি|প্রসেসর|ডিসপ্লে|বিস্তারিত|স্পেসিফিকেশন|কী কী/i.test(normalized)) return 'product_detail'
   if (/(?:এর মধ্যে|এটা|এটির|এটার|ওটার|ওটা|এই ফোন|কোনটা|কোনটি)|\b(?:which one|which is better|this phone|this one|that one|these|those|it)\b/i.test(normalized)) return 'product_search'
-  if (/show|find|দেখান|খুঁজে|phone|mobile|ফোন|মোবাইল/i.test(normalized) || (/চাই/i.test(normalized) && /পণ্য|ফোন|মোবাইল|device|product/i.test(normalized))) return 'product_search'
+  if (/show|find|দেখান|খুঁজে|phone|mobile|ফোন|মোবাইল|watch|ঘড়ি|ঘড়ি|smartwatch|স্মার্টওয়াচ|স্মার্টওয়াচ/i.test(normalized) || (/চাই/i.test(normalized) && /পণ্য|ফোন|মোবাইল|device|product|ঘড়ি|ঘড়ি|watch/i.test(normalized))) return 'product_search'
   if (/store|shop|contact|support|ঠিকানা|যোগাযোগ|সাহিগ্যাজেট|sahigadget/i.test(normalized)) return 'store_information'
   return 'clarification_required'
 }
@@ -223,7 +243,7 @@ export function classifyIntent(message: string): AssistantIntent {
 type ConversationTurn = { role: 'user' | 'assistant'; content: string; productIds?: string[] }
 
 function referencedProductIds(message: string, conversation?: ConversationTurn[]) {
-  if (!conversation?.length || !/(?:এর মধ্যে|এটা|এটির|এটার|ওটার|ওটা|এই ফোন|কোনটা|কোনটি)|\b(?:which one|this phone|this one|that one|these|those|it)\b/i.test(message)) return []
+  if (!conversation?.length || !/(?:এর মধ্যে|এটা|এটির|এটার|ওটার|ওটা|এই ফোন|কোনটা|কোনটি)|\b(?:which one|which is better|this phone|this one|that one|these|those|it)\b/i.test(message)) return []
   return Array.from(new Set(conversation.slice().reverse().flatMap((turn) => turn.productIds ?? []))).slice(0, MAX_RESULTS)
 }
 
@@ -245,11 +265,12 @@ export async function retrieveAssistantContext(message: string, intent: Assistan
   const budget = extractBudget(message)
   const referencedIds = referencedProductIds(message, conversation)
   const referencedProducts = referencedIds.length ? (await Promise.all(referencedIds.map((id) => getProductById(id).catch(() => null)))).filter((product): product is StorefrontProduct => Boolean(product)) : []
+  const query = productSearchQuery(message, budget)
   const products = pageProduct && intent !== 'product_search'
     ? [pageProduct]
     : referencedProducts.length
       ? referencedProducts
-      : await searchProducts({ query: budget ? undefined : message, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
+      : await searchProducts({ query, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
   const context = products.map(toContext)
   return { context, sources: context.length ? ['live_product', 'live_variant'] : [], retrievedAt, supportCta: context.length ? undefined : getSupportCta() }
 }
