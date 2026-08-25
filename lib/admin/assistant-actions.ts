@@ -30,7 +30,7 @@ export async function saveAssistantControls(input: unknown): Promise<AssistantAd
     const session = await requireAdmin(['OWNER', 'ADMIN'])
     const parsed = assistantControlConfigSchema.parse(input)
     await saveSetting('assistant_config', parsed, 'Admin-controlled public AI assistant behavior. Secrets are never stored here.')
-    await writeAdminAuditLog({ actorUserId: session.userId, action: 'ASSISTANT_CONFIG_UPDATED', entityType: 'assistant_config', details: { enabled: parsed.enabled, allowProductSearch: parsed.allowProductSearch, allowPolicyQuestions: parsed.allowPolicyQuestions, allowRecommendations: parsed.allowRecommendations, showQuickPrompts: parsed.showQuickPrompts, defaultLanguage: parsed.defaultLanguage, maxRequestsPerWindow: parsed.maxRequestsPerWindow, rateLimitWindowSeconds: parsed.rateLimitWindowSeconds, dailyRequestBudget: parsed.dailyRequestBudget } })
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'ASSISTANT_CONFIG_UPDATED', entityType: 'assistant_config', details: { enabled: parsed.enabled, allowProductSearch: parsed.allowProductSearch, allowPolicyQuestions: parsed.allowPolicyQuestions, allowRecommendations: parsed.allowRecommendations, showQuickPrompts: parsed.showQuickPrompts, defaultLanguage: parsed.defaultLanguage, maxRequestsPerWindow: parsed.maxRequestsPerWindow, rateLimitWindowSeconds: parsed.rateLimitWindowSeconds, dailyRequestBudget: parsed.dailyRequestBudget, temperature: parsed.temperature, maxTokens: parsed.maxTokens, requestTimeoutMs: parsed.requestTimeoutMs } })
     revalidatePath('/admin/ai-assistant')
     return { ok: true, message: 'AI assistant controls saved.' }
   } catch (error) {

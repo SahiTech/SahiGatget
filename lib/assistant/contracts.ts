@@ -4,7 +4,7 @@ const uuidSchema = z.string().uuid()
 
 export const assistantRequestSchema = z.object({
   message: z.string().trim().min(1).max(800),
-  conversation: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().trim().min(1).max(800) }).strict()).max(6).optional(),
+  conversation: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().trim().min(1).max(800), productIds: z.array(uuidSchema).max(6).optional() }).strict()).max(6).optional(),
   sessionId: z.string().regex(/^[A-Za-z0-9_-]{16,128}$/),
   pageContext: z.object({
     pathname: z.string().regex(/^\/[A-Za-z0-9/_?=&%.-]*$/).max(240).optional(),
