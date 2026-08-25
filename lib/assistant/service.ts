@@ -7,6 +7,7 @@ import {
   getStorePolicy,
   hydrateProductReferences,
   isPrivateAssistantRequest,
+  isFrustratedAssistantRequest,
   retrieveAssistantContext,
 } from './retrieval'
 import type { RetrievalResult } from './retrieval'
@@ -29,6 +30,14 @@ function formatBdt(value: number | null) {
   return `৳${new Intl.NumberFormat('en-BD', { maximumFractionDigits: 0 }).format(value)}`
 }
 
+function generalKnowledgeFallback(message: string, locale: 'bn' | 'en') {
+  const normalized = message.toLowerCase()
+  if (/amoled/.test(normalized)) return locale === 'bn' ? 'AMOLED হলো এমন একটি ডিসপ্লে প্রযুক্তি যেখানে প্রতিটি পিক্সেল নিজে আলো তৈরি করে। তাই কালো অংশ গভীর হয়, কনট্রাস্ট ভালো হয় এবং সাধারণত পাতলা ডিজাইন সম্ভব হয়।' : 'AMOLED is a display technology where each pixel produces its own light. That enables deep blacks, strong contrast, and typically thinner displays.'
+  if (/\bram\b|র‍্যাম|রাম/.test(normalized)) return locale === 'bn' ? 'RAM হলো ফোনের অস্থায়ী কাজের মেমোরি। RAM বেশি হলে একসাথে বেশি অ্যাপ চালানো ও দ্রুত অ্যাপ বদলানো সহজ হয়, তবে বাস্তব পারফরম্যান্স প্রসেসর ও সফটওয়্যারের উপরও নির্ভর করে।' : 'RAM is a device’s short-term working memory. More RAM can make multitasking smoother, although real-world performance also depends on the processor and software.'
+  if (/\bhttp\b|https/.test(normalized)) return locale === 'bn' ? 'HTTP হলো ওয়েব ব্রাউজার ও সার্ভারের মধ্যে তথ্য আদান-প্রদানের একটি নিয়ম। HTTPS একই কাজ এনক্রিপশনসহ করে, তাই সংবেদনশীল ওয়েব যোগাযোগে এটি বেশি নিরাপদ।' : 'HTTP is a set of rules for exchanging information between a web browser and a server. HTTPS adds encryption, making sensitive web communication safer.'
+  return locale === 'bn' ? 'এটি একটি সাধারণ জ্ঞানভিত্তিক প্রশ্ন। আরও নির্দিষ্ট করে লিখলে আমি সংক্ষেপে ব্যাখ্যা করতে পারব।' : 'That is a general-knowledge question. Add a little detail and I can explain it briefly.'
+}
+
 function deterministicOutput(request: AssistantRequest, retrieval: RetrievalResult, intent: ReturnType<typeof classifyIntent>): AssistantModelOutput {
   const locale = requestedLocale(request)
   const names = retrieval.context.slice(0, 3).map((item) => item.name)
@@ -46,6 +55,31 @@ function deterministicOutput(request: AssistantRequest, retrieval: RetrievalResu
     return { answer, locale, intent: 'unsupported', productIds: [], evidenceStatus, fallbackReason, followUps: ['ডেলিভারি সম্পর্কে জানতে চাই', 'ওয়ারেন্টি সম্পর্কে জানতে চাই'] }
   }
 
+  if (intent === 'greeting') {
+    answer = locale === 'bn' ? 'হ্যালো! SahiGadget-এ স্বাগতম। কীভাবে সাহায্য করতে পারি? ফোন, বাজেট, পণ্য, অর্ডার বা ডেলিভারি সম্পর্কে জিজ্ঞেস করুন।' : 'Hello! Welcome to SahiGadget. How can I help with products, budgets, orders, or delivery today?'
+    return { answer, locale, intent, productIds: [], evidenceStatus: 'verified', fallbackReason: 'none', followUps: DEFAULT_FOLLOW_UPS }
+  }
+  if (intent === 'thanks') {
+    answer = locale === 'bn' ? 'আপনাকে স্বাগতম। আরও কিছু জানতে চাইলে বলুন।' : 'You’re welcome. Let me know if you need anything else.'
+    return { answer, locale, intent, productIds: [], evidenceStatus: 'verified', fallbackReason: 'none', followUps: DEFAULT_FOLLOW_UPS }
+  }
+  if (intent === 'goodbye') {
+    answer = locale === 'bn' ? 'বিদায়! SahiGadget-এর জন্য শুভকামনা রইল।' : 'Goodbye! Thank you for visiting SahiGadget.'
+    return { answer, locale, intent, productIds: [], evidenceStatus: 'verified', fallbackReason: 'none', followUps: [] }
+  }
+  if (intent === 'clarification_required') {
+    answer = locale === 'bn' ? 'অবশ্যই। আপনি কি কোনো পণ্য খুঁজছেন, নাকি অর্ডার ও ডেলিভারি সম্পর্কে জানতে চাইছেন?' : 'Sure. Are you looking for a product, or do you need help with ordering and delivery?'
+    return { answer, locale, intent, productIds: [], evidenceStatus: 'partial', fallbackReason: 'ambiguous_request', followUps: DEFAULT_FOLLOW_UPS }
+  }
+  if (intent === 'general_knowledge' || intent === 'casual_conversation') {
+    answer = intent === 'casual_conversation' ? (locale === 'bn' ? 'অবশ্যই, সময় নিয়ে দেখুন। কোনো পণ্য বা তথ্য জানতে চাইলে বলুন।' : 'Of course—take your time. Ask me about any product or store information when you are ready.') : generalKnowledgeFallback(request.message, locale)
+    return { answer, locale, intent, productIds: [], evidenceStatus: 'partial', fallbackReason: 'none', followUps: DEFAULT_FOLLOW_UPS }
+  }
+  if (intent === 'support' && isFrustratedAssistantRequest(request.message)) {
+    answer = locale === 'bn' ? 'দুঃখিত, আমি বিষয়টি ঠিকভাবে ধরতে পারিনি। সরাসরি Customer Service Team-এর সাথে WhatsApp-এ কথা বলুন—তারা আপনাকে সাহায্য করবে।' : 'Sorry, I did not understand the issue correctly. Please speak with our Customer Service Team on WhatsApp for help.'
+    return { answer, locale, intent, productIds: [], evidenceStatus: 'verified', fallbackReason: 'none', followUps: [] }
+  }
+
   if (retrieval.policyText) {
     answer = locale === 'bn' ? retrieval.policyText : retrieval.policyText.replace('ঢাকার মধ্যে ডেলিভারি চার্জ', 'Delivery charge inside Dhaka').replace('এবং ঢাকার বাইরে', ' and outside Dhaka').replace('সহায়তার জন্য ফোন', 'For support call').replace('অথবা ইমেইল', 'or email')
     return { answer, locale, intent, productIds: [], evidenceStatus: 'verified', fallbackReason: 'none', followUps: ['একটি পণ্য খুঁজে দিন', 'বাজেটের মধ্যে ফোন দেখান'] }
@@ -61,13 +95,17 @@ function deterministicOutput(request: AssistantRequest, retrieval: RetrievalResu
   const description = first.description.replace(/\s+/g, ' ').trim().slice(0, 260)
   const variantSummary = first.variants.map((variant) => [variant.title, variant.ram, variant.storage].filter(Boolean).join(' · ')).filter(Boolean).join(', ')
   if (locale === 'bn') {
-    if (intent === 'price') answer = `${first.name}-এর বর্তমান শুরু মূল্য ${price ?? 'নির্ধারণ করা যায়নি'}। ভ্যারিয়েন্টভেদে মূল্য পরিবর্তন হতে পারে।`
+    if (intent === 'product_comparison' && retrieval.context.length > 1) {
+      answer = `তুলনা করতে ${retrieval.context.slice(0, 3).map((item) => `${item.name} (${formatBdt(Math.min(...item.variants.map((variant) => variant.price))) ?? 'মূল্য যাচাই করুন'})`).join(' এবং ')} পাওয়া গেছে। প্রথমটি কম দামের দিকে এগিয়ে, তবে আপনার প্রয়োজন অনুযায়ী লাইভ স্পেসিফিকেশন ও স্টক দেখে বেছে নিন।`
+    } else if (intent === 'price') answer = `${first.name}-এর বর্তমান শুরু মূল্য ${price ?? 'নির্ধারণ করা যায়নি'}। ভ্যারিয়েন্টভেদে মূল্য পরিবর্তন হতে পারে।`
     else if (intent === 'availability') answer = `${first.name} বর্তমানে ${availability === 'available' ? 'উপলভ্য' : 'স্টকে নেই'}। নির্দিষ্ট ভ্যারিয়েন্ট নির্বাচন করার আগে লাইভ স্ট্যাটাস দেখুন।`
     else if (intent === 'variant') answer = `${first.name}-এর পাওয়া ভ্যারিয়েন্ট: ${variantSummary || 'ভ্যারিয়েন্ট তথ্য পাওয়া যায়নি'}।`
     else if (intent === 'product_detail' && description) answer = `${first.name}: ${description}${first.description.length > description.length ? '…' : ''}`
     else answer = `আপনার জন্য ${names.join(', ')} পাওয়া গেছে। লাইভ মূল্য, ছবি এবং প্রাপ্যতা দেখতে পণ্যটি খুলুন।`
   } else {
-    if (intent === 'price') answer = `The current starting price for ${first.name} is ${price ?? 'not available'}. Price may vary by variant.`
+    if (intent === 'product_comparison' && retrieval.context.length > 1) {
+      answer = `I found ${retrieval.context.slice(0, 3).map((item) => `${item.name} (${formatBdt(Math.min(...item.variants.map((variant) => variant.price))) ?? 'price unavailable'})`).join(' and ')}. The first option is lower-priced, but compare the live specifications and stock for your use case before choosing.`
+    } else if (intent === 'price') answer = `The current starting price for ${first.name} is ${price ?? 'not available'}. Price may vary by variant.`
     else if (intent === 'availability') answer = `${first.name} is ${availability}. Check the live status after selecting a specific variant.`
     else if (intent === 'variant') answer = `Available variants for ${first.name}: ${variantSummary || 'variant information is unavailable'}.`
     else if (intent === 'product_detail' && description) answer = `${first.name}: ${description}${first.description.length > description.length ? '…' : ''}`
@@ -131,10 +169,12 @@ async function callProvider(request: AssistantRequest, retrieval: RetrievalResul
 }
 
 function isSafeModelOutput(output: AssistantModelOutput, intent: ReturnType<typeof classifyIntent>, retrieval: RetrievalResult) {
-  const groundedIntents = new Set(['product_search', 'product_detail', 'price', 'availability', 'variant'])
+  const groundedIntents = new Set(['product_search', 'product_detail', 'product_comparison', 'product_recommendation', 'budget_search', 'price', 'availability', 'variant'])
+  const conversationalIntents = new Set(['general_knowledge', 'casual_conversation'])
   const intentMatches = output.intent === intent || (intent === 'unclear' && groundedIntents.has(output.intent))
-  if (!groundedIntents.has(output.intent) || !intentMatches || output.evidenceStatus === 'no_evidence' || output.fallbackReason !== 'none') return false
-  if (!retrieval.context.length) return false
+  if (!intentMatches || output.fallbackReason !== 'none') return false
+  if (conversationalIntents.has(output.intent)) return output.productIds.length === 0 && output.evidenceStatus !== 'verified'
+  if (!groundedIntents.has(output.intent) || output.evidenceStatus === 'no_evidence' || !retrieval.context.length) return false
   const allowedIds = new Set(retrieval.context.map((item) => item.id))
   return output.productIds.every((id) => allowedIds.has(id)) && output.productIds.length > 0
 }
@@ -147,14 +187,15 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
   if ((intent === 'policy' || intent === 'store_information') && !config.allowPolicyQuestions) return { requestId, answer: locale === 'bn' ? 'এই ধরনের প্রশ্নের উত্তর এখন সহকারী দিতে পারছে না।' : 'The assistant is not configured to answer this type of question right now.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
   if (intent === 'product_search' && !config.allowProductSearch) return { requestId, answer: locale === 'bn' ? 'পণ্য খোঁজার সুবিধাটি এখন সাময়িকভাবে বন্ধ আছে।' : 'Product search is temporarily unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
   const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname, request.conversation)
-  const providerOutput = !['unsupported', 'policy', 'store_information'].includes(intent) && config.allowRecommendations && retrieval.context.length ? await callProvider(request, retrieval, intent, config) : null
+  const providerEligible = intent === 'general_knowledge' || intent === 'casual_conversation' || config.allowRecommendations
+  const providerOutput = !['unsupported', 'policy', 'store_information', 'greeting', 'thanks', 'goodbye', 'clarification_required'].includes(intent) && providerEligible && (retrieval.context.length || intent === 'general_knowledge' || intent === 'casual_conversation') ? await callProvider(request, retrieval, intent, config) : null
   const modelOutput = providerOutput && isSafeModelOutput(providerOutput, intent, retrieval) ? providerOutput : null
   const output = modelOutput ?? deterministicOutput(request, retrieval, intent)
   const allowedIds = new Set(retrieval.context.map((item) => item.id))
   const safeIds = output.productIds.filter((id) => allowedIds.has(id)).slice(0, 6)
   const products = await hydrateProductReferences(safeIds)
   const finalOutput = products.length === safeIds.length ? output : { ...output, productIds: products.map((product) => product.id), evidenceStatus: products.length ? output.evidenceStatus : 'no_evidence' as const }
-  const answer = finalOutput.evidenceStatus === 'no_evidence' && finalOutput.intent !== 'unsupported'
+  const answer = finalOutput.evidenceStatus === 'no_evidence' && !['unsupported', 'general_knowledge', 'casual_conversation'].includes(finalOutput.intent)
     ? (requestedLocale(request) === 'bn' ? 'দুঃখিত, এই বিষয়ে নিশ্চিত তথ্য পাওয়া যাচ্ছে না। চাইলে Customer Service-এর সাথে সরাসরি যোগাযোগ করুন।' : 'I could not verify that information. You can contact Customer Service directly for help.')
     : finalOutput.answer
   return {

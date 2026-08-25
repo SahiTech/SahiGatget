@@ -196,19 +196,28 @@ export function getSupportCta() {
 }
 
 export function classifyIntent(message: string): AssistantIntent {
-  if (isPrivateRequest(message)) return 'unsupported'
-  if (/customer\s*service|human\s+support|talk\s+to\s+(?:a\s+)?(?:human|person|someone)|support\s+(?:please|help)|whatsapp|কাস্টমার\s*সার্ভিস|মানুষের\s+সাথে|সাপোর্ট|হোয়াটসঅ্যাপ|হোয়াটসঅ্যাপ/i.test(message)) return 'support'
-  if (/delivery|ঢাকা|ডেলিভারি|কুরিয়ার|charge|চার্জ|\border\b|অর্ডার/i.test(message)) return 'policy'
-  if (/warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি|returns?|রিটার্ন|রিপ্লেস|COD|cash on delivery|ক্যাশ অন ডেলিভারি|payment|পেমেন্ট|অর্ডার করার পদ্ধতি|how to order/i.test(message)) return 'policy'
-  if (extractBudget(message) || /(?:under|within|below|budget|max|less than|এর মধ্যে|বাজেটের মধ্যে)/i.test(message)) return 'product_search'
-  if (/price|দাম|মূল্য|৳|tk|টাকা/i.test(message)) return 'price'
-  if (/stock|available|availability|স্টক|অ্যাভেইল|প্রাপ্য/i.test(message)) return 'availability'
-  if (/variant|color|colour|ram|storage|রঙ|কালার|ভ্যারিয়েন্ট|স্টোরেজ|র‍্যাম/i.test(message)) return 'variant'
-  if (/what is|details|spec|camera|battery|processor|display|চার্জার|ক্যামেরা|ব্যাটারি|প্রসেসর|ডিসপ্লে|বিস্তারিত|স্পেসিফিকেশন|কী কী/i.test(message)) return 'product_detail'
-  if (/(?:এর মধ্যে|এটা|এটির|এটার|ওটার|ওটা|এই ফোন|কোনটা|কোনটি)|\b(?:which one|which is better|this phone|this one|that one|these|those|it)\b/i.test(message)) return 'product_search'
-  if (/show|find|দেখান|খুঁজে|চাই|phone|mobile|ফোন|মোবাইল/i.test(message)) return 'product_search'
-  if (/store|shop|contact|support|ঠিকানা|যোগাযোগ|সাহিগ্যাজেট|sahigadget/i.test(message)) return 'store_information'
-  return 'unclear'
+  const normalized = message.trim()
+  if (isPrivateRequest(normalized)) return 'unsupported'
+  if (/create\s+(?:an?\s+)?order|place\s+(?:an?\s+)?order\s+for\s+me|make\s+(?:a\s+)?payment|send\s+money|book\s+(?:it|this)|create\s+(?:a\s+)?shipment|আমার\s+হয়ে\s+অর্ডার|শিপমেন্ট\s+কর/i.test(normalized)) return 'unsupported'
+  if (/^(?:hi|hello|hey|হ্যালো|হাই|আসসালামু\s+আলাইকুম|সালাম|good\s+(?:morning|afternoon|evening)|কেমন\s+আছেন)(?:[\s,!?.]+.*)?$/i.test(normalized)) return 'greeting'
+  if (/^(?:thanks|thank\s+you|ধন্যবাদ|অনেক\s+ধন্যবাদ)\W*$/i.test(normalized)) return 'thanks'
+  if (/^(?:bye|goodbye|see\s+you|বিদায়|আবার\s+দেখা\s+হবে)\W*$/i.test(normalized)) return 'goodbye'
+  if (/^(?:how are you|আমি শুধু দেখছি|just browsing|আচ্ছা|ঠিক আছে)\W*$/i.test(normalized)) return 'casual_conversation'
+  if (/customer\s*service|human\s+support|talk\s+to\s+(?:a\s+)?(?:human|person|someone)|support\s+(?:please|help)|whatsapp|আপনি\s+বুঝতে\s+পারছেন\s+না|বারবার\s+একই|কাজ\s+হচ্ছে\s+না|ভুল\s+তথ্য|you\s+don'?t\s+understand|same\s+thing|not\s+working|wrong\s+(?:information|answer)|কাস্টমার\s*সার্ভিস|মানুষের\s+সাথে|সাপোর্ট|হোয়াটসঅ্যাপ|হোয়াটসঅ্যাপ/i.test(normalized)) return 'support'
+  if (/delivery|ঢাকা|ডেলিভারি|কুরিয়ার|charge|চার্জ|\border\b|অর্ডার/i.test(normalized)) return 'policy'
+  if (/warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি|returns?|রিটার্ন|রিপ্লেস|COD|cash on delivery|ক্যাশ অন ডেলিভারি|payment|পেমেন্ট|অর্ডার করার পদ্ধতি|how to order/i.test(normalized)) return 'policy'
+  if (extractBudget(normalized) || /(?:under|within|below|budget|max|less than|বাজেটের মধ্যে)/i.test(normalized)) return 'budget_search'
+  if (/comparison|compare|তুলনা|দুটোর মধ্যে|দুইটার মধ্যে|vs\.?/i.test(normalized)) return 'product_comparison'
+  if (/(?:recommend|best|better|ভালো|সেরা|জন্য ভালো|কোনটা নেব)/i.test(normalized) && /phone|mobile|ফোন|মোবাইল|camera|ক্যামেরা|battery|ব্যাটারি|দাম|price/i.test(normalized)) return 'product_recommendation'
+  if (/price|দাম|মূল্য|৳|tk|টাকা/i.test(normalized)) return 'price'
+  if (/stock|available|availability|স্টক|অ্যাভেইল|প্রাপ্য/i.test(normalized)) return 'availability'
+  if (/(?:\bwhat\s+is\b|\bwhy\b|\bhow\b|\bwhen\b|\bwhere\b|\bwho\b|\bexplain\b|\bdefine\b|কী|কেন|কীভাবে|কখন|কোথায়|কোথায়|ব্যাখ্যা)/i.test(normalized) && !/(?:\b(?:this|that|my)\s+(?:phone|mobile|device)\b|(?:এই|এটা|ওটা|আমার)\s*(?:ফোন|মোবাইল|ডিভাইস))/i.test(normalized) && !/price|দাম|মূল্য|camera|ক্যামেরা|battery|ব্যাটারি|processor|প্রসেসর/i.test(normalized)) return 'general_knowledge'
+  if (/variant|color|colour|ram|storage|রঙ|কালার|ভ্যারিয়েন্ট|স্টোরেজ|র‍্যাম/i.test(normalized)) return 'variant'
+  if (/details|spec|camera|battery|processor|display|চার্জার|ক্যামেরা|ব্যাটারি|প্রসেসর|ডিসপ্লে|বিস্তারিত|স্পেসিফিকেশন|কী কী/i.test(normalized)) return 'product_detail'
+  if (/(?:এর মধ্যে|এটা|এটির|এটার|ওটার|ওটা|এই ফোন|কোনটা|কোনটি)|\b(?:which one|which is better|this phone|this one|that one|these|those|it)\b/i.test(normalized)) return 'product_search'
+  if (/show|find|দেখান|খুঁজে|phone|mobile|ফোন|মোবাইল/i.test(normalized) || (/চাই/i.test(normalized) && /পণ্য|ফোন|মোবাইল|device|product/i.test(normalized))) return 'product_search'
+  if (/store|shop|contact|support|ঠিকানা|যোগাযোগ|সাহিগ্যাজেট|sahigadget/i.test(normalized)) return 'store_information'
+  return 'clarification_required'
 }
 
 type ConversationTurn = { role: 'user' | 'assistant'; content: string; productIds?: string[] }
@@ -221,6 +230,7 @@ function referencedProductIds(message: string, conversation?: ConversationTurn[]
 export async function retrieveAssistantContext(message: string, intent: AssistantIntent, pageProductId?: string, pagePathname?: string, conversation?: ConversationTurn[]): Promise<RetrievalResult> {
   const retrievedAt = new Date().toISOString()
   if (intent === 'unsupported') return { context: [], sources: [], retrievedAt, supportCta: getSupportCta() }
+  if (['greeting', 'casual_conversation', 'thanks', 'goodbye', 'general_knowledge', 'clarification_required'].includes(intent)) return { context: [], sources: [], retrievedAt, supportCta: intent === 'clarification_required' ? getSupportCta() : undefined }
   const pageSlug = pagePathname?.match(/^\/products\/([^/?#]+)$/)?.[1]
   const pageProduct = pageProductId
     ? await getProductById(pageProductId).catch(() => null)
@@ -250,4 +260,8 @@ export function toPublicCard(product: StorefrontProduct): PublicProductCard {
 
 export function isPrivateAssistantRequest(message: string) {
   return isPrivateRequest(message)
+}
+
+export function isFrustratedAssistantRequest(message: string) {
+  return /আপনি\s+বুঝতে\s+পারছেন\s+না|বারবার\s+একই|কাজ\s+হচ্ছে\s+না|ভুল\s+তথ্য|you\s+don'?t\s+understand|same\s+thing|not\s+working|wrong\s+(?:information|answer)/i.test(message)
 }
