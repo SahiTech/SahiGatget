@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase relation responses are normalized at render time. */
-import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, PackageCheck, PackageX } from 'lucide-react'
+import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, PackageCheck, PackageX, ShieldAlert, ShoppingCart, Truck } from 'lucide-react'
 
 import { AdminEmptyState, AdminPageHeader } from '@/components/admin/admin-shell'
 import { getAdminDashboardData } from '@/lib/admin/data'
+import { getCommerceOperationsSummary } from '@/lib/admin/commerce-data'
+
+export const dynamic = 'force-dynamic'
 
 const currency = new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', maximumFractionDigits: 0 })
 
@@ -11,7 +14,7 @@ function MetricCard({ label, value, icon: Icon, tone }: { label: string; value: 
 }
 
 export default async function AdminDashboardPage() {
-  const data = await getAdminDashboardData()
+  const [data, commerce] = await Promise.all([getAdminDashboardData(), getCommerceOperationsSummary()])
   return (
     <div>
       <AdminPageHeader eyebrow="Store pulse" title="Operational overview" description="Live summaries use current store records only. Empty states are shown when the business has no matching activity." />
@@ -21,7 +24,7 @@ export default async function AdminDashboardPage() {
         <MetricCard label="Pending orders" value={data.pendingOrders} icon={PackageCheck} tone="bg-amber-50 text-amber-700" />
         <MetricCard label="Low-stock variants" value={data.lowStock.length} icon={AlertTriangle} tone="bg-rose-50 text-rose-700" />
       </section>
-      <section className="mt-5 grid gap-4 lg:grid-cols-3">
+      <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Active carts" value={commerce.activeCarts} icon={ShoppingCart} tone="bg-cyan-50 text-cyan-700" /><MetricCard label="Checkouts today" value={commerce.checkoutsToday} icon={ClipboardList} tone="bg-indigo-50 text-indigo-700" /><MetricCard label="High-risk today" value={commerce.highRiskToday} icon={ShieldAlert} tone="bg-rose-50 text-rose-700" /><MetricCard label="Shipments in transit" value={commerce.shipmentsInTransit} icon={Truck} tone="bg-sky-50 text-sky-700" /></section><section className="mt-5 grid gap-4 lg:grid-cols-3">
         <MetricCard label="Processing" value={data.processingOrders} icon={ClipboardList} tone="bg-violet-50 text-violet-700" />
         <MetricCard label="Delivered" value={data.deliveredOrders} icon={CheckCircle2} tone="bg-emerald-50 text-emerald-700" />
         <MetricCard label="Cancelled" value={data.cancelledOrders} icon={PackageX} tone="bg-slate-100 text-slate-700" />

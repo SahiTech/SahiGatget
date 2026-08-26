@@ -4,6 +4,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, MapPin, PackageCheck, Phone, ShieldCheck } from 'lucide-react'
+import { addToCartAction } from '@/lib/commerce/actions'
 
 import { BrandLogo } from '@/components/storefront/brand-logo'
 import type { StorefrontProduct, StorefrontSettings } from '@/lib/services/storefront-utils'
@@ -12,6 +13,8 @@ import { formatPrice, getBrandPath, getProductImageAlt, getProductImageUrl, getP
 export function ProductDetailInteractive({ product, settings, phone }: { product: StorefrontProduct; settings: StorefrontSettings; phone: string }) {
   const [selectedId, setSelectedId] = useState(product.variants[0]?.id || '')
   const [activeImageIndex, setActiveImageIndex] = useState(0)
+  const [cartMessage, setCartMessage] = useState('')
+  const [cartBusy, setCartBusy] = useState(false)
   const selected = useMemo(() => product.variants.find((variant) => variant.id === selectedId) || product.variants[0] || null, [product.variants, selectedId])
   const status = selected ? getPublicAvailability([selected]) : { label: 'Price on request', tone: 'out' as const }
   const discount = selected && selected.compare_at_price && selected.compare_at_price > selected.price ? Math.round(((selected.compare_at_price - selected.price) / selected.compare_at_price) * 100) : null
@@ -19,6 +22,15 @@ export function ProductDetailInteractive({ product, settings, phone }: { product
   const imageCount = product.images.length
   const activeImage = product.images[activeImageIndex] || product.images[0]
   const imageUrl = activeImage?.image_url || getProductImageUrl(product)
+
+  async function addSelectedToCart() {
+    if (!selected) return
+    setCartBusy(true)
+    setCartMessage('')
+    const result = await addToCartAction({ productId: product.id, variantId: selected.id, quantity: 1 })
+    setCartBusy(false)
+    setCartMessage(result.ok ? 'Added to cart.' : result.message ?? 'Unable to update your cart.')
+  }
 
   function selectImage(index: number) {
     setActiveImageIndex(Math.max(0, Math.min(index, Math.max(imageCount - 1, 0))))
@@ -69,7 +81,7 @@ export function ProductDetailInteractive({ product, settings, phone }: { product
 
         <div className="mt-8 grid gap-3 rounded-[1.5rem] border border-slate-200 bg-white p-5"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="text-sm font-black text-slate-950">Warranty & guarantee</p><p className="mt-1 text-sm leading-6 text-slate-500">{product.warranty_policy || settings.warranty.policyText}</p><Link href="/warranty" className="mt-2 inline-flex text-xs font-bold text-emerald-700 underline underline-offset-4 hover:text-emerald-800">View warranty policy</Link></div></div><div className="flex items-start gap-3"><MapPin className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="text-sm font-black text-slate-950">Delivery across Bangladesh</p><p className="mt-1 text-sm leading-6 text-slate-500">Dhaka {formatPrice(settings.delivery.dhakaCharge)} · Outside Dhaka {formatPrice(settings.delivery.outsideDhakaCharge)}</p><Link href="/shipping" className="mt-2 inline-flex text-xs font-bold text-emerald-700 underline underline-offset-4 hover:text-emerald-800">View delivery policy</Link></div></div><div className="flex items-start gap-3"><Phone className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="text-sm font-black text-slate-950">Need help before ordering?</p><a href={`tel:${phone.replace(/\s+/g, '')}`} className="mt-1 inline-block text-sm font-bold text-slate-700 underline underline-offset-4 hover:text-emerald-700">Call {phone}</a></div></div></div>
 
-        <div className="mt-6 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5"><p className="font-black text-slate-950">Ready to order?</p><p className="mt-1 text-sm leading-6 text-slate-600">Cash on Delivery is available. Final delivery charge and stock are checked through the existing order flow.</p>{selected && selected.is_in_stock ? <Link href={`/order?productId=${encodeURIComponent(product.id)}&variantId=${encodeURIComponent(selected.id)}`} className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white transition duration-150 hover:bg-emerald-600 hover:text-slate-950 active:scale-[.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-300 sm:w-auto">Order now · Cash on Delivery</Link> : <p className="mt-4 text-sm font-bold text-slate-500">This selected variant is unavailable to order.</p>}</div>
+        <div className="mt-6 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5"><p className="font-black text-slate-950">Ready to order?</p><p className="mt-1 text-sm leading-6 text-slate-600">Cash on Delivery is available. Final delivery charge and stock are checked through the existing order flow.</p>{selected && selected.is_in_stock ? <div className="mt-4 flex flex-wrap gap-3"><button type="button" disabled={cartBusy} onClick={addSelectedToCart} className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 px-5 py-3 text-sm font-black text-slate-800 transition hover:border-emerald-500 hover:text-emerald-700 disabled:opacity-60">{cartBusy ? 'Adding…' : 'Add to cart'}</button><Link href={`/order?productId=${encodeURIComponent(product.id)}&variantId=${encodeURIComponent(selected.id)}`} className="inline-flex min-h-12 items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white transition duration-150 hover:bg-emerald-600 hover:text-slate-950 active:scale-[.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-300">Order now · Cash on Delivery</Link>{cartMessage ? <p role="status" className="mt-3 text-sm font-bold text-emerald-700">{cartMessage} <Link href="/cart" className="underline underline-offset-4">View cart</Link></p> : null}</div> : <p className="mt-4 text-sm font-bold text-slate-500">This selected variant is unavailable to order.</p>}</div>
 
         {selected ? <dl className="mt-8 grid grid-cols-2 gap-x-5 gap-y-5 border-t border-slate-200 pt-6 text-sm sm:gap-x-8">{attributes.map(([label, value]) => <div key={label} className="min-w-0"><dt className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">{label}</dt><dd className="mt-1 break-words font-bold text-slate-950">{value}</dd></div>)}{selected.sku ? <div className="min-w-0"><dt className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">SKU</dt><dd className="mt-1 break-all font-bold text-slate-950">{selected.sku}</dd></div> : null}<div className="min-w-0"><dt className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">Availability</dt><dd className={`mt-1 truncate font-bold ${status.tone === 'in' ? 'text-emerald-700' : status.tone === 'low' ? 'text-amber-700' : 'text-slate-500'}`}>{status.label}</dd></div></dl> : null}
       </div>
