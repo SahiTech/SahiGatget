@@ -9,7 +9,7 @@ const AssistantPanel = dynamic(() => import('./assistant-panel'), { ssr: false }
 
 const ASSISTANT_EXCLUDED_PATHS = ['/order', '/order/success', '/admin', '/auth', '/landing', '/track-order', '/verify-order']
 
-export function AssistantButton({ enabled = true, maintenanceMode = false, maintenanceMessage, assistantName = 'SahiGadget AI Assistant', buttonLabel = 'সাহায্য লাগবে?', maxVisibleProductCards = 4, showQuickPrompts = true, welcomeMessage, quickPrompts }: { enabled?: boolean; maintenanceMode?: boolean; maintenanceMessage?: string; assistantName?: string; buttonLabel?: string; maxVisibleProductCards?: number; showQuickPrompts?: boolean; welcomeMessage?: string; quickPrompts?: string[] }) {
+export function AssistantButton({ enabled = true, maintenanceMode = false, maintenanceMessage, assistantName = 'SahiGadget AI Assistant', subtitle = 'বাংলায় পণ্য ও স্টোর সহায়তা', buttonLabel = 'সাহায্য লাগবে?', maxVisibleProductCards = 4, showQuickPrompts = true, welcomeMessage, quickPrompts }: { enabled?: boolean; maintenanceMode?: boolean; maintenanceMessage?: string; assistantName?: string; subtitle?: string; buttonLabel?: string; maxVisibleProductCards?: number; showQuickPrompts?: boolean; welcomeMessage?: string; quickPrompts?: string[] }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const excluded = ASSISTANT_EXCLUDED_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
@@ -27,7 +27,7 @@ export function AssistantButton({ enabled = true, maintenanceMode = false, maint
         <MessageCircle aria-hidden="true" className="h-5 w-5 text-teal-700" />
         <span>{buttonLabel}</span>
       </button>
-      {open ? <AssistantPanel onClose={() => setOpen(false)} assistantName={assistantName} maintenanceMode={maintenanceMode} maintenanceMessage={maintenanceMessage} maxVisibleProductCards={maxVisibleProductCards} showQuickPrompts={showQuickPrompts} welcomeMessage={welcomeMessage} quickPrompts={quickPrompts} /> : null}
+      {open ? <AssistantPanel onClose={() => setOpen(false)} assistantName={assistantName} subtitle={subtitle} maintenanceMode={maintenanceMode} maintenanceMessage={maintenanceMessage} maxVisibleProductCards={maxVisibleProductCards} showQuickPrompts={showQuickPrompts} welcomeMessage={welcomeMessage} quickPrompts={quickPrompts} /> : null}
     </>
   )
 }

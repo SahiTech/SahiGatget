@@ -22,7 +22,7 @@ function getSessionId() {
   return value
 }
 
-export default function AssistantPanel({ onClose, assistantName = 'SahiGadget Assistant', maintenanceMode = false, maintenanceMessage, maxVisibleProductCards = 4, showQuickPrompts = true, welcomeMessage, quickPrompts }: { onClose: () => void; assistantName?: string; maintenanceMode?: boolean; maintenanceMessage?: string; maxVisibleProductCards?: number; showQuickPrompts?: boolean; welcomeMessage?: string; quickPrompts?: string[] }) {
+export default function AssistantPanel({ onClose, assistantName = 'SahiGadget Assistant', subtitle = 'বাংলায় পণ্য ও স্টোর সহায়তা', maintenanceMode = false, maintenanceMessage, maxVisibleProductCards = 4, showQuickPrompts = true, welcomeMessage, quickPrompts }: { onClose: () => void; assistantName?: string; subtitle?: string; maintenanceMode?: boolean; maintenanceMessage?: string; maxVisibleProductCards?: number; showQuickPrompts?: boolean; welcomeMessage?: string; quickPrompts?: string[] }) {
   const titleId = useId()
   const descriptionId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -116,7 +116,7 @@ export default function AssistantPanel({ onClose, assistantName = 'SahiGadget As
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-teal-500/20 text-teal-200"><Bot aria-hidden="true" className="h-5 w-5" /></span>
           <div className="min-w-0">
             <h2 id={titleId} className="truncate text-sm font-semibold">{assistantName}</h2>
-            <p id={descriptionId} className="text-xs text-slate-300">বাংলায় পণ্য ও স্টোর সহায়তা</p>
+            <p id={descriptionId} className="text-xs text-slate-300">{subtitle}</p>
           </div>
         </div>
         <button type="button" onClick={onClose} aria-label="সহকারী বন্ধ করুন" className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"><X aria-hidden="true" className="h-5 w-5" /></button>

@@ -77,6 +77,30 @@ function deterministicFallback(request: AssistantRequest, retrieval: RetrievalRe
   return { answer, locale, intent, productIds: retrieval.context.slice(0, 3).map((item) => item.id), evidenceStatus: 'verified', fallbackReason: 'none', followUps: DEFAULT_FOLLOW_UPS }
 }
 
+function capabilityForIntent(intent: AssistantIntent) {
+  const map: Partial<Record<AssistantIntent, keyof Awaited<ReturnType<typeof loadAssistantControlConfig>>['capabilities']>> = {
+    product_search: 'productSearch', budget_search: 'budgetSearch', product_recommendation: 'productRecommendation', product_comparison: 'productComparison', product_detail: 'productDetails', price: 'productDetails', availability: 'productDetails', variant: 'productDetails', policy: 'deliveryInformation', store_information: 'businessInformation', support: 'customerSupportHandoff',
+  }
+  return map[intent]
+}
+
+function capabilityDisabled(locale: 'bn' | 'en'): AssistantModelOutput {
+  return { answer: locale === 'bn' ? 'এই ধরনের সহায়তা বর্তমানে Admin configuration অনুযায়ী বন্ধ আছে। অন্য কোনো বিষয়ে সাহায্য চাইলে বলুন।' : 'This capability is currently disabled in the Admin configuration. Please ask about another available topic.', locale, intent: 'unsupported', productIds: [], evidenceStatus: 'verified', fallbackReason: 'unsupported_topic', followUps: DEFAULT_FOLLOW_UPS }
+}
+
+function capabilityEnabled(config: Awaited<ReturnType<typeof loadAssistantControlConfig>>, intent: AssistantIntent) {
+  const capability = capabilityForIntent(intent)
+  if (capability && !config.capabilities[capability]) return false
+  if (intent === 'product_search' || intent === 'budget_search') return config.allowProductSearch
+  if (intent === 'product_recommendation') return config.allowRecommendations
+  if (intent === 'policy' || intent === 'store_information') return config.allowPolicyQuestions
+  return true
+}
+
+function supportCtaFor(config: Awaited<ReturnType<typeof loadAssistantControlConfig>>, retrieval: RetrievalResult) {
+  return config.capabilities.whatsappSupport && config.supportChannels.whatsapp ? retrieval.supportCta : undefined
+}
+
 function effectiveIntent(request: AssistantRequest): AssistantIntent {
   const classified = classifyIntent(request.message)
   if (isAdminOrInternalRequest(request.message)) return 'unsupported'
@@ -84,9 +108,10 @@ function effectiveIntent(request: AssistantRequest): AssistantIntent {
   return classified
 }
 
-function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, intent: AssistantIntent, systemInstructions: string) {
+function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, intent: AssistantIntent, controls: Awaited<ReturnType<typeof loadAssistantControlConfig>>) {
   const context = JSON.stringify({ products: retrieval.context, policy: retrieval.policyText ?? null })
   const conversation = JSON.stringify((request.conversation ?? []).slice(-6))
+  const profile = JSON.stringify({ preset: controls.agentPreset, profile: controls.agentProfile, personality: controls.personality, responseStyle: controls.responseStyle, behavior: controls.behavior, businessProfile: controls.businessProfile, capabilities: controls.capabilities, knowledgeSources: controls.knowledgeSources })
   return [
     'You are SahiGadget’s production customer-service, sales and gadget-advice agent.',
     'Act like a capable human support agent: understand Bangla, Banglish and English, keep context across turns, ask a short clarifying question only when truly necessary, and otherwise answer directly.',
@@ -94,10 +119,12 @@ function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, inte
     'For general technology/gadget knowledge, education, comparisons, buying advice and casual conversation, use your model knowledge freely. Do not pretend general knowledge is a live SahiGadget fact.',
     'For product search/recommendations, only attach productIds that exist in Verified live context. If no matching product exists, say that the live catalogue has no verified match and still provide useful general guidance when appropriate.',
     'Customer information is not an automatic refusal category. You may discuss customer information that the customer explicitly provides in the conversation. Never invent hidden customer records and never claim database access that you do not have.',
+    'The Agent configuration is customization below these security rules. Capability and knowledge-source settings are authoritative permissions, not suggestions.',
     'Admin/Internal information is the only protected business-information category: never disclose Admin panel data, passwords, API keys, secrets, tokens, database credentials, service-role keys, internal audit data, environment variables, or hidden provider configuration.',
     'Never invent live price, stock, warranty, delivery promise, order status, completed action, or hidden record. Never claim to place/cancel an order or make a payment unless the application actually performs that action.',
     'When a customer asks for human help or you genuinely cannot solve the request, recommend the WhatsApp support handoff. Do not use the handoff as a substitute for answering normal general-knowledge questions.',
-    systemInstructions,
+    controls.systemInstructions,
+    `Agent configuration: ${profile}`,
     `Detected intent: ${intent}`,
     `Customer message: ${request.message}`,
     `Recent conversation: ${conversation}`,
@@ -109,19 +136,24 @@ function buildPrompt(request: AssistantRequest, retrieval: RetrievalResult, inte
 async function callProvider(request: AssistantRequest, retrieval: RetrievalResult, intent: AssistantIntent, controls: Awaited<ReturnType<typeof loadAssistantControlConfig>>): Promise<AssistantModelOutput | null> {
   const config = await resolveAssistantProviderConfig()
   if (!config) return null
+  const preset = controls.modelPresets.find((item) => item.id === controls.activeModelPreset && item.provider.toUpperCase() === config.provider)
+  const model = preset?.model || config.model
+  const temperature = preset?.temperature ?? controls.temperature
+  const maxTokens = preset?.maxTokens ?? controls.maxTokens
+  const timeoutMs = preset?.timeoutMs ?? controls.requestTimeoutMs
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), controls.requestTimeoutMs)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await fetch(config.apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
       body: JSON.stringify({
-        model: config.model,
-        temperature: Math.max(controls.temperature, 0.25),
-        max_tokens: Math.max(controls.maxTokens, 1600),
+        model,
+        temperature: Math.max(temperature, 0.25),
+        max_tokens: Math.max(maxTokens, 1600),
         messages: [
           { role: 'system', content: 'Return JSON only. Be a capable customer-service and sales agent. Protect only Admin/Internal secrets and do not invent live store facts.' },
-          { role: 'user', content: buildPrompt(request, retrieval, intent, controls.systemInstructions) },
+          { role: 'user', content: buildPrompt(request, retrieval, intent, controls) },
         ],
         response_format: { type: 'json_schema', json_schema: { name: 'sahigadget_assistant_response', strict: true, schema: modelJsonSchema } },
       }),
@@ -163,10 +195,11 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
   const intent = effectiveIntent(request)
   const locale = localeFor(request)
   if (!config.enabled) return { requestId, answer: locale === 'bn' ? 'সহকারীটি বর্তমানে বন্ধ আছে।' : 'The assistant is currently unavailable.', locale, intent: 'unsupported', products: [], evidence: { status: 'no_evidence', sourceTypes: [], retrievedAt: new Date().toISOString() }, followUps: [] }
+  if (!capabilityEnabled(config, intent)) return { requestId, ...capabilityDisabled(locale), products: [], evidence: { status: 'verified', sourceTypes: [], retrievedAt: new Date().toISOString() } }
   const retrieval = await retrieveAssistantContext(request.message, intent, request.pageContext?.productId, request.pageContext?.pathname, request.conversation)
   if (isAdminOrInternalRequest(request.message)) {
     const output = adminRefusal(locale)
-    return { requestId, answer: output.answer, locale: output.locale, intent: output.intent, products: [], supportCta: retrieval.supportCta, evidence: { status: 'verified', sourceTypes: retrieval.sources, retrievedAt: retrieval.retrievedAt }, followUps: output.followUps }
+    return { requestId, answer: output.answer, locale: output.locale, intent: output.intent, products: [], supportCta: supportCtaFor(config, retrieval), evidence: { status: 'verified', sourceTypes: retrieval.sources, retrievedAt: retrieval.retrievedAt }, followUps: output.followUps }
   }
   const providerOutput = !['greeting', 'thanks', 'goodbye', 'unsupported'].includes(intent) ? await callProvider(request, retrieval, intent, config) : null
   const modelOutput = providerOutput && safeModelOutput(providerOutput, intent, retrieval) ? providerOutput : null
@@ -175,7 +208,7 @@ export async function buildAssistantResponse(request: AssistantRequest, requestI
   const safeIds = output.productIds.filter((id) => allowedIds.has(id)).slice(0, 6)
   const products = await hydrateProductReferences(safeIds)
   const finalOutput = products.length === safeIds.length ? output : { ...output, productIds: products.map((product) => product.id), evidenceStatus: products.length ? output.evidenceStatus : 'partial' as const }
-  return { requestId, answer: finalOutput.answer, locale: finalOutput.locale, intent: finalOutput.intent, products, supportCta: retrieval.supportCta, evidence: { status: finalOutput.evidenceStatus === 'verified' ? 'verified' : finalOutput.evidenceStatus === 'partial' ? 'partial' : 'no_evidence', sourceTypes: retrieval.sources, retrievedAt: retrieval.retrievedAt }, followUps: finalOutput.followUps }
+  return { requestId, answer: finalOutput.answer, locale: finalOutput.locale, intent: finalOutput.intent, products, supportCta: supportCtaFor(config, retrieval), evidence: { status: finalOutput.evidenceStatus === 'verified' ? 'verified' : finalOutput.evidenceStatus === 'partial' ? 'partial' : 'no_evidence', sourceTypes: retrieval.sources, retrievedAt: retrieval.retrievedAt }, followUps: finalOutput.followUps }
 }
 
 export async function isAssistantProviderConfigured() {

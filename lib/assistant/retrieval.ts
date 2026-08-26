@@ -18,7 +18,7 @@ import {
 } from '@/lib/services/storefront-utils'
 import type { StorefrontProduct } from '@/lib/services/storefront-utils'
 import type { AssistantIntent, PublicProductCard } from './contracts'
-import { loadAssistantPolicyConfig } from './config'
+import { loadAssistantControlConfig, loadAssistantPolicyConfig } from './config'
 
 export type RetrievedSource = 'live_product' | 'live_variant' | 'public_policy' | 'site_config'
 
@@ -286,7 +286,9 @@ function referencedProductIds(message: string, conversation?: ConversationTurn[]
 
 export async function retrieveAssistantContext(message: string, intent: AssistantIntent, pageProductId?: string, pagePathname?: string, conversation?: ConversationTurn[]): Promise<RetrievalResult> {
   const retrievedAt = new Date().toISOString()
+  const controls = await loadAssistantControlConfig()
   if (intent === 'unsupported') return { context: [], sources: [], retrievedAt, supportCta: getSupportCta() }
+  if (['product_search', 'budget_search', 'product_detail', 'product_comparison', 'product_recommendation', 'price', 'availability', 'variant'].includes(intent) && !controls.knowledgeSources.productCatalogue) return { context: [], sources: [], retrievedAt, supportCta: getSupportCta() }
   if (['greeting', 'casual_conversation', 'thanks', 'goodbye', 'general_knowledge', 'clarification_required'].includes(intent)) return { context: [], sources: [], retrievedAt, supportCta: intent === 'clarification_required' ? getSupportCta() : undefined }
   const pageSlug = pagePathname?.match(/^\/products\/([^/?#]+)$/)?.[1]
   const pageProduct = pageProductId
@@ -296,6 +298,8 @@ export async function retrieveAssistantContext(message: string, intent: Assistan
       : null
   if (intent === 'policy' || intent === 'store_information' || intent === 'support') {
     const topic = intent === 'support' ? 'support' : /কিভাবে\s*অর্ডার|অর্ডার\s*(?:করব|করতে|করার)|how to order|order process/i.test(message) ? 'order' : /warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি/i.test(message) ? 'warranty' : /return|রিটার্ন|রিপ্লেস/i.test(message) ? 'returns' : /cod|cash|ক্যাশ|payment|পেমেন্ট/i.test(message) ? 'cod' : /delivery|ঢাকা|ডেলিভারি|চার্জ|\bwhen\b|\bhow many days\b|\bget it\b|কতদিন|কবে|পাবো|দিনের মধ্যে|সময়/i.test(message) ? 'delivery' : /support|contact|যোগাযোগ|ইমেইল|ফোন/i.test(message) ? 'support' : 'store_information'
+    const sourceEnabled = topic === 'delivery' ? controls.knowledgeSources.deliveryPolicy : topic === 'warranty' ? controls.knowledgeSources.warrantyPolicy : topic === 'returns' ? controls.knowledgeSources.returnPolicy : topic === 'cod' ? controls.knowledgeSources.paymentPolicy : topic === 'order' ? controls.knowledgeSources.orderInstructions : topic === 'support' ? controls.knowledgeSources.contactInformation : controls.knowledgeSources.businessInformation
+    if (!sourceEnabled) return { context: [], sources: [], retrievedAt, supportCta: getSupportCta() }
     const policy = await getStorePolicy(topic, pageProduct)
     return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text, supportCta: intent === 'support' ? getSupportCta() : undefined }
   }
