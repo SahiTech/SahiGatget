@@ -19,6 +19,8 @@ const cartOrderSchema = z.object({
   address: z.string().trim().min(8).max(500),
   postalCode: z.string().trim().max(20).optional(),
   notes: z.string().trim().max(500).optional(),
+  analyticsConsent: z.boolean().optional().default(false),
+  marketingConsent: z.boolean().optional().default(false),
 })
 
 export async function createCartCodOrder(input: unknown) {
@@ -48,6 +50,6 @@ export async function createCartCodOrder(input: unknown) {
   const summary = await loadOrderSuccessById(row.order_id)
   await markCheckoutSession({ checkoutRequestId: parsed.data.checkoutRequestId, source: 'CART', cartId: cart.id, status: 'COMPLETED', customerPhone: normalizedPhone, customerEmail: parsed.data.email || null, completedOrderId: row.order_id })
   await recordCommerceEvent({ eventId: `${parsed.data.checkoutRequestId}:completed`, eventName: 'ORDER_COMPLETED', sessionId: parsed.data.checkoutRequestId, orderId: row.order_id, cartId: cart.id, metadata: { source: 'CART', createdNew: row.created_new } })
-  await recordPurchaseOnce({ orderId: summary.orderId, orderNumber: summary.orderNumber, value: summary.grandTotal, cartId: cart.id, sessionId: parsed.data.checkoutRequestId, items: summary.items.map((item) => ({ item_id: item.sku, item_name: item.productName, price: item.unitPrice, quantity: item.quantity })) })
+  await recordPurchaseOnce({ orderId: summary.orderId, orderNumber: summary.orderNumber, value: summary.grandTotal, cartId: cart.id, sessionId: parsed.data.checkoutRequestId, consent: { analytics: parsed.data.analyticsConsent, marketing: parsed.data.marketingConsent }, items: summary.items.map((item) => ({ item_id: item.sku, item_name: item.productName, price: item.unitPrice, quantity: item.quantity })) })
   return { ok: true, data: summary }
 }
