@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 
 import { siteConfig } from '@/config/site'
 import { Toaster } from 'sonner'
+import { AnalyticsProvider } from '@/components/analytics/analytics-provider'
 import './globals.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -120,7 +121,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             }),
           }}
         />
-        {children}
+        <AnalyticsProvider>{children}</AnalyticsProvider>
       </body>
     </html>
   )
