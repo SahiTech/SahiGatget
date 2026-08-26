@@ -3,6 +3,7 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { normalizePhone } from '@/lib/orders/phone'
 import { queueOrderConfirmationEmails } from '@/lib/email/service'
 import {
   guestOrderInputSchema,
@@ -29,13 +30,6 @@ type VariantRow = {
 }
 
 type SettingsRow = { key: string; value: unknown }
-
-function normalizePhone(phone: string) {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.startsWith('8801')) return `+${digits}`
-  if (digits.startsWith('01')) return `+88${digits}`
-  return phone.trim()
-}
 
 function fieldErrors(error: { issues: Array<{ path: PropertyKey[]; message: string }> }) {
   return Object.fromEntries(error.issues.map((issue) => [String(issue.path[0] ?? 'form'), issue.message]))
@@ -97,7 +91,7 @@ async function loadVariantQuote(selection: { productId: string; variantId: strin
   }
 }
 
-async function loadOrderSuccessById(orderId: string): Promise<OrderSuccessSummary> {
+export async function loadOrderSuccessById(orderId: string): Promise<OrderSuccessSummary> {
   const admin = createAdminClient()
   const { data: order, error: orderError } = await admin
     .from('orders')
