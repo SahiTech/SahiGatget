@@ -5,6 +5,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/orders/phone'
 import { queueOrderConfirmationEmails } from '@/lib/email/service'
+import { recordPurchaseOnce } from '@/lib/analytics/events'
 import {
   guestOrderInputSchema,
   orderQuoteInputSchema,
@@ -191,6 +192,7 @@ export async function createGuestCodOrder(input: unknown): Promise<ActionResult<
     }
 
     const summary = await loadOrderSuccessById(String(data[0].order_id))
+    await recordPurchaseOnce({ orderId: summary.orderId, orderNumber: summary.orderNumber, value: summary.grandTotal, sessionId: payload.checkoutRequestId, items: summary.items.map((item) => ({ item_id: item.sku, item_name: item.productName, price: item.unitPrice, quantity: item.quantity })) })
     try {
       await queueOrderConfirmationEmails(summary)
     } catch (emailError) {
