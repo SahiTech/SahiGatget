@@ -139,6 +139,13 @@ export const riskPolicySchema = z.object({
   }),
 })
 
+export const paymentPolicySchema = z.object({
+  codEnabled: z.boolean(),
+  bdgateEnabled: z.boolean(),
+  defaultProvider: z.enum(['COD', 'BDGATE']),
+  paymentExpiryMinutes: z.coerce.number().int().min(5).max(1440),
+})
+
 export const settingsSchema = z.object({
   deliveryCharges: z.object({
     dhaka: z.coerce.number().finite().min(0).max(100000),

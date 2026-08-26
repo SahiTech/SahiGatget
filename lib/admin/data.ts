@@ -123,7 +123,7 @@ export async function getSettingsData() {
   const { data, error } = await db
     .from('settings')
     .select('key, value, description, updated_at')
-    .in('key', ['delivery_charges', 'business_policy', 'risk_policy', 'store_profile', 'return_refund_policy', 'footer_config'])
+    .in('key', ['delivery_charges', 'business_policy', 'risk_policy', 'payment_policy', 'store_profile', 'return_refund_policy', 'footer_config'])
     .limit(12)
   assertNoError(error)
 
@@ -138,5 +138,5 @@ export async function getSettingsData() {
     : { data: [], error: null }
   assertNoError(admins.error)
 
-  return { settings, auditLogs: auditLogs.data ?? [], admins: admins.data ?? [], isOwner: session.role === 'OWNER' }
+  return { settings, auditLogs: auditLogs.data ?? [], admins: admins.data ?? [], isOwner: session.role === 'OWNER', bdgateConfigured: Boolean(process.env.BDGATE_LIVE_API_KEY) }
 }

@@ -1,4 +1,4 @@
-export const PAYMENT_PROVIDERS = ['COD', 'BKASH', 'NAGAD', 'ROCKET'] as const
+export const PAYMENT_PROVIDERS = ['COD', 'BDGATE', 'BKASH', 'NAGAD', 'ROCKET'] as const
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number]
 
 export const PAYMENT_CAPABILITIES = ['CREATE_PAYMENT', 'VERIFY_PAYMENT', 'REFUND', 'CANCEL', 'WEBHOOK', 'QUERY_STATUS'] as const
@@ -36,6 +36,7 @@ export type PaymentStatusResult = {
 export type PaymentAdapter = {
   provider: PaymentProvider
   capabilities: ReadonlySet<PaymentCapability>
-  createPayment?: (input: { orderId: string; amount: number; idempotencyKey: string }) => Promise<{ providerPaymentId: string; status: 'PENDING' }>
-  verifyPayment?: (input: { providerPaymentId: string }) => Promise<{ status: 'VERIFIED' | 'FAILED' | 'PENDING' }>
+  createPayment?: (input: { orderId: string; amount: number; idempotencyKey: string; customerName?: string; customerEmail?: string | null; customerPhone?: string | null; successUrl?: string; failUrl?: string; cancelUrl?: string; webhookUrl?: string }) => Promise<{ providerPaymentId: string; redirectUrl: string; status: 'PENDING'; expiresAt?: string | null }>
+  verifyPayment?: (input: { providerPaymentId: string; expectedOrderId?: string; expectedAmount?: number; expectedCurrency?: 'BDT' }) => Promise<{ status: 'VERIFIED' | 'FAILED' | 'PENDING'; amount?: number; currency?: string; transactionId?: string | null; providerReference?: string | null; failureCategory?: PaymentFailureCategory | null }>
+  getPaymentStatus?: (input: { providerPaymentId: string }) => Promise<PaymentStatusResult>
 }

@@ -7,7 +7,7 @@ ALTER TABLE public.orders
 CREATE TABLE IF NOT EXISTS public.payment_transactions (
   id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-  provider TEXT NOT NULL CHECK (provider IN ('COD', 'BKASH', 'NAGAD', 'ROCKET')),
+  provider TEXT NOT NULL CHECK (provider IN ('COD', 'BDGATE', 'BKASH', 'NAGAD', 'ROCKET')),
   provider_payment_id TEXT,
   provider_transaction_id TEXT,
   amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
@@ -35,3 +35,11 @@ DROP POLICY IF EXISTS "Admin full access payment_transactions" ON public.payment
 CREATE POLICY "Admin full access payment_transactions" ON public.payment_transactions FOR ALL USING (private.is_admin()) WITH CHECK (private.is_admin());
 REVOKE ALL ON TABLE public.payment_transactions FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.payment_transactions TO service_role;
+
+INSERT INTO public.settings (key, value, description)
+VALUES (
+  'payment_policy',
+  '{"codEnabled":true,"bdgateEnabled":false,"defaultProvider":"COD","paymentExpiryMinutes":30}'::jsonb,
+  'Non-secret payment routing and expiry controls'
+)
+ON CONFLICT (key) DO NOTHING;
