@@ -5,8 +5,42 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { decryptSecret, encryptSecret } from '@/lib/delivery/secrets'
 
+const agentPersonalitySchema = z.enum(['professional', 'friendly', 'casual', 'premium', 'concise', 'detailed', 'helpful', 'sales-oriented', 'support-oriented'])
+const agentPresetSchema = z.enum(['ecommerce', 'product_advisor', 'customer_support', 'restaurant', 'hotel_concierge', 'general_business'])
+
 export const assistantControlConfigSchema = z.object({
   enabled: z.boolean().default(true),
+  agentPreset: agentPresetSchema.default('ecommerce'),
+  agentProfile: z.object({
+    agentName: z.string().trim().min(1).max(80).default('SahiGadget AI Assistant'),
+    businessName: z.string().trim().min(1).max(120).default('SahiGadget'),
+    description: z.string().trim().max(300).default('Customer-service, sales, and gadget-advice assistant.'),
+    subtitle: z.string().trim().max(160).default('Ask about products, prices, and delivery.'),
+    welcomeMessage: z.string().trim().max(500).default('হ্যালো! পণ্য, দাম, ভ্যারিয়েন্ট, ডেলিভারি বা ওয়ারেন্টি সম্পর্কে জানতে প্রশ্ন করুন.'),
+    primaryLanguage: z.enum(['bn', 'en', 'auto']).default('bn'),
+    supportedLanguages: z.array(z.enum(['bn', 'en', 'banglish'])).min(1).max(3).default(['bn', 'en', 'banglish']),
+    locale: z.string().trim().min(2).max(12).default('bn-BD'),
+    timezone: z.string().trim().min(1).max(64).default('Asia/Dhaka'),
+  }).default({ agentName: 'SahiGadget AI Assistant', businessName: 'SahiGadget', description: 'Customer-service, sales, and gadget-advice assistant.', subtitle: 'Ask about products, prices, and delivery.', welcomeMessage: 'হ্যালো! পণ্য, দাম, ভ্যারিয়েন্ট, ডেলিভারি বা ওয়ারেন্টি সম্পর্কে জানতে প্রশ্ন করুন.', primaryLanguage: 'bn', supportedLanguages: ['bn', 'en', 'banglish'], locale: 'bn-BD', timezone: 'Asia/Dhaka' }),
+  personality: z.array(agentPersonalitySchema).min(1).max(9).default(['professional', 'friendly', 'helpful']),
+  responseStyle: z.object({
+    detail: z.enum(['concise', 'balanced', 'detailed']).default('balanced'),
+    preferredLanguage: z.enum(['bn', 'en', 'auto']).default('auto'),
+    banglishBehavior: z.enum(['understand_and_reply_bangla', 'mirror_user', 'reply_english']).default('understand_and_reply_bangla'),
+    emojiPolicy: z.enum(['never', 'minimal', 'allowed']).default('minimal'),
+    formattingPolicy: z.enum(['plain', 'light_markdown']).default('light_markdown'),
+  }).default({ detail: 'balanced', preferredLanguage: 'auto', banglishBehavior: 'understand_and_reply_bangla', emojiPolicy: 'minimal', formattingPolicy: 'light_markdown' }),
+  capabilities: z.object({
+    productSearch: z.boolean().default(true), productRecommendation: z.boolean().default(true), productComparison: z.boolean().default(true), productDetails: z.boolean().default(true), budgetSearch: z.boolean().default(true), categorySearch: z.boolean().default(true), deliveryInformation: z.boolean().default(true), warrantyInformation: z.boolean().default(true), returnInformation: z.boolean().default(true), paymentInformation: z.boolean().default(true), orderGuidance: z.boolean().default(true), faq: z.boolean().default(true), businessInformation: z.boolean().default(true), customerSupportHandoff: z.boolean().default(true), whatsappSupport: z.boolean().default(true), promotions: z.boolean().default(false), alternatives: z.boolean().default(true), followUpContext: z.boolean().default(true), orderStatusLookup: z.boolean().default(false), cartAssistance: z.boolean().default(false), accountAssistance: z.boolean().default(false), bookingAssistance: z.boolean().default(false),
+  }).default({ productSearch: true, productRecommendation: true, productComparison: true, productDetails: true, budgetSearch: true, categorySearch: true, deliveryInformation: true, warrantyInformation: true, returnInformation: true, paymentInformation: true, orderGuidance: true, faq: true, businessInformation: true, customerSupportHandoff: true, whatsappSupport: true, promotions: false, alternatives: true, followUpContext: true, orderStatusLookup: false, cartAssistance: false, accountAssistance: false, bookingAssistance: false }),
+  knowledgeSources: z.object({
+    productCatalogue: z.boolean().default(true), categories: z.boolean().default(true), brands: z.boolean().default(true), productSpecifications: z.boolean().default(true), deliveryPolicy: z.boolean().default(true), warrantyPolicy: z.boolean().default(true), returnPolicy: z.boolean().default(true), paymentPolicy: z.boolean().default(true), orderInstructions: z.boolean().default(true), businessInformation: z.boolean().default(true), faq: z.boolean().default(true), contactInformation: z.boolean().default(true), promotions: z.boolean().default(false), customPublicKnowledge: z.boolean().default(false),
+  }).default({ productCatalogue: true, categories: true, brands: true, productSpecifications: true, deliveryPolicy: true, warrantyPolicy: true, returnPolicy: true, paymentPolicy: true, orderInstructions: true, businessInformation: true, faq: true, contactInformation: true, promotions: false, customPublicKnowledge: false }),
+  supportChannels: z.object({ whatsapp: z.boolean().default(true), phone: z.boolean().default(true), email: z.boolean().default(true), messenger: z.boolean().default(false), liveChat: z.boolean().default(false)   }).default({ whatsapp: true, phone: true, email: true, messenger: false, liveChat: false }),
+  businessProfile: z.object({ tagline: z.string().trim().max(160).default(''), description: z.string().trim().max(500).default(''), address: z.string().trim().max(300).default(''), openingHours: z.string().trim().max(300).default('')   }).default({ tagline: '', description: '', address: '', openingHours: '' }),
+  behavior: z.object({ role: z.string().trim().max(500).default('A helpful public customer-service and sales assistant.'), objective: z.string().trim().max(700).default('Help customers make informed decisions using verified public business data.'), communicationStyle: z.string().trim().max(700).default('Be natural, clear, concise, and helpful.'), doInstructions: z.string().trim().max(1200).default('Answer directly when verified public information exists.'), dontInstructions: z.string().trim().max(1200).default('Never invent live commerce facts or disclose protected information.'), customBusinessInstructions: z.string().trim().max(1200).default('')   }).default({ role: 'A helpful public customer-service and sales assistant.', objective: 'Help customers make informed decisions using verified public business data.', communicationStyle: 'Be natural, clear, concise, and helpful.', doInstructions: 'Answer directly when verified public information exists.', dontInstructions: 'Never invent live commerce facts or disclose protected information.', customBusinessInstructions: '' }),
+  modelPresets: z.array(z.object({ id: z.string().regex(/^[a-z0-9_-]{2,32}$/), name: z.string().trim().min(1).max(40), provider: z.string().trim().max(40), model: z.string().trim().max(200), temperature: z.number().min(0).max(1), maxTokens: z.number().int().min(64).max(2000), timeoutMs: z.number().int().min(1000).max(15000) }).strict()).max(5).default([]),
+  activeModelPreset: z.string().regex(/^[a-z0-9_-]{2,32}$/).nullable().default(null),
   maintenanceMode: z.boolean().default(false),
   assistantName: z.string().trim().min(1).max(80).default('SahiGadget AI Assistant'),
   buttonLabel: z.string().trim().min(1).max(80).default('সাহায্য লাগবে?'),
@@ -23,7 +57,7 @@ export const assistantControlConfigSchema = z.object({
   temperature: z.number().min(0).max(1).default(0.1),
   maxTokens: z.number().int().min(64).max(2000).default(1400),
   requestTimeoutMs: z.number().int().min(1000).max(15000).default(8000),
-  systemInstructions: z.string().trim().max(2000).default('Answer only from verified SahiGadget public context. Never reveal private data or invent commerce facts.'),
+  systemInstructions: z.string().trim().max(2000).default('Answer only from verified public context. Never reveal private data or invent commerce facts.'),
   welcomeMessage: z.string().trim().max(500).default('হ্যালো! পণ্য, দাম, ভ্যারিয়েন্ট, ডেলিভারি বা ওয়ারেন্টি সম্পর্কে জানতে প্রশ্ন করুন।'),
   quickPrompts: z.array(z.string().trim().min(1).max(120)).max(6).default(['একটি পণ্য খুঁজে দিন', 'বাজেটের মধ্যে ফোন দেখান', 'ডেলিভারি সম্পর্কে জানতে চাই', 'ওয়ারেন্টি সম্পর্কে জানতে চাই']),
 }).strict()

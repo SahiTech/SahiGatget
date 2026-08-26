@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { loadAssistantControlConfig, loadAssistantPolicyConfig, getAssistantConfigurationStatus } from '@/lib/assistant/config'
 
 const ASSISTANT_ACTIONS = ['ASSISTANT_REQUEST', 'ASSISTANT_UNANSWERED', 'ASSISTANT_ERROR', 'ASSISTANT_RATE_LIMITED']
+const HEALTH_ACTIONS = [...ASSISTANT_ACTIONS, 'AI_CONNECTION_TESTED', 'AI_CONNECTION_FAILED']
 
 function safeNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
@@ -24,7 +25,7 @@ export async function getAssistantControlCenterData(options: { range?: Assistant
     loadAssistantControlConfig(),
     loadAssistantPolicyConfig(),
     db.from('settings').select('key, value, description, updated_at').in('key', ['assistant_config', 'assistant_prompts']).limit(2),
-    db.from('audit_logs').select('id, action, entity_type, entity_id, details, created_at').in('action', ASSISTANT_ACTIONS).gte('created_at', since).order('created_at', { ascending: false }).limit(500),
+    db.from('audit_logs').select('id, action, entity_type, entity_id, details, created_at').in('action', HEALTH_ACTIONS).gte('created_at', since).order('created_at', { ascending: false }).limit(500),
   ])
   if (settingsResult.error) throw new Error('Unable to load assistant settings.')
   if (eventsResult.error) throw new Error('Unable to load assistant analytics.')
@@ -44,6 +45,8 @@ export async function getAssistantControlCenterData(options: { range?: Assistant
     }
   }
   const requestEvents = events.filter((event) => event.action === 'ASSISTANT_REQUEST')
+  const successfulTest = events.find((event) => event.action === 'AI_CONNECTION_TESTED')
+  const lastSuccessfulRequest = requestEvents.find((event) => (event.details as Record<string, unknown> | null)?.status === 'answered' || (event.details as Record<string, unknown> | null)?.outcome === 'answered')
   const totalRequests = requestEvents.length
   const pageSize = 25
   const totalPages = Math.max(1, Math.ceil(events.length / pageSize))
@@ -74,6 +77,7 @@ export async function getAssistantControlCenterData(options: { range?: Assistant
       hasPrevious: safePage > 1,
       hasNext: safePage < totalPages,
       recentEvents: pagedEvents.map((event) => ({ id: event.id, action: event.action, createdAt: event.created_at, details: event.details })),
+      health: { lastSuccessfulTestAt: successfulTest?.created_at ?? null, lastSuccessfulRequestAt: lastSuccessfulRequest?.created_at ?? null, knowledgeSourcesEnabled: Object.values(config.knowledgeSources).filter(Boolean).length, knowledgeSourcesTotal: Object.keys(config.knowledgeSources).length, rateLimitStatus: Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim() && process.env.UPSTASH_REDIS_REST_TOKEN?.trim()) ? 'operational' as const : 'not_configured' as const },
     },
   }
 }
