@@ -52,6 +52,23 @@ export function paymentRequirementForRiskAction(action: string): PaymentRequirem
   return 'FULL_ADVANCE'
 }
 
+export function paymentPolicyForRiskDecision(action: string): PaymentRequirement {
+  return paymentRequirementForRiskAction(action)
+}
+
+async function configuredPaymentProvider(requirement: PaymentRequirement): Promise<PaymentProvider> {
+  if (requirement === 'COD') return 'COD'
+  const db = createAdminClient()
+  const { data } = await db.from('settings').select('value').eq('key', 'payment_policy').maybeSingle()
+  const policy = data?.value && typeof data.value === 'object' ? data.value as Record<string, unknown> : null
+  if (policy?.defaultProvider !== 'BDGATE' || policy.bdgateEnabled === false) throw new PaymentError('No enabled online payment provider is configured.', 'NOT_ENABLED')
+  return 'BDGATE'
+}
+
+export async function paymentProviderForPaymentRequirement(requirement: PaymentRequirement): Promise<PaymentProvider> {
+  return configuredPaymentProvider(requirement)
+}
+
 function asPaymentIntent(row: Record<string, unknown>): PaymentIntent {
   return {
     id: String(row.id), orderId: String(row.order_id), provider: String(row.provider) as PaymentProvider, amount: Number(row.amount), currency: 'BDT', status: String(row.status) as PaymentStatus, paymentRequirement: String(row.payment_requirement) as PaymentRequirement, paymentUrl: row.payment_url ? String(row.payment_url) : null, transactionId: row.provider_transaction_id ? String(row.provider_transaction_id) : null, providerReference: row.provider_payment_id ? String(row.provider_payment_id) : null, createdAt: String(row.created_at), expiresAt: row.expires_at ? String(row.expires_at) : null,
@@ -107,10 +124,8 @@ export async function initiatePaymentForOrder(input: { orderId: string; amount: 
   if (input.paymentRequirement === 'COD') return createPaymentRecord(input)
   if (input.paymentRequirement === 'MANUAL_REVIEW') throw new PaymentError('Manual review is required before payment initiation.', 'NOT_SUPPORTED')
   const db = createAdminClient()
-  const { data: policyRow } = await db.from('settings').select('value').eq('key', 'payment_policy').maybeSingle()
-  const policy = policyRow?.value && typeof policyRow.value === 'object' ? policyRow.value as Record<string, unknown> : null
-  if (policy?.bdgateEnabled === false) throw new PaymentError('BDGate advance payment is disabled by the authorized administrator.', 'NOT_ENABLED')
-  const adapter = getPaymentAdapter('BDGATE')
+  const provider = await paymentProviderForPaymentRequirement(input.paymentRequirement)
+  const adapter = getPaymentAdapter(provider)
   if (!adapter) throw new PaymentError('No verified payment provider is configured.', 'NOT_ENABLED')
   assertPaymentCapability(adapter, 'CREATE_PAYMENT')
   const created = await adapter.createPayment?.({ orderId: input.orderId, amount: input.amount, idempotencyKey: input.idempotencyKey, customerName: input.customerName, customerEmail: input.customerEmail, customerPhone: input.customerPhone, successUrl: input.successUrl, failUrl: input.failUrl, cancelUrl: input.cancelUrl })
