@@ -43,3 +43,13 @@ Use independent values per environment. Development is disabled by default. Prev
 ## Validation
 
 Run TypeScript, ESLint, production build, `git diff --check`, event contract validation, consent denial/grant checks, sanitizer tests, attribution tests, stable purchase ID checks, data-layer/provider mapping tests, admin authorization tests, secret scans, and forbidden-project scans. Runtime validation must remain read-only: do not create customer orders, payments, shipments, or courier requests.
+
+## Final hardening notes
+
+The browser consent model stores separate `analytics` and `marketing` decisions while keeping `necessary` commerce storage active. GA4, GTM, and server analytics forwarding require analytics consent; Meta Pixel and Meta CAPI additionally require marketing consent and the Admin marketing toggle.
+
+Successful quick-order and cart purchases retain the existing idempotent `purchase:<orderId>` identity. The server records the authoritative order summary and dispatches the same normalized event through the existing engine only when the optional consent flags supplied by the checkout session permit delivery. Provider failures remain fail-open for commerce.
+
+The Admin Control Center now persists event-level enablement, reports consent enforcement, and synthetic test actions exercise the existing server dispatcher. The dispatcher uses two bounded attempts with per-attempt timeouts, returns measured latency, and classifies HTTP, timeout, network, and retry-exhaustion outcomes without exposing provider credentials.
+
+The final hardening branch was validated with TypeScript, ESLint, production build, diff checks, secret-boundary scans, and forbidden-integration scans. Its Preview deployment was checked for storefront rendering, cart availability, healthy analytics API response, malformed-payload rejection, and the existing Admin authentication boundary. Production was not changed by this hardening pass.
