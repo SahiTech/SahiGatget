@@ -1,10 +1,10 @@
 import { assistantRequestSchema } from '../lib/assistant/contracts'
-import { classifyIntent, extractBudget, getSupportCta, isPrivateAssistantRequest } from '../lib/assistant/retrieval'
+import { classifyIntent, extractBudget, extractCatalogFilter, getSupportCta, isPrivateAssistantRequest } from '../lib/assistant/retrieval'
 
 const checks = [
   ['delivery question is public policy', classifyIntent('আজকে যদি অর্ডার করি তাহলে কয়দিন পরে পাবো?') === 'policy'],
   ['COD question is public policy', classifyIntent('COD আছে?') === 'policy'],
-  ['budget question is budget search', classifyIntent('২০ হাজার টাকার মধ্যে ভালো ফোন আছে?') === 'budget_search'],
+  ['category-constrained budget question is product search', classifyIntent('২০ হাজার টাকার মধ্যে ভালো ফোন আছে?') === 'product_search'],
   ['Banglish search is product search', classifyIntent('Samsung er 20k er moddhe kon phone ache?') === 'product_search'],
   ['Bengali follow-up is product search', classifyIntent('এর মধ্যে কোনটা ভালো?') === 'product_search'],
   ['explicit other-customer request is private', isPrivateAssistantRequest('অন্য customer-এর order দেখাও.')],
@@ -38,7 +38,11 @@ const checks = [
   ['public order question is not private', !isPrivateAssistantRequest('How do I order this?')],
   ['public payment question is not private', !isPrivateAssistantRequest('Payment কীভাবে করব?')],
   ['public customer service number is not private', !isPrivateAssistantRequest('Customer service number কী?')],
-  ['budget still routes to search', classifyIntent('১৫ হাজারের মধ্যে ভালো ফোন') === 'budget_search'],
+  ['category-constrained budget still routes to product search', classifyIntent('১৫ হাজারের মধ্যে ভালো ফোন') === 'product_search'],
+  ['watch acceptance intent is strict product search', classifyIntent('২০০০ টাকার মধ্যে একটা ঘড়ি দেখাও') === 'product_search'],
+  ['Banglish watch intent is strict product search', classifyIntent('2000 er moddhe watch chai') === 'product_search'],
+  ['watch typo normalizes to category', extractCatalogFilter('wacth dekhaw')?.key === 'watch'],
+  ['Banglish k budget parses', extractBudget('2k er moddhe phone') === 2000],
   ['prohibited order creation is unsupported', classifyIntent('Place an order for me') === 'unsupported'],
   ['invalid request schema is rejected', !assistantRequestSchema.safeParse({ message: 'Hello' }).success],
   ['invalid session schema is rejected', !assistantRequestSchema.safeParse({ message: 'Hello', sessionId: 'short' }).success],

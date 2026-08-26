@@ -70,8 +70,39 @@ function toEnglishDigits(value: string) {
   return value.replace(/[০-৯]/g, (digit) => map[digit] ?? digit)
 }
 
+export type CatalogFilter = { key: 'watch' | 'phone' | 'feature_phone' | 'charger' | 'earphone' | 'headphone' | 'earbuds' | 'power_bank'; productType?: string; terms: string[] }
+
+const CATALOG_FILTERS: CatalogFilter[] = [
+  { key: 'watch', productType: 'accessory', terms: ['watch', 'smartwatch', 'ঘড়ি', 'ঘড়ি', 'হাতঘড়ি', 'হাতঘড়ি', 'স্মার্টওয়াচ', 'স্মার্টওয়াচ'] },
+  { key: 'feature_phone', productType: 'feature_phone', terms: ['feature phone', 'button phone', 'keypad phone', 'বাটন ফোন', 'বাটনফোন', 'কিপ্যাড ফোন'] },
+  { key: 'phone', terms: ['phone', 'mobile', 'handset', 'ফোন', 'মোবাইল', 'মোবাইল ফোন'] },
+  { key: 'charger', productType: 'accessory', terms: ['charger', 'adapter', 'চার্জার', 'অ্যাডাপ্টার'] },
+  { key: 'earbuds', productType: 'accessory', terms: ['earbuds', 'earbud', 'tws', 'ইয়ারবাড', 'ইয়ারবাড'] },
+  { key: 'earphone', productType: 'accessory', terms: ['earphone', 'ইয়ারফোন', 'ইয়ারফোন'] },
+  { key: 'headphone', productType: 'accessory', terms: ['headphone', 'হেডফোন'] },
+  { key: 'power_bank', productType: 'accessory', terms: ['power bank', 'পাওয়ার ব্যাংক', 'পাওয়ার ব্যাংক'] },
+]
+
+function normalizeAssistantQuery(message: string) {
+  return message.toLowerCase().replace(/wacth|wach|ghori/g, 'watch').replace(/samung/g, 'samsung').replace(/mobail|moblie|fon/g, 'mobile').replace(/battry/g, 'battery').replace(/camra/g, 'camera').replace(/dekhaw|dekhao/g, 'show').replace(/moddhe|moddhey/g, 'within').replace(/ache|ase/g, 'available')
+}
+
+export function extractCatalogFilter(message: string) {
+  const normalized = normalizeAssistantQuery(message)
+  return CATALOG_FILTERS.find((filter) => filter.terms.some((term) => normalized.includes(term)))
+}
+
 export function extractBudget(message: string) {
   const normalized = toEnglishDigits(message).replace(/,/g, '')
+  const banglaNumbers: Record<string, number> = { এক: 1, দুই: 2, তিন: 3, চার: 4, পাঁচ: 5, ছয়: 6, ছয়: 6, সাত: 7, আট: 8, নয়: 9, নয়: 9, দশ: 10 }
+  const wordRange = normalized.match(/(এক|দুই|তিন|চার|পাঁচ|ছয়|ছয়|সাত|আট|নয়|নয়|দশ)\s*থেকে\s*(এক|দুই|তিন|চার|পাঁচ|ছয়|ছয়|সাত|আট|নয়|নয়|দশ)\s*হাজার/i)
+  if (wordRange) return (banglaNumbers[wordRange[2]] ?? 0) * 1000
+  const range = normalized.match(/(\d{1,3})\s*(?:থেকে|to|-|–)\s*(\d{1,3})\s*হাজার/i)
+  if (range) return Number(range[2]) * 1000
+  const wordThousands = normalized.match(/(এক|দুই|তিন|চার|পাঁচ|ছয়|ছয়|সাত|আট|নয়|নয়|দশ)\s*হাজার/i)
+  if (wordThousands) return (banglaNumbers[wordThousands[1]] ?? 0) * 1000
+  const kBudget = normalized.match(/(\d+(?:\.\d+)?)\s*k\b/i)
+  if (kBudget) return Math.floor(Number(kBudget[1]) * 1000)
   const thousands = normalized.match(/(\d{1,3})\s*হাজার/i)
   if (thousands) {
     const value = Number(thousands[1]) * 1000
@@ -142,17 +173,22 @@ function getProductCard(product: StorefrontProduct): PublicProductCard {
   }
 }
 
-export async function searchProducts(input: { query?: string; maxPrice?: number; onlyAvailable?: boolean; limit?: number }) {
+export async function searchProducts(input: { query?: string; maxPrice?: number; onlyAvailable?: boolean; limit?: number; catalogFilter?: CatalogFilter }) {
   const limit = Math.min(Math.max(input.limit ?? 4, 1), MAX_RESULTS)
   const result = await getProducts({
-    query: input.query?.trim().slice(0, 160),
+    query: input.catalogFilter ? undefined : input.query?.trim().slice(0, 160),
+    productType: input.catalogFilter?.productType,
     maxPrice: input.maxPrice,
     availability: input.onlyAvailable ? 'in-stock' : 'all',
-    pageSize: limit,
+    pageSize: input.catalogFilter ? 48 : limit,
     page: 1,
     sort: input.query ? 'newest' : 'price-asc',
   })
-  return result.products.slice(0, limit)
+  const products = input.catalogFilter ? result.products.filter((product) => {
+    const haystack = [product.name, product.short_description, product.description, product.product_type, product.category?.name, product.category?.slug].filter(Boolean).join(' ').toLowerCase()
+    return input.catalogFilter?.terms.some((term) => haystack.includes(term))
+  }) : result.products
+  return products.slice(0, limit)
 }
 
 export async function getProduct(input: { productId?: string; slug?: string }) {
@@ -226,9 +262,10 @@ export function classifyIntent(message: string): AssistantIntent {
   if (/delivery|ঢাকা|ডেলিভারি|কুরিয়ার|charge|চার্জ|\border\b|অর্ডার/i.test(normalized)) return 'policy'
   if (/warranty|guarantee|ওয়ারেন্টি|গ্যারান্টি|returns?|রিটার্ন|রিপ্লেস|COD|cash on delivery|ক্যাশ অন ডেলিভারি|payment|পেমেন্ট|অর্ডার করার পদ্ধতি|how to order/i.test(normalized)) return 'policy'
   if (/কীভাবে\s+সাহায্য|কিভাবে\s+সাহায্য|কি\s+কি\s+(?:তথ্য|জানাতে)|কী\s+কি\s+(?:তথ্য|জানাতে)|what\s+can\s+you\s+(?:do|help)|how\s+can\s+you\s+help|what\s+information\s+can\s+you\s+provide/i.test(normalized)) return 'store_information'
+  if (/(?:recommend|best|better|সেরা|জন্য ভালো|কোনটা নেব|ভালো\s+(?:camera|ক্যামেরা|battery|ব্যাটারি))/i.test(normalized) && /phone|mobile|ফোন|মোবাইল|camera|ক্যামেরা|battery|ব্যাটারি|দাম|price/i.test(normalized)) return 'product_recommendation'
+  if (extractCatalogFilter(normalized) && /show|find|দেখাও|দেখান|খুঁজে|চাই|under|within|বাজেটের মধ্যে|হাজার|k\b/i.test(normalizeAssistantQuery(normalized))) return 'product_search'
   if (extractBudget(normalized) || /(?:under|within|below|budget|max|less than|বাজেটের মধ্যে)/i.test(normalized)) return 'budget_search'
   if (/comparison|compare|তুলনা|দুটোর মধ্যে|দুইটার মধ্যে|vs\.?/i.test(normalized)) return 'product_comparison'
-  if (/(?:recommend|best|better|ভালো|সেরা|জন্য ভালো|কোনটা নেব)/i.test(normalized) && /phone|mobile|ফোন|মোবাইল|camera|ক্যামেরা|battery|ব্যাটারি|দাম|price/i.test(normalized)) return 'product_recommendation'
   if (/price|দাম|মূল্য|৳|tk|টাকা/i.test(normalized)) return 'price'
   if (/stock|available|availability|স্টক|অ্যাভেইল|প্রাপ্য/i.test(normalized)) return 'availability'
   if (/(?:\bwhat\s+is\b|\bwhy\b|\bhow\b|\bwhen\b|\bwhere\b|\bwho\b|\bexplain\b|\bdefine\b|কী|কেন|কীভাবে|কখন|কোথায়|কোথায়|ব্যাখ্যা)/i.test(normalized) && !/(?:\b(?:this|that|my)\s+(?:phone|mobile|device)\b|(?:এই|এটা|ওটা|আমার)\s*(?:ফোন|মোবাইল|ডিভাইস))/i.test(normalized) && !/price|দাম|মূল্য|camera|ক্যামেরা|battery|ব্যাটারি|processor|প্রসেসর/i.test(normalized)) return 'general_knowledge'
@@ -262,15 +299,17 @@ export async function retrieveAssistantContext(message: string, intent: Assistan
     const policy = await getStorePolicy(topic, pageProduct)
     return { context: [], sources: policy.sources, retrievedAt, policyText: policy.text, supportCta: intent === 'support' ? getSupportCta() : undefined }
   }
-  const budget = extractBudget(message)
+  const previousContextText = (conversation ?? []).filter((turn) => turn.role === 'user').slice(-3).map((turn) => turn.content).join(' ')
+  const budget = extractBudget(message) ?? extractBudget(previousContextText)
+  const catalogFilter = extractCatalogFilter(message) ?? extractCatalogFilter(previousContextText)
   const referencedIds = referencedProductIds(message, conversation)
   const referencedProducts = referencedIds.length ? (await Promise.all(referencedIds.map((id) => getProductById(id).catch(() => null)))).filter((product): product is StorefrontProduct => Boolean(product)) : []
   const query = productSearchQuery(message, budget)
-  const products = pageProduct && intent !== 'product_search'
+  const products = pageProduct && !['product_search', 'budget_search'].includes(intent)
     ? [pageProduct]
     : referencedProducts.length
       ? referencedProducts
-      : await searchProducts({ query, maxPrice: budget, onlyAvailable: intent === 'availability', limit: MAX_RESULTS })
+      : await searchProducts({ query: catalogFilter ? undefined : query, maxPrice: budget, onlyAvailable: intent === 'availability', catalogFilter, limit: MAX_RESULTS })
   const context = products.map(toContext)
   return { context, sources: context.length ? ['live_product', 'live_variant'] : [], retrievedAt, supportCta: context.length ? undefined : getSupportCta() }
 }
