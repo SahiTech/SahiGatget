@@ -57,8 +57,16 @@ export async function recordCanonicalEvent(input: CanonicalCommerceEvent & { ord
   return recordCommerceEvent({ eventId: event.eventId, eventName: event.eventName, sessionId: event.sessionId, orderId: input.orderId, cartId: input.cartId, metadata: { event_version: event.eventVersion, occurred_at: event.occurredAt, anonymous_id: event.anonymousId, page_path: event.pagePath, source: event.source, medium: event.medium, campaign: event.campaign, consent_analytics: event.consent.analytics, consent_marketing: event.consent.marketing, test_mode: Boolean(event.testMode), ...event.commerce, ...event.metadata } })
 }
 
-export async function recordPurchaseOnce(input: { orderId: string; orderNumber: string; value: number; items: Array<{ item_id: string; item_name: string; item_brand?: string; item_category?: string; price: number; quantity: number }>; sessionId?: string | null; cartId?: string | null; attribution?: Record<string, unknown> }) {
-  return recordCanonicalEvent({ eventId: `purchase:${input.orderId}`, eventName: 'purchase', eventVersion: '1.0', occurredAt: new Date().toISOString(), sessionId: input.sessionId ?? null, anonymousId: null, pageUrl: null, pagePath: null, referrer: null, source: null, medium: null, campaign: null, device: null, consent: { necessary: true, analytics: true, marketing: true }, commerce: { transaction_id: input.orderNumber, value: input.value, currency: 'BDT', items: input.items, ...input.attribution }, orderId: input.orderId, cartId: input.cartId })
+export async function recordPurchaseOnce(input: { orderId: string; orderNumber: string; value: number; items: Array<{ item_id: string; item_name: string; item_brand?: string; item_category?: string; price: number; quantity: number }>; sessionId?: string | null; cartId?: string | null; attribution?: Record<string, unknown>; consent?: { analytics: boolean; marketing: boolean } }) {
+  try {
+    const event: CanonicalCommerceEvent & { orderId: string; cartId?: string | null } = { eventId: `purchase:${input.orderId}`, eventName: 'purchase', eventVersion: '1.0', occurredAt: new Date().toISOString(), sessionId: input.sessionId ?? null, anonymousId: null, pageUrl: null, pagePath: null, referrer: null, source: null, medium: null, campaign: null, device: null, consent: { necessary: true, analytics: input.consent?.analytics ?? false, marketing: input.consent?.marketing ?? false }, commerce: { transaction_id: input.orderNumber, value: input.value, currency: 'BDT', items: input.items, ...input.attribution }, orderId: input.orderId, cartId: input.cartId }
+    const persisted = await recordCanonicalEvent(event)
+    if (!persisted.ok || persisted.duplicate) return persisted
+    const { dispatchAnalyticsEvent } = await import('./server')
+    return { ...persisted, ...(await dispatchAnalyticsEvent(event)) }
+  } catch {
+    return { ok: true, skipped: true, duplicate: false }
+  }
 }
 
 export async function markCheckoutSession(input: { checkoutRequestId: string; source: 'QUICK_ORDER' | 'CART' | 'LANDING_PAGE'; cartId?: string | null; status: 'STARTED' | 'DETAILS_ENTERED' | 'QUOTED' | 'PAYMENT_INITIATED' | 'ABANDONED' | 'COMPLETED'; customerPhone?: string | null; customerEmail?: string | null; quoteSnapshot?: Record<string, unknown>; completedOrderId?: string | null }) {

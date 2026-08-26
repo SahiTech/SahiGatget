@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, LoaderCircle, MapPin, PackageCheck, ShieldCheck, Truck } from 'lucide-react'
 
 import { createGuestCodOrder, quoteGuestCodOrder } from '@/lib/orders/actions'
+import { getAnalyticsConsent } from '@/lib/analytics/client'
 import type { OrderSuccessSummary, Quote } from '@/lib/orders/schema'
 
 type FormState = {
@@ -65,7 +66,7 @@ export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { pr
   async function submitOrder() {
     setBusy(true)
     setMessage('')
-    const result = await createGuestCodOrder({ ...form, productId, variantId, checkoutRequestId })
+    const consent = getAnalyticsConsent(); const result = await createGuestCodOrder({ ...form, productId, variantId, checkoutRequestId, analyticsConsent: consent.analytics, marketingConsent: consent.marketing })
     setBusy(false)
     if (!result.ok) {
       setFieldErrors(result.fieldErrors ?? {})
