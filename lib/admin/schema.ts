@@ -119,6 +119,26 @@ export const footerConfigSchema = z.object({
   }),
 })
 
+export const riskPolicySchema = z.object({
+  enabled: z.boolean(),
+  weights: z.object({
+    cancelledOneToTwo: z.coerce.number().finite().min(0).max(100),
+    cancelledThreePlus: z.coerce.number().finite().min(0).max(100),
+    returnedOrders: z.coerce.number().finite().min(0).max(100),
+    paymentFailures: z.coerce.number().finite().min(0).max(100),
+    rapidAttempts: z.coerce.number().finite().min(0).max(100),
+    recentCancellation: z.coerce.number().finite().min(0).max(100),
+    successfulDelivery: z.coerce.number().finite().min(0).max(100),
+  }),
+  thresholds: z.object({
+    verification: z.coerce.number().int().min(1).max(99),
+    review: z.coerce.number().int().min(2).max(100),
+    block: z.coerce.number().int().min(3).max(100),
+  }).superRefine((value, context) => {
+    if (!(value.verification < value.review && value.review < value.block)) context.addIssue({ code: z.ZodIssueCode.custom, path: ['review'], message: 'Thresholds must increase from verification to review to block.' })
+  }),
+})
+
 export const settingsSchema = z.object({
   deliveryCharges: z.object({
     dhaka: z.coerce.number().finite().min(0).max(100000),

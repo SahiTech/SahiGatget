@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/orders/phone'
 import { queueOrderConfirmationEmails } from '@/lib/email/service'
 import { recordPurchaseOnce } from '@/lib/analytics/events'
+import { assessCustomerRisk } from '@/lib/risk/service'
 import {
   guestOrderInputSchema,
   orderQuoteInputSchema,
@@ -165,6 +166,9 @@ export async function createGuestCodOrder(input: unknown): Promise<ActionResult<
     // This preflight makes unavailable-state feedback clearer; the database function performs the final locked revalidation.
     const quote = await loadVariantQuote(payload, payload.division)
     if (!quote.available) return { ok: false, message: 'The selected quantity is no longer available. Please adjust your order and try again.' }
+
+    const risk = await assessCustomerRisk({ phone: payload.phone })
+    if (risk.action === 'MANUAL_REVIEW' || risk.action === 'BLOCK' || risk.action === 'REQUIRE_PREPAYMENT' || risk.action === 'TEMPORARILY_RESTRICT') return { ok: false, message: 'We need to verify a few details before accepting this Cash on Delivery order. Please contact support for help.' }
 
     const admin = createAdminClient()
     const { data, error } = await admin.rpc('create_guest_cod_order', {

@@ -30,7 +30,7 @@ export async function createCartCodOrder(input: unknown) {
   if (!cart.id || !cart.items.length) return { ok: false, message: 'Your cart is empty.' }
   const normalizedPhone = normalizePhone(parsed.data.phone)
   const risk = await assessCustomerRisk({ phone: normalizedPhone })
-  if (risk.action === 'MANUAL_REVIEW' || risk.action === 'BLOCK') return { ok: false, message: 'This order needs a quick verification before it can be placed. Please contact support.' }
+  if (risk.action === 'MANUAL_REVIEW' || risk.action === 'BLOCK' || risk.action === 'REQUIRE_PREPAYMENT' || risk.action === 'TEMPORARILY_RESTRICT') return { ok: false, message: 'We need to verify a few details before accepting this Cash on Delivery order. Please contact support for help.' }
   const db = createAdminClient()
   const { data, error } = await db.rpc('create_guest_cod_cart_order', {
     p_cart_id: cart.id,

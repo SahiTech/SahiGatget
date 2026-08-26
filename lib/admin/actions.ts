@@ -16,6 +16,7 @@ import {
   orderStatusSchema,
   productSchema,
   settingsSchema,
+  riskPolicySchema,
   footerConfigSchema,
   stockAdjustmentSchema,
   variantSchema,
@@ -363,6 +364,20 @@ export async function saveOperationalSettings(input: unknown): Promise<AdminActi
   }
 }
 
+export async function saveRiskPolicy(input: unknown): Promise<AdminActionResult> {
+  try {
+    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    const parsed = riskPolicySchema.parse(input)
+    const db = createAdminClient()
+    const { error } = await db.from('settings').upsert({ key: 'risk_policy', value: parsed, description: 'Deterministic customer risk weights and COD decision thresholds' }, { onConflict: 'key' })
+    if (error) throw new Error(error.message)
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'RISK_POLICY_UPDATED', entityType: 'settings', details: { keys: 'risk_policy', enabled: parsed.enabled, thresholds: parsed.thresholds } })
+    refreshAdminRoutes()
+    return { ok: true, message: 'Customer risk policy saved.' }
+  } catch (error) {
+    return actionFailure(error)
+  }
+}
 export async function saveFooterSettings(input: unknown): Promise<AdminActionResult> {
   try {
     const session = await requireAdmin(['OWNER', 'ADMIN'])
