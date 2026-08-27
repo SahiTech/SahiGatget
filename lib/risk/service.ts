@@ -3,9 +3,11 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { recordCommerceEvent } from '@/lib/analytics/events'
+import type { RiskCategory } from './categories'
+
+export { riskCategoryForLevel } from './categories'
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'UNKNOWN'
-export type RiskCategory = 'GOOD' | 'MEDIUM' | 'BAD' | 'BLOCK'
 export type RiskAction = 'ALLOW' | 'ALLOW_WITH_VERIFICATION' | 'MANUAL_REVIEW' | 'REQUIRE_PREPAYMENT' | 'TEMPORARILY_RESTRICT' | 'BLOCK'
 
 export type RiskPolicy = {
@@ -29,13 +31,6 @@ function clamp(value: number) { return Math.min(100, Math.max(0, Math.round(valu
 function isCancelled(status: unknown) { return ['CANCELLED', 'CANCELLED_BY_CUSTOMER', 'FAILED'].includes(String(status).toUpperCase()) }
 function isReturned(status: unknown) { return ['RETURN_REQUESTED', 'RETURNED'].includes(String(status).toUpperCase()) }
 function isSuccessful(status: unknown) { return ['DELIVERED', 'COMPLETED'].includes(String(status).toUpperCase()) }
-
-export function riskCategoryForLevel(level: RiskLevel): RiskCategory {
-  if (level === 'LOW') return 'GOOD'
-  if (level === 'MEDIUM') return 'MEDIUM'
-  if (level === 'HIGH') return 'BAD'
-  return 'BLOCK'
-}
 
 export function parseRiskPolicy(value: unknown): RiskPolicy {
   const source = value && typeof value === 'object' ? value as Record<string, unknown> : {}
