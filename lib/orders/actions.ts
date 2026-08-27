@@ -6,8 +6,10 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/orders/phone'
 import { queueOrderConfirmationEmails } from '@/lib/email/service'
-import { markCheckoutSession, recordPurchaseOnce } from '@/lib/analytics/events'
+import { markCheckoutSession, recordCommerceEvent, recordPurchaseOnce } from '@/lib/analytics/events'
 import { assessCustomerRisk } from '@/lib/risk/service'
+import { paymentRequirementForRiskAction } from '@/lib/payments/service'
+import { getPaymentsForOrder, initiatePaymentForOrder, paymentProviderForPaymentRequirement, PaymentError, verifyPaymentProvider } from '@/lib/payments/service'
 import {
   guestOrderInputSchema,
   orderQuoteInputSchema,
@@ -254,6 +256,65 @@ export async function createGuestCodOrder(input: unknown): Promise<ActionResult<
     return { ok: true, data: summary }
   } catch (error) {
     return { ok: false, message: error instanceof Error && error.message.includes('available') ? error.message : 'We could not place your order right now. No payment has been collected. Please try again.' }
+  }
+}
+
+type AdvancePaymentResult = { paymentRequired: true; orderId: string; orderNumber: string; paymentId: string; redirectUrl: string }
+
+export async function createGuestOrderWithRisk(input: unknown): Promise<ActionResult<OrderSuccessSummary | AdvancePaymentResult>> {
+  const parsed = guestOrderInputSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: 'Please correct the highlighted details.', fieldErrors: fieldErrors(parsed.error) }
+  const payload: GuestOrderInput = { ...parsed.data, phone: normalizePhone(parsed.data.phone), email: parsed.data.email || '' }
+
+  try {
+    const quote = await loadVariantQuote(payload, payload.division)
+    if (!quote.available) return { ok: false, message: 'The selected quantity is no longer available. Please adjust your order and try again.' }
+    const risk = await assessCustomerRisk({ phone: payload.phone })
+    const paymentRequirement = paymentRequirementForRiskAction(risk.action)
+    if (paymentRequirement === 'COD') return createGuestCodOrder(input)
+    if (paymentRequirement === 'MANUAL_REVIEW') return { ok: false, message: 'We need to verify a few details before accepting this order. Please contact support for help.' }
+    const provider = await paymentProviderForPaymentRequirement(paymentRequirement)
+    verifyPaymentProvider(provider)
+    const db = createAdminClient()
+    const { data, error } = await db.rpc('create_guest_advance_order', {
+      p_product_id: payload.productId,
+      p_variant_id: payload.variantId,
+      p_quantity: payload.quantity,
+      p_checkout_request_id: payload.checkoutRequestId,
+      p_customer_name: payload.fullName,
+      p_customer_phone: payload.phone,
+      p_customer_email: payload.email || null,
+      p_division: payload.division,
+      p_district: payload.district,
+      p_area: payload.area,
+      p_address: payload.address,
+      p_postal_code: payload.postalCode || null,
+      p_notes: payload.notes || null,
+    })
+    if (error || !Array.isArray(data) || !data[0]?.order_id) return { ok: false, message: 'We could not prepare your secure payment checkout. No payment was collected. Please try again.' }
+    const row = data[0] as { order_id: string; order_number: string; created_new: boolean }
+
+    if (!row.created_new) {
+      const existingPayments = await getPaymentsForOrder(row.order_id)
+      const existing = existingPayments.find((payment) => payment.paymentUrl)
+      if (existing?.paymentUrl) return { ok: true, data: { paymentRequired: true, orderId: row.order_id, orderNumber: row.order_number, paymentId: existing.id, redirectUrl: existing.paymentUrl } }
+      return { ok: false, message: 'This checkout request has already been submitted. Please use your existing payment link or contact support.' }
+    }
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.sahigadget.shop'
+    let payment
+    try {
+      payment = await initiatePaymentForOrder({ orderId: row.order_id, amount: quote.grandTotal, paymentRequirement, idempotencyKey: `checkout:${row.order_id}:${payload.checkoutRequestId}`, customerName: payload.fullName, customerEmail: payload.email || null, customerPhone: payload.phone, successUrl: `${siteUrl}/payment/status?orderId=${row.order_id}&checkoutRequestId=${payload.checkoutRequestId}`, failUrl: `${siteUrl}/payment/status?orderId=${row.order_id}&checkoutRequestId=${payload.checkoutRequestId}&state=failed`, cancelUrl: `${siteUrl}/payment/status?orderId=${row.order_id}&checkoutRequestId=${payload.checkoutRequestId}&state=cancelled` })
+    } catch (error) {
+      if (error instanceof PaymentError) return { ok: false, message: 'Secure online payment is temporarily unavailable. No payment was collected. Please try again or contact support.' }
+      return { ok: false, message: 'Secure online payment could not be started. No payment was collected. Please try again.' }
+    }
+    if (!payment.paymentUrl) return { ok: false, message: 'Secure online payment could not be started. No payment was collected. Please try again.' }
+    await markCheckoutSession({ checkoutRequestId: payload.checkoutRequestId, source: 'QUICK_ORDER', status: 'PAYMENT_INITIATED', customerPhone: payload.phone, customerEmail: payload.email || null, completedOrderId: null })
+    await recordCommerceEvent({ eventId: `${payload.checkoutRequestId}:payment-initiated`, eventName: 'PAYMENT_INITIATED', sessionId: payload.checkoutRequestId, orderId: row.order_id, metadata: { source: 'QUICK_ORDER', provider: 'BDGATE' } })
+    return { ok: true, data: { paymentRequired: true, orderId: row.order_id, orderNumber: row.order_number, paymentId: payment.id, redirectUrl: payment.paymentUrl } }
+  } catch (error) {
+    return { ok: false, message: error instanceof Error && error.message.includes('available') ? error.message : 'We could not prepare your order securely. No payment was collected. Please try again.' }
   }
 }
 
