@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+PGURL="${PGURL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
+run_sql(){ psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "$1"; }
+
+run_sql "SELECT 1;"
+
+# A: concurrent identical COD submit
+p1=$(mktemp); p2=$(mktemp)
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_cod_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000000104'::uuid,1,'00000000-0000-0000-0000-000000002001'::uuid,'Concurrent COD A','01700000201','concurrent-a@example.test','Dhaka','Dhaka','Area A','Address A','1201','concurrent');" >"$p1" 2>&1 & a=$!
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_cod_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000002001'::uuid,'Concurrent COD B','01700000202','concurrent-b@example.test','Dhaka','Dhaka','Area B','Address B','1202','concurrent');" >"$p2" 2>&1 & b=$!
+wait "$a"; wait "$b"; rm -f "$p1" "$p2"
+run_sql "DO \$\$ DECLARE c int; o uuid; m int; BEGIN SELECT count(*), min(id) INTO c,o FROM public.orders WHERE checkout_request_id='00000000-0000-0000-0000-000000002001'; IF c<>1 THEN RAISE EXCEPTION 'concurrent COD created % orders',c; END IF; SELECT count(*) INTO m FROM public.stock_movements WHERE reference_id=o AND movement_type='SALE'; IF m<>1 THEN RAISE EXCEPTION 'concurrent COD created % sale movements',m; END IF; END \$\$;"
+
+# B: concurrent cart conversion
+run_sql "INSERT INTO public.carts(id,guest_token,status,expires_at) VALUES('00000000-0000-0000-0000-000000002010','ci-concurrent-cart','ACTIVE',now()+interval '1 day'); INSERT INTO public.cart_items(cart_id,product_id,variant_id,quantity) VALUES('00000000-0000-0000-0000-000000002010','00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',1);"
+p1=$(mktemp); p2=$(mktemp)
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_cod_cart_order('00000000-0000-0000-0000-000000002010'::uuid,'00000000-0000-0000-0000-000000002011'::uuid,'Concurrent Cart A','01700000211','cart-a@example.test','Dhaka','Dhaka','Area A','Address A','1203','concurrent');" >"$p1" 2>&1 & a=$!
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_cod_cart_order('00000000-0000-0000-0000-000000002010'::uuid,'00000000-0000-0000-0000-000000002011'::uuid,'Concurrent Cart B','01700000212','cart-b@example.test','Dhaka','Dhaka','Area B','Address B','1204','concurrent');" >"$p2" 2>&1 & b=$!
+wait "$a"; wait "$b"; rm -f "$p1" "$p2"
+run_sql "DO \$\$ DECLARE c int; s text; BEGIN SELECT count(*) INTO c FROM public.orders WHERE checkout_request_id='00000000-0000-0000-0000-000000002011'; IF c<>1 THEN RAISE EXCEPTION 'concurrent cart conversion created % orders',c; END IF; SELECT status INTO s FROM public.carts WHERE id='00000000-0000-0000-0000-000000002010'; IF s<>'CONVERTED' THEN RAISE EXCEPTION 'concurrent cart was not converted'; END IF; END \$\$;"
+
+# C: concurrent FULL_ADVANCE initiation is represented by two simultaneous identical submissions.
+p1=$(mktemp); p2=$(mktemp)
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_advance_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000000104'::uuid,1,'00000000-0000-0000-0000-000000002020'::uuid,'Concurrent Advance A','01700000221','adv-a@example.test','Dhaka','Dhaka','Area A','Address A','1205','concurrent');" >"$p1" 2>&1 & a=$!
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_advance_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000000104'::uuid,1,'00000000-0000-0000-0000-000000002020'::uuid,'Concurrent Advance B','01700000222','adv-b@example.test','Dhaka','Dhaka','Area B','Address B','1206','concurrent');" >"$p2" 2>&1 & b=$!
+wait "$a"; wait "$b"; rm -f "$p1" "$p2"
+run_sql "DO \$\$ DECLARE c int; o uuid; m int; BEGIN SELECT count(*),min(id) INTO c,o FROM public.orders WHERE checkout_request_id='00000000-0000-0000-0000-000000002020'; IF c<>1 THEN RAISE EXCEPTION 'concurrent advance initiation created % orders',c; END IF; SELECT count(*) INTO m FROM public.stock_movements WHERE reference_id=o AND movement_type='RESERVATION'; IF m<>1 THEN RAISE EXCEPTION 'concurrent advance initiation created % reservations',m; END IF; END \$\$;"
+
+# D: concurrent payment verification/callback-equivalent requests on the same transaction.
+run_sql "INSERT INTO public.payment_transactions(order_id,provider,provider_payment_id,amount,currency,status,payment_requirement,idempotency_key) SELECT id,'BDGATE','CI-CONCURRENT-PAY-001',grand_total,'BDT','INITIATED','FULL_ADVANCE','ci:concurrent:pay:001' FROM public.orders WHERE checkout_request_id='00000000-0000-0000-0000-000000002020';"
+TX=$(run_sql "SELECT id FROM public.payment_transactions WHERE idempotency_key='ci:concurrent:pay:001';" | tail -n 1 | tr -d ' ')
+p1=$(mktemp); p2=$(mktemp)
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "UPDATE public.payment_transactions SET status='PAID',provider_transaction_id='CI-CONCURRENT-TX-A',paid_at=now() WHERE id='$TX'::uuid;" >"$p1" 2>&1 & a=$!
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "UPDATE public.payment_transactions SET status='PAID',provider_transaction_id='CI-CONCURRENT-TX-B',paid_at=now() WHERE id='$TX'::uuid;" >"$p2" 2>&1 & b=$!
+wait "$a"; wait "$b"; rm -f "$p1" "$p2"
+run_sql "DO \$\$ DECLARE s text; c int; o uuid; BEGIN SELECT status,order_id INTO s,o FROM public.payment_transactions WHERE id='$TX'::uuid; IF s<>'PAID' THEN RAISE EXCEPTION 'concurrent verification did not reach PAID'; END IF; SELECT count(*) INTO c FROM public.stock_movements WHERE reference_id=o AND movement_type='SALE'; IF c<>1 THEN RAISE EXCEPTION 'concurrent verification created % sale movements',c; END IF; END \$\$;"
+
+# E: concurrent stock commit plus F: repeated callback-equivalent success.
+run_sql "SELECT * FROM public.create_guest_advance_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000000104'::uuid,1,'00000000-0000-0000-0000-000000002030'::uuid,'Concurrent Commit','01700000231','commit@example.test','Dhaka','Dhaka','Area','Address','1207','concurrent');"
+run_sql "INSERT INTO public.payment_transactions(order_id,provider,provider_payment_id,amount,currency,status,payment_requirement,idempotency_key) SELECT id,'BDGATE','CI-CONCURRENT-COMMIT-001',grand_total,'BDT','INITIATED','FULL_ADVANCE','ci:concurrent:commit:001' FROM public.orders WHERE checkout_request_id='00000000-0000-0000-0000-000000002030';"
+TX2=$(run_sql "SELECT id FROM public.payment_transactions WHERE idempotency_key='ci:concurrent:commit:001';" | tail -n 1 | tr -d ' ')
+p1=$(mktemp); p2=$(mktemp)
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "UPDATE public.payment_transactions SET status='PAID' WHERE id='$TX2'::uuid;" >"$p1" 2>&1 & a=$!
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "UPDATE public.payment_transactions SET status='PAID' WHERE id='$TX2'::uuid;" >"$p2" 2>&1 & b=$!
+wait "$a"; wait "$b"; rm -f "$p1" "$p2"
+run_sql "DO \$\$ DECLARE c int; s int; o uuid; BEGIN SELECT order_id INTO o FROM public.payment_transactions WHERE id='$TX2'::uuid; SELECT count(*) INTO c FROM public.stock_movements WHERE reference_id=o AND movement_type='SALE'; IF c<>1 THEN RAISE EXCEPTION 'concurrent stock commit created % sale movements',c; END IF; SELECT stock_quantity INTO s FROM public.product_variants WHERE id='00000000-0000-0000-0000-000000000104'; IF s<0 THEN RAISE EXCEPTION 'concurrent stock commit produced negative stock'; END IF; END \$\$;"
+run_sql "UPDATE public.payment_transactions SET status='PAID' WHERE id='$TX2'::uuid; UPDATE public.payment_transactions SET status='PAID' WHERE id='$TX2'::uuid;"
+run_sql "DO \$\$ DECLARE c int; o uuid; BEGIN SELECT order_id INTO o FROM public.payment_transactions WHERE id='$TX2'::uuid; SELECT count(*) INTO c FROM public.stock_movements WHERE reference_id=o AND movement_type='SALE'; IF c<>1 THEN RAISE EXCEPTION 'repeated callback created % sale movements',c; END IF; END \$\$;"
+
+echo 'SAHIGADGET CONCURRENCY / IDEMPOTENCY: PASS'
