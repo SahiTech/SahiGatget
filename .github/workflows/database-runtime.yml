@@ -47,7 +47,14 @@ jobs:
         run: supabase db reset --local
 
       - name: Run database-backed order workflow
-        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/runtime_order_flow.sql
+        shell: bash
+        run: |
+          # The local Supabase image uses trust auth for its disposable database.
+          # dblink_connect() rejects passwordless secondary sessions for non-superusers,
+          # so use the trusted dblink_connect_u() variant only inside this ephemeral CI run.
+          # No Production database or credential is involved.
+          sed -i 's/dblink_connect(/dblink_connect_u(/g' supabase/tests/runtime_order_flow.sql
+          psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/runtime_order_flow.sql
 
       - name: Run application synthetic tests
         run: pnpm test
