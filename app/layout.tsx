@@ -123,7 +123,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             }),
           }}
         />
-        <AnalyticsProvider runtimeConfig={{ enabled: analyticsConfig.enabled, marketingEnabled: analyticsConfig.marketingEnabled, metaPixelId: analyticsConfig.metaPixelId }}>{children}</AnalyticsProvider>
+        <AnalyticsProvider runtimeConfig={{ enabled: analyticsConfig.enabled, marketingEnabled: analyticsConfig.marketingEnabled, ga4MeasurementId: analyticsConfig.ga4MeasurementId, gtmContainerId: analyticsConfig.gtmContainerId, metaPixelId: analyticsConfig.metaPixelId }}>{children}</AnalyticsProvider>
       </body>
     </html>
   )

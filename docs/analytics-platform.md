@@ -38,7 +38,9 @@ Add a canonical event to the shared event list, define only safe commerce fields
 
 ## Environment variables
 
-Use independent values per environment. Development is disabled by default. Preview must use safe test IDs and never inherit Production destinations accidentally. Production uses real IDs only after an explicit readiness decision. Supported server-only values include `GA4_API_SECRET`, `META_CAPI_ACCESS_TOKEN`, and an HTTPS server-side GTM endpoint. Public browser identifiers are limited to `NEXT_PUBLIC_GA4_MEASUREMENT_ID`, `NEXT_PUBLIC_GTM_CONTAINER_ID`, and `NEXT_PUBLIC_META_PIXEL_ID`; no server credential uses a `NEXT_PUBLIC_` name.
+Public destination identifiers are configured from the Admin Analytics Control Center and passed to the existing browser analytics provider at request time. This includes the GA4 Measurement ID, GTM Container ID, and Meta Pixel ID; the Server-side GTM endpoint is also stored in the Admin configuration. Environment variables must not be used to expose provider secrets.
+
+Use independent values per environment. Development is disabled by default. Preview must use safe test IDs and never inherit Production destinations accidentally. Production uses real IDs only after an explicit readiness decision. Supported server-only values include `GA4_API_SECRET`, `META_CAPI_ACCESS_TOKEN`, and an HTTPS server-side GTM endpoint. Public browser identifiers are stored in the Admin Analytics configuration and are never provider secrets.
 
 ## Validation
 
@@ -50,6 +52,6 @@ The browser consent model stores separate `analytics` and `marketing` decisions 
 
 Successful quick-order and cart purchases retain the existing idempotent `purchase:<orderId>` identity. The server records the authoritative order summary and dispatches the same normalized event through the existing engine only when the optional consent flags supplied by the checkout session permit delivery. Provider failures remain fail-open for commerce.
 
-The Admin Control Center now persists event-level enablement, reports consent enforcement, and synthetic test actions exercise the existing server dispatcher. The dispatcher uses two bounded attempts with per-attempt timeouts, returns measured latency, and classifies HTTP, timeout, network, and retry-exhaustion outcomes without exposing provider credentials.
+The Admin Control Center now persists public destination identifiers, event-level enablement, reports consent enforcement, and synthetic test actions exercise the existing server dispatcher. The dispatcher uses two bounded attempts with per-attempt timeouts, returns measured latency, and classifies HTTP, timeout, network, and retry-exhaustion outcomes without exposing provider credentials.
 
 The final hardening branch was validated with TypeScript, ESLint, production build, diff checks, secret-boundary scans, and forbidden-integration scans. Its Preview deployment was checked for storefront rendering, cart availability, healthy analytics API response, malformed-payload rejection, and the existing Admin authentication boundary. Production was not changed by this hardening pass.
