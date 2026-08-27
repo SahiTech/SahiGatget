@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "pnpm exec tsx scripts/direct-order-payment-test.ts"
+    "test": "pnpm exec tsx scripts/direct-order-payment-test.ts && pnpm exec tsx scripts/risk-category-test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
