@@ -21,6 +21,7 @@ function consent(): Consent { try { const value = JSON.parse(window.localStorage
 function attribution() { const url = new URL(window.location.href); const keys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'ttclid']; const current = Object.fromEntries(keys.map((key) => [key, url.searchParams.get(key)]).filter(([, value]) => value)); const prior = JSON.parse(window.sessionStorage.getItem(ATTRIBUTION_KEY) || '{}') as Record<string, string>; const merged = { ...current, ...prior }; if (Object.keys(current).length) window.sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify({ ...merged, landing_page: prior.landing_page || window.location.pathname })); return merged }
 function loadScript(src: string, idValue: string) { if (document.getElementById(idValue)) return; const script = document.createElement('script'); script.id = idValue; script.async = true; script.src = src; document.head.appendChild(script) }
 
+export function hasAnalyticsConsent() { return window.localStorage.getItem(CONSENT_KEY) !== null }
 export function getAnalyticsConsent() { return consent() }
 export function setAnalyticsConsent(value: Consent | 'granted' | 'denied') { const next: Consent = typeof value === 'string' ? { necessary: true, analytics: value === 'granted', marketing: false } : { necessary: true, analytics: Boolean(value.analytics), marketing: Boolean(value.marketing) }; window.localStorage.setItem(CONSENT_KEY, JSON.stringify(next)); window.dispatchEvent(new CustomEvent('sahigadget-consent-change')) }
 
