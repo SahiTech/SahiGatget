@@ -1,0 +1,66 @@
+name: SahiGadget Database Runtime
+
+on:
+  push:
+    branches:
+      - audit/payment-bdgate-production
+  pull_request:
+    branches:
+      - audit/payment-bdgate-production
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start isolated Supabase stack
+        run: supabase start
+
+      - name: Reset isolated database and apply every migration
+        run: supabase db reset --local
+
+      - name: Run database-backed order workflow
+        run: psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/runtime_order_flow.sql
+
+      - name: Run application synthetic tests
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+
+      - name: Stop isolated Supabase stack
+        if: always()
+        run: supabase stop --no-backup
