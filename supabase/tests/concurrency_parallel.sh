@@ -8,7 +8,7 @@ run_sql "SELECT 1;"
 # A: concurrent identical COD submit
 p1=$(mktemp); p2=$(mktemp)
 psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_cod_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000000104'::uuid,1,'00000000-0000-0000-0000-000000002001'::uuid,'Concurrent COD A','01700000201','concurrent-a@example.test','Dhaka','Dhaka','Area A','Address A','1201','concurrent');" >"$p1" 2>&1 & a=$!
-psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_cod_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000002001'::uuid,'Concurrent COD B','01700000202','concurrent-b@example.test','Dhaka','Dhaka','Area B','Address B','1202','concurrent');" >"$p2" 2>&1 & b=$!
+psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_cod_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000000104'::uuid,1,'00000000-0000-0000-0000-000000002001'::uuid,'Concurrent COD B','01700000202','concurrent-b@example.test','Dhaka','Dhaka','Area B','Address B','1202','concurrent');" >"$p2" 2>&1 & b=$!
 wait "$a"; wait "$b"; rm -f "$p1" "$p2"
 run_sql "DO \$\$ DECLARE c int; o uuid; m int; BEGIN SELECT count(*), min(id) INTO c,o FROM public.orders WHERE checkout_request_id='00000000-0000-0000-0000-000000002001'; IF c<>1 THEN RAISE EXCEPTION 'concurrent COD created % orders',c; END IF; SELECT count(*) INTO m FROM public.stock_movements WHERE reference_id=o AND movement_type='SALE'; IF m<>1 THEN RAISE EXCEPTION 'concurrent COD created % sale movements',m; END IF; END \$\$;"
 
@@ -20,7 +20,7 @@ psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_cod
 wait "$a"; wait "$b"; rm -f "$p1" "$p2"
 run_sql "DO \$\$ DECLARE c int; s text; BEGIN SELECT count(*) INTO c FROM public.orders WHERE checkout_request_id='00000000-0000-0000-0000-000000002011'; IF c<>1 THEN RAISE EXCEPTION 'concurrent cart conversion created % orders',c; END IF; SELECT status INTO s FROM public.carts WHERE id='00000000-0000-0000-0000-000000002010'; IF s<>'CONVERTED' THEN RAISE EXCEPTION 'concurrent cart was not converted'; END IF; END \$\$;"
 
-# C: concurrent FULL_ADVANCE initiation is represented by two simultaneous identical submissions.
+# C: concurrent FULL_ADVANCE initiation
 p1=$(mktemp); p2=$(mktemp)
 psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_advance_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000000104'::uuid,1,'00000000-0000-0000-0000-000000002020'::uuid,'Concurrent Advance A','01700000221','adv-a@example.test','Dhaka','Dhaka','Area A','Address A','1205','concurrent');" >"$p1" 2>&1 & a=$!
 psql "$PGURL" -v ON_ERROR_STOP=1 -X -q -c "SELECT * FROM public.create_guest_advance_order('00000000-0000-0000-0000-000000000103'::uuid,'00000000-0000-0000-0000-000000000104'::uuid,1,'00000000-0000-0000-0000-000000002020'::uuid,'Concurrent Advance B','01700000222','adv-b@example.test','Dhaka','Dhaka','Area B','Address B','1206','concurrent');" >"$p2" 2>&1 & b=$!
