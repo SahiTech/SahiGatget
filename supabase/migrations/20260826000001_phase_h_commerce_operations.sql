@@ -126,7 +126,7 @@ BEGIN
     RAISE EXCEPTION 'MISSING_CUSTOMER_OR_DELIVERY_DETAILS';
   END IF;
   PERFORM pg_advisory_xact_lock(hashtext(p_checkout_request_id::text));
-  SELECT id, order_number INTO v_existing FROM public.orders WHERE checkout_request_id = p_checkout_request_id;
+  SELECT o.id, o.order_number INTO v_existing FROM public.orders AS o WHERE o.checkout_request_id = p_checkout_request_id;
   IF FOUND THEN RETURN QUERY SELECT v_existing.id, v_existing.order_number, FALSE; RETURN; END IF;
   SELECT id INTO v_cart FROM public.carts WHERE id = p_cart_id AND status = 'ACTIVE' AND expires_at > NOW() FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'CART_UNAVAILABLE'; END IF;
