@@ -16,6 +16,7 @@ process.env.BDGATE_LIVE_API_KEY = ['bd', 'live', 'synthetic_test_only'].join('_'
 function testRiskAndPaymentHelpers() {
   const signals = (overrides: Record<string, unknown> = {}) => ({ totalOrders: 0, cancelledOrders: 0, returnedOrders: 0, paymentFailures: 0, rapidAttempts: 0, recentCancellation: false, successfulDeliveries: 0, ...overrides })
   return import('../lib/risk/service.ts').then(async ({ DEFAULT_RISK_POLICY, scoreCustomerRisk }) => {
+    const { unavailableFraudIntelligence } = await import('../lib/risk/fraud.ts')
     const { paymentRequirementForRiskAction, verifyServerAmount, normalizePaymentStatus } = await import('../lib/payments/service.ts')
     assert.equal(scoreCustomerRisk(signals(), DEFAULT_RISK_POLICY).action, 'ALLOW')
     assert.equal(scoreCustomerRisk(signals({ cancelledOrders: 1, recentCancellation: true }), DEFAULT_RISK_POLICY).action, 'ALLOW_WITH_VERIFICATION')
@@ -32,6 +33,7 @@ function testRiskAndPaymentHelpers() {
     assert.equal(verifyServerAmount(1500, 1501), false)
     assert.equal(verifyServerAmount(1500, Number.NaN), false)
     assert.deepEqual(normalizePaymentStatus({ provider: 'BDGATE', status: 'PAID', amount: 1500, currency: 'BDT' }), { provider: 'BDGATE', status: 'PAID', transactionId: null, providerReference: null, amount: 1500, currency: 'BDT', failureCategory: null })
+    assert.deepEqual(unavailableFraudIntelligence(), { provider: 'none', status: 'UNAVAILABLE', signal: 'UNKNOWN', reference: null })
   })
 }
 
