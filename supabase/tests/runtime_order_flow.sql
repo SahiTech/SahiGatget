@@ -345,3 +345,113 @@ END;
 $$;
 
 DO $$ BEGIN RAISE NOTICE 'SAHIGADGET RLS/AUTH + PAYMENT STATE + ANALYTICS: PASS'; END $$;
+-- Real simultaneous database execution against isolated CI PostgreSQL.
+-- dblink connections are local to the ephemeral Supabase stack and use synthetic data.
+CREATE EXTENSION IF NOT EXISTS dblink;
+
+DO $$
+DECLARE
+  v_request UUID;
+  v_cart UUID;
+  v_order UUID;
+  v_tx UUID;
+  v_count INTEGER;
+  v_stock INTEGER;
+BEGIN
+  -- A. Concurrent identical COD submit.
+  v_request := '00000000-0000-0000-0000-000000002001';
+  PERFORM dblink_connect('cod_a', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_connect('cod_b', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_send_query('cod_a', format($q$SELECT * FROM public.create_guest_cod_order(%L::uuid,%L::uuid,1,%L::uuid,'Concurrent COD A','01700000201','concurrent-a@example.test','Dhaka','Dhaka','Area A','Address A','1201','concurrent')$q$,
+    '00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',v_request));
+  PERFORM dblink_send_query('cod_b', format($q$SELECT * FROM public.create_guest_cod_order(%L::uuid,%L::uuid,1,%L::uuid,'Concurrent COD B','01700000202','concurrent-b@example.test','Dhaka','Dhaka','Area B','Address B','1202','concurrent')$q$,
+    '00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',v_request));
+  WHILE dblink_is_busy('cod_a') OR dblink_is_busy('cod_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
+  PERFORM * FROM dblink_get_result('cod_a') AS t(order_id uuid, order_number varchar, created_new boolean);
+  PERFORM * FROM dblink_get_result('cod_b') AS t(order_id uuid, order_number varchar, created_new boolean);
+  PERFORM dblink_disconnect('cod_a'); PERFORM dblink_disconnect('cod_b');
+  SELECT COUNT(*), MIN(id) INTO v_count, v_order FROM public.orders WHERE checkout_request_id = v_request;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'concurrent COD created % orders', v_count; END IF;
+  SELECT COUNT(*) INTO v_count FROM public.stock_movements WHERE reference_id = v_order AND movement_type = 'SALE';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'concurrent COD created % sale movements', v_count; END IF;
+
+  -- B. Concurrent conversion of the same cart checkout.
+  INSERT INTO public.carts (id, guest_token, status, expires_at)
+  VALUES ('00000000-0000-0000-0000-000000002010', 'ci-concurrent-cart', 'ACTIVE', NOW() + INTERVAL '1 day');
+  INSERT INTO public.cart_items (cart_id, product_id, variant_id, quantity)
+  VALUES ('00000000-0000-0000-0000-000000002010','00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',1);
+  v_request := '00000000-0000-0000-0000-000000002011';
+  PERFORM dblink_connect('cart_a', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_connect('cart_b', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_send_query('cart_a', format($q$SELECT * FROM public.create_guest_cod_cart_order(%L::uuid,%L::uuid,'Concurrent Cart A','01700000211','cart-a@example.test','Dhaka','Dhaka','Area A','Address A','1203','concurrent')$q$,'00000000-0000-0000-0000-000000002010',v_request));
+  PERFORM dblink_send_query('cart_b', format($q$SELECT * FROM public.create_guest_cod_cart_order(%L::uuid,%L::uuid,'Concurrent Cart B','01700000212','cart-b@example.test','Dhaka','Dhaka','Area B','Address B','1204','concurrent')$q$,'00000000-0000-0000-0000-000000002010',v_request));
+  WHILE dblink_is_busy('cart_a') OR dblink_is_busy('cart_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
+  PERFORM * FROM dblink_get_result('cart_a') AS t(order_id uuid, order_number varchar, created_new boolean);
+  PERFORM * FROM dblink_get_result('cart_b') AS t(order_id uuid, order_number varchar, created_new boolean);
+  PERFORM dblink_disconnect('cart_a'); PERFORM dblink_disconnect('cart_b');
+  SELECT COUNT(*) INTO v_count FROM public.orders WHERE checkout_request_id = v_request;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'concurrent cart conversion created % orders', v_count; END IF;
+  IF (SELECT status FROM public.carts WHERE id = '00000000-0000-0000-0000-000000002010') <> 'CONVERTED' THEN RAISE EXCEPTION 'concurrent cart was not converted'; END IF;
+
+  -- C. Concurrent FULL_ADVANCE initiation for one checkout.
+  v_request := '00000000-0000-0000-0000-000000002020';
+  PERFORM dblink_connect('adv_a', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_connect('adv_b', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_send_query('adv_a', format($q$SELECT * FROM public.create_guest_advance_order(%L::uuid,%L::uuid,1,%L::uuid,'Concurrent Advance A','01700000221','adv-a@example.test','Dhaka','Dhaka','Area A','Address A','1205','concurrent')$q$,'00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',v_request));
+  PERFORM dblink_send_query('adv_b', format($q$SELECT * FROM public.create_guest_advance_order(%L::uuid,%L::uuid,1,%L::uuid,'Concurrent Advance B','01700000222','adv-b@example.test','Dhaka','Dhaka','Area B','Address B','1206','concurrent')$q$,'00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',v_request));
+  WHILE dblink_is_busy('adv_a') OR dblink_is_busy('adv_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
+  PERFORM * FROM dblink_get_result('adv_a') AS t(order_id uuid, order_number varchar, created_new boolean);
+  PERFORM * FROM dblink_get_result('adv_b') AS t(order_id uuid, order_number varchar, created_new boolean);
+  PERFORM dblink_disconnect('adv_a'); PERFORM dblink_disconnect('adv_b');
+  SELECT COUNT(*), MIN(id) INTO v_count, v_order FROM public.orders WHERE checkout_request_id = v_request;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'concurrent advance initiation created % orders', v_count; END IF;
+  SELECT COUNT(*) INTO v_count FROM public.stock_movements WHERE reference_id = v_order AND movement_type = 'RESERVATION';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'concurrent advance initiation created % reservations', v_count; END IF;
+
+  -- D/F. Concurrent payment verification and callback-equivalent requests.
+  INSERT INTO public.payment_transactions (order_id, provider, provider_payment_id, amount, currency, status, payment_requirement, idempotency_key)
+  SELECT v_order, 'BDGATE', 'CI-CONCURRENT-PAY-001', grand_total, 'BDT', 'INITIATED', 'FULL_ADVANCE', 'ci:concurrent:pay:001'
+  FROM public.orders WHERE id = v_order
+  RETURNING id INTO v_tx;
+  PERFORM dblink_connect('pay_a', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_connect('pay_b', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_send_query('pay_a', format('UPDATE public.payment_transactions SET status = ''PAID'', provider_transaction_id = ''CI-CONCURRENT-TX-A'', paid_at = NOW() WHERE id = %L::uuid', v_tx));
+  PERFORM dblink_send_query('pay_b', format('UPDATE public.payment_transactions SET status = ''PAID'', provider_transaction_id = ''CI-CONCURRENT-TX-B'', paid_at = NOW() WHERE id = %L::uuid', v_tx));
+  WHILE dblink_is_busy('pay_a') OR dblink_is_busy('pay_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
+  PERFORM * FROM dblink_get_result('pay_a') AS t(result text);
+  PERFORM * FROM dblink_get_result('pay_b') AS t(result text);
+  PERFORM dblink_disconnect('pay_a'); PERFORM dblink_disconnect('pay_b');
+  IF (SELECT status FROM public.payment_transactions WHERE id = v_tx) <> 'PAID' THEN RAISE EXCEPTION 'concurrent verification did not reach PAID'; END IF;
+  SELECT COUNT(*) INTO v_count FROM public.stock_movements WHERE reference_id = v_order AND movement_type = 'SALE';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'concurrent verification created % sale movements', v_count; END IF;
+  -- Repeated callback-equivalent updates remain idempotent.
+  UPDATE public.payment_transactions SET status = 'PAID' WHERE id = v_tx;
+  UPDATE public.payment_transactions SET status = 'PAID' WHERE id = v_tx;
+  SELECT COUNT(*) INTO v_count FROM public.stock_movements WHERE reference_id = v_order AND movement_type = 'SALE';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'repeated callback created % sale movements', v_count; END IF;
+
+  -- E. Concurrent stock commit against one reservation.
+  v_request := '00000000-0000-0000-0000-000000002030';
+  SELECT order_id INTO v_order FROM public.create_guest_advance_order(
+    '00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',1,v_request,
+    'Concurrent Commit','01700000231','commit@example.test','Dhaka','Dhaka','Area','Address','1207','concurrent');
+  INSERT INTO public.payment_transactions (order_id, provider, provider_payment_id, amount, currency, status, payment_requirement, idempotency_key)
+  SELECT v_order, 'BDGATE', 'CI-CONCURRENT-COMMIT-001', grand_total, 'BDT', 'INITIATED', 'FULL_ADVANCE', 'ci:concurrent:commit:001'
+  FROM public.orders WHERE id = v_order
+  RETURNING id INTO v_tx;
+  PERFORM dblink_connect('commit_a', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_connect('commit_b', 'host=127.0.0.1 port=54322 dbname=postgres user=postgres password=postgres');
+  PERFORM dblink_send_query('commit_a', format('UPDATE public.payment_transactions SET status = ''PAID'' WHERE id = %L::uuid', v_tx));
+  PERFORM dblink_send_query('commit_b', format('UPDATE public.payment_transactions SET status = ''PAID'' WHERE id = %L::uuid', v_tx));
+  WHILE dblink_is_busy('commit_a') OR dblink_is_busy('commit_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
+  PERFORM * FROM dblink_get_result('commit_a') AS t(result text);
+  PERFORM * FROM dblink_get_result('commit_b') AS t(result text);
+  PERFORM dblink_disconnect('commit_a'); PERFORM dblink_disconnect('commit_b');
+  SELECT COUNT(*) INTO v_count FROM public.stock_movements WHERE reference_id = v_order AND movement_type = 'SALE';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'concurrent stock commit created % sale movements', v_count; END IF;
+  SELECT stock_quantity INTO v_stock FROM public.product_variants WHERE id = '00000000-0000-0000-0000-000000000104';
+  IF v_stock < 0 THEN RAISE EXCEPTION 'concurrent stock commit produced negative stock'; END IF;
+
+  RAISE NOTICE 'SAHIGADGET CONCURRENCY / IDEMPOTENCY: PASS';
+END;
+$$;
