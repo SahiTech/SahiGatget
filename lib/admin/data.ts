@@ -125,7 +125,14 @@ export async function getSettingsData() {
     .select('key, value, description, updated_at')
     .in('key', ['delivery_charges', 'business_policy', 'risk_policy', 'payment_policy', 'store_profile', 'return_refund_policy', 'footer_config'])
     .limit(12)
+  const { data: incompleteCheckouts, error: checkoutError } = await db
+    .from('checkout_sessions')
+    .select('id,checkout_request_id,source,status,customer_phone,customer_email,quote_snapshot,last_activity_at,created_at')
+    .in('status', ['STARTED', 'DETAILS_ENTERED', 'QUOTED', 'PAYMENT_INITIATED', 'ABANDONED'])
+    .order('last_activity_at', { ascending: false })
+    .limit(100)
   assertNoError(error)
+  assertNoError(checkoutError)
 
   const settings = Object.fromEntries((data ?? []).map((item) => [item.key, item.value]))
   const auditLogs = session.role === 'OWNER'
@@ -138,5 +145,5 @@ export async function getSettingsData() {
     : { data: [], error: null }
   assertNoError(admins.error)
 
-  return { settings, auditLogs: auditLogs.data ?? [], admins: admins.data ?? [], isOwner: session.role === 'OWNER', bdgateConfigured: Boolean(process.env.BDGATE_LIVE_API_KEY) }
+  return { settings, auditLogs: auditLogs.data ?? [], admins: admins.data ?? [], incompleteCheckouts: incompleteCheckouts ?? [], isOwner: session.role === 'OWNER', bdgateConfigured: Boolean(process.env.BDGATE_LIVE_API_KEY) }
 }

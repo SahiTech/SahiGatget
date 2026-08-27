@@ -2,10 +2,11 @@
 
 import 'server-only'
 
+import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/orders/phone'
 import { queueOrderConfirmationEmails } from '@/lib/email/service'
-import { recordPurchaseOnce } from '@/lib/analytics/events'
+import { markCheckoutSession, recordPurchaseOnce } from '@/lib/analytics/events'
 import { assessCustomerRisk } from '@/lib/risk/service'
 import {
   guestOrderInputSchema,
@@ -155,6 +156,54 @@ export async function quoteGuestCodOrder(input: unknown): Promise<ActionResult<Q
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : 'Unable to calculate your order total right now.' }
   }
+}
+
+const guestOrderDraftSchema = z.object({
+  productId: z.string().uuid(),
+  variantId: z.string().uuid(),
+  checkoutRequestId: z.string().uuid(),
+  fullName: z.string().trim().max(120).optional().or(z.literal('')),
+  phone: z.string().trim().max(32).optional().or(z.literal('')),
+  email: z.string().trim().max(254).optional().or(z.literal('')),
+  division: z.string().trim().max(80).optional().or(z.literal('')),
+  district: z.string().trim().max(80).optional().or(z.literal('')),
+  area: z.string().trim().max(100).optional().or(z.literal('')),
+  address: z.string().trim().max(500).optional().or(z.literal('')),
+  postalCode: z.string().trim().max(20).optional().or(z.literal('')),
+  notes: z.string().trim().max(500).optional().or(z.literal('')),
+  quantity: z.coerce.number().int().min(1).max(10),
+  stage: z.enum(['DETAILS_ENTERED', 'QUOTED']).default('DETAILS_ENTERED'),
+})
+
+export async function saveGuestOrderDraft(input: unknown): Promise<{ ok: boolean }> {
+  const parsed = guestOrderDraftSchema.safeParse(input)
+  if (!parsed.success) return { ok: false }
+  const value = parsed.data
+  const hasCustomerData = Boolean(value.fullName || value.phone || value.email || value.division || value.district || value.area || value.address || value.postalCode || value.notes)
+  if (!hasCustomerData) return { ok: true }
+
+  let quoteSnapshot: Record<string, unknown> = {
+    product_id: value.productId,
+    variant_id: value.variantId,
+    quantity: value.quantity,
+    full_name: value.fullName || null,
+    division: value.division || null,
+    district: value.district || null,
+    area: value.area || null,
+    address: value.address || null,
+    postal_code: value.postalCode || null,
+    notes: value.notes || null,
+  }
+  if (value.division) {
+    try {
+      const quote = await loadVariantQuote({ productId: value.productId, variantId: value.variantId, quantity: value.quantity }, value.division)
+      quoteSnapshot = { ...quoteSnapshot, product_name: quote.productName, variant_title: quote.variantTitle, sku: quote.sku, unit_price: quote.unitPrice, subtotal: quote.subtotal, delivery_charge: quote.deliveryCharge, grand_total: quote.grandTotal, delivery_zone: quote.deliveryZone }
+    } catch {
+      // A partial draft remains recoverable even while the quote is incomplete.
+    }
+  }
+  const result = await markCheckoutSession({ checkoutRequestId: value.checkoutRequestId, source: 'QUICK_ORDER', status: value.stage, customerPhone: value.phone || null, customerEmail: value.email || null, quoteSnapshot })
+  return { ok: result.ok }
 }
 
 export async function createGuestCodOrder(input: unknown): Promise<ActionResult<OrderSuccessSummary>> {

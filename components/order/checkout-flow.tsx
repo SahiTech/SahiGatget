@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, LoaderCircle, MapPin, PackageCheck, ShieldCheck, Truck } from 'lucide-react'
 
-import { createGuestCodOrder, quoteGuestCodOrder } from '@/lib/orders/actions'
+import { createGuestCodOrder, quoteGuestCodOrder, saveGuestOrderDraft } from '@/lib/orders/actions'
 import { getAnalyticsConsent } from '@/lib/analytics/client'
 import type { OrderSuccessSummary, Quote } from '@/lib/orders/schema'
 
@@ -48,6 +48,15 @@ export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { pr
     setFieldErrors((current) => ({ ...current, [name]: '' }))
     setMessage('')
   }
+
+  useEffect(() => {
+    const hasDraftData = Boolean(form.fullName || form.phone || form.email || form.division || form.district || form.area || form.address || form.postalCode || form.notes)
+    if (!hasDraftData) return
+    const timer = window.setTimeout(() => {
+      void saveGuestOrderDraft({ ...form, productId, variantId, checkoutRequestId, stage: step === 'review' ? 'QUOTED' : 'DETAILS_ENTERED' })
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [checkoutRequestId, form, productId, step, variantId])
 
   async function requestQuote() {
     setBusy(true)
