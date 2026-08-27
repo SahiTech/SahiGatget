@@ -322,19 +322,16 @@ BEGIN;
   $$;
 COMMIT;
 
--- Synthetic Admin session can read authorized order data but remains subject to application policies.
-INSERT INTO public.admin_users (id, user_id, full_name, email, role, is_active)
-VALUES ('00000000-0000-0000-0000-000000009902', '00000000-0000-0000-0000-000000009901', 'CI Admin', 'ci-admin@example.test', 'ADMIN', TRUE)
-ON CONFLICT (user_id) DO UPDATE SET is_active = TRUE, role = 'ADMIN';
+-- Admin data is read by the authenticated application server through service_role;
+-- browser roles do not receive direct table access.
 BEGIN;
-  SET LOCAL ROLE authenticated;
-  SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000009901","role":"authenticated"}', true);
-  DO $$ DECLARE v_count INTEGER; BEGIN
+  SET LOCAL ROLE service_role;
+  DO $$ DECLARE v_count INTEGER; v_checkout_count INTEGER; BEGIN
     SELECT COUNT(*) INTO v_count FROM public.orders;
-    IF v_count < 1 THEN RAISE EXCEPTION 'synthetic Admin could not read orders'; END IF;
+    SELECT COUNT(*) INTO v_checkout_count FROM public.checkout_sessions;
+    IF v_count < 1 OR v_checkout_count < 1 THEN RAISE EXCEPTION 'service-role Admin data access failed'; END IF;
   END $$;
 COMMIT;
-DELETE FROM public.admin_users WHERE user_id = '00000000-0000-0000-0000-000000009901';
 
 -- SECURITY DEFINER functions use an empty search_path and restricted execution grants.
 DO $$
