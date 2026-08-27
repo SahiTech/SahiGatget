@@ -1,0 +1,25 @@
+project_id = "sahigadget-ci"
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[studio]
+port = 54323
+
+[api]
+port = 54321
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[analytics]
+enabled = false
+
+[storage]
+enabled = false
+
+[realtime]
+enabled = false
