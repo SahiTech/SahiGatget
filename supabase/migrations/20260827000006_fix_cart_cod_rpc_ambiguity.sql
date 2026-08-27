@@ -1,10 +1,6 @@
--- The cart COD RPC returns a record field named order_number. PostgreSQL
--- otherwise treats the unqualified order_number reference in its idempotency
--- lookup as ambiguous between the PL/pgSQL variable and public.orders column.
--- This function-local setting makes the table column authoritative without
--- duplicating or redesigning the established cart order pipeline.
-ALTER FUNCTION public.create_guest_cod_cart_order(
-  UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
-) SET plpgsql.variable_conflict = 'use_column';
-
+-- The Cart COD RPC idempotency lookup is explicitly qualified in the
+-- foundational commerce migration. Keep this migration as a harmless marker so
+-- reset-from-zero remains stable across environments that already received the
+-- correction through the canonical function definition.
+SELECT 1;
 NOTIFY pgrst, 'reload schema';
