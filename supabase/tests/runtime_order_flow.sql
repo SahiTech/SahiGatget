@@ -360,8 +360,8 @@ DECLARE
 BEGIN
   -- A. Concurrent identical COD submit.
   v_request := '00000000-0000-0000-0000-000000002001';
-  PERFORM dblink_connect('cod_a', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
-  PERFORM dblink_connect('cod_b', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('cod_a', 'dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('cod_b', 'dbname=postgres user=postgres');
   PERFORM dblink_send_query('cod_a', format($q$SELECT * FROM public.create_guest_cod_order(%L::uuid,%L::uuid,1,%L::uuid,'Concurrent COD A','01700000201','concurrent-a@example.test','Dhaka','Dhaka','Area A','Address A','1201','concurrent')$q$,
     '00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',v_request));
   PERFORM dblink_send_query('cod_b', format($q$SELECT * FROM public.create_guest_cod_order(%L::uuid,%L::uuid,1,%L::uuid,'Concurrent COD B','01700000202','concurrent-b@example.test','Dhaka','Dhaka','Area B','Address B','1202','concurrent')$q$,
@@ -381,8 +381,8 @@ BEGIN
   INSERT INTO public.cart_items (cart_id, product_id, variant_id, quantity)
   VALUES ('00000000-0000-0000-0000-000000002010','00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',1);
   v_request := '00000000-0000-0000-0000-000000002011';
-  PERFORM dblink_connect('cart_a', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
-  PERFORM dblink_connect('cart_b', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('cart_a', 'dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('cart_b', 'dbname=postgres user=postgres');
   PERFORM dblink_send_query('cart_a', format($q$SELECT * FROM public.create_guest_cod_cart_order(%L::uuid,%L::uuid,'Concurrent Cart A','01700000211','cart-a@example.test','Dhaka','Dhaka','Area A','Address A','1203','concurrent')$q$,'00000000-0000-0000-0000-000000002010',v_request));
   PERFORM dblink_send_query('cart_b', format($q$SELECT * FROM public.create_guest_cod_cart_order(%L::uuid,%L::uuid,'Concurrent Cart B','01700000212','cart-b@example.test','Dhaka','Dhaka','Area B','Address B','1204','concurrent')$q$,'00000000-0000-0000-0000-000000002010',v_request));
   WHILE dblink_is_busy('cart_a') OR dblink_is_busy('cart_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
@@ -395,8 +395,8 @@ BEGIN
 
   -- C. Concurrent FULL_ADVANCE initiation for one checkout.
   v_request := '00000000-0000-0000-0000-000000002020';
-  PERFORM dblink_connect('adv_a', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
-  PERFORM dblink_connect('adv_b', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('adv_a', 'dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('adv_b', 'dbname=postgres user=postgres');
   PERFORM dblink_send_query('adv_a', format($q$SELECT * FROM public.create_guest_advance_order(%L::uuid,%L::uuid,1,%L::uuid,'Concurrent Advance A','01700000221','adv-a@example.test','Dhaka','Dhaka','Area A','Address A','1205','concurrent')$q$,'00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',v_request));
   PERFORM dblink_send_query('adv_b', format($q$SELECT * FROM public.create_guest_advance_order(%L::uuid,%L::uuid,1,%L::uuid,'Concurrent Advance B','01700000222','adv-b@example.test','Dhaka','Dhaka','Area B','Address B','1206','concurrent')$q$,'00000000-0000-0000-0000-000000000103','00000000-0000-0000-0000-000000000104',v_request));
   WHILE dblink_is_busy('adv_a') OR dblink_is_busy('adv_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
@@ -413,8 +413,8 @@ BEGIN
   SELECT v_order, 'BDGATE', 'CI-CONCURRENT-PAY-001', grand_total, 'BDT', 'INITIATED', 'FULL_ADVANCE', 'ci:concurrent:pay:001'
   FROM public.orders WHERE id = v_order
   RETURNING id INTO v_tx;
-  PERFORM dblink_connect('pay_a', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
-  PERFORM dblink_connect('pay_b', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('pay_a', 'dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('pay_b', 'dbname=postgres user=postgres');
   PERFORM dblink_send_query('pay_a', format('UPDATE public.payment_transactions SET status = ''PAID'', provider_transaction_id = ''CI-CONCURRENT-TX-A'', paid_at = NOW() WHERE id = %L::uuid', v_tx));
   PERFORM dblink_send_query('pay_b', format('UPDATE public.payment_transactions SET status = ''PAID'', provider_transaction_id = ''CI-CONCURRENT-TX-B'', paid_at = NOW() WHERE id = %L::uuid', v_tx));
   WHILE dblink_is_busy('pay_a') OR dblink_is_busy('pay_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
@@ -439,8 +439,8 @@ BEGIN
   SELECT v_order, 'BDGATE', 'CI-CONCURRENT-COMMIT-001', grand_total, 'BDT', 'INITIATED', 'FULL_ADVANCE', 'ci:concurrent:commit:001'
   FROM public.orders WHERE id = v_order
   RETURNING id INTO v_tx;
-  PERFORM dblink_connect('commit_a', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
-  PERFORM dblink_connect('commit_b', 'host=127.0.0.1 port=5432 dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('commit_a', 'dbname=postgres user=postgres');
+  PERFORM dblink_connect_u('commit_b', 'dbname=postgres user=postgres');
   PERFORM dblink_send_query('commit_a', format('UPDATE public.payment_transactions SET status = ''PAID'' WHERE id = %L::uuid', v_tx));
   PERFORM dblink_send_query('commit_b', format('UPDATE public.payment_transactions SET status = ''PAID'' WHERE id = %L::uuid', v_tx));
   WHILE dblink_is_busy('commit_a') OR dblink_is_busy('commit_b') LOOP PERFORM pg_sleep(0.02); END LOOP;
