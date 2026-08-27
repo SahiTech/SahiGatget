@@ -113,6 +113,13 @@ AS $$
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(p_order_id::text));
 
+  IF NOT EXISTS (
+    SELECT 1 FROM public.stock_movements
+    WHERE reference_id = p_order_id AND movement_type = 'RESERVATION'
+  ) THEN
+    RAISE EXCEPTION 'ADVANCE_RESERVATION_MISSING';
+  END IF;
+
   UPDATE public.stock_movements
   SET movement_type = 'SALE',
       notes = 'Advance payment verified; reservation committed to sale'
@@ -215,6 +222,35 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.enforce_advance_payment_transition()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.payment_requirement <> 'FULL_ADVANCE' THEN
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status = 'PAID' AND NEW.status IS DISTINCT FROM 'PAID' THEN
+    RAISE EXCEPTION 'INVALID_PAYMENT_TRANSITION_PAID_TERMINAL';
+  END IF;
+
+  IF OLD.status IN ('FAILED', 'CANCELLED', 'EXPIRED')
+     AND NEW.status IS DISTINCT FROM OLD.status THEN
+    RAISE EXCEPTION 'INVALID_PAYMENT_TRANSITION_TERMINAL';
+  END IF;
+
+  IF NEW.status = 'PAID'
+     AND OLD.status NOT IN ('INITIATED', 'PENDING', 'AUTHORIZED', 'PAID') THEN
+    RAISE EXCEPTION 'INVALID_PAYMENT_TRANSITION_TO_PAID';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.handle_advance_payment_transition()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -246,6 +282,12 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_advance_payment_transition_guard ON public.payment_transactions;
+CREATE TRIGGER trg_advance_payment_transition_guard
+BEFORE UPDATE OF status ON public.payment_transactions
+FOR EACH ROW
+EXECUTE FUNCTION public.enforce_advance_payment_transition();
+
 DROP TRIGGER IF EXISTS trg_advance_payment_stock_lifecycle ON public.payment_transactions;
 CREATE TRIGGER trg_advance_payment_stock_lifecycle
 AFTER UPDATE OF status ON public.payment_transactions
@@ -255,6 +297,7 @@ EXECUTE FUNCTION public.handle_advance_payment_transition();
 REVOKE ALL ON FUNCTION public.reserve_advance_order_stock(UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.release_advance_order_stock(UUID, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.finalize_advance_order_stock(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.enforce_advance_payment_transition() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.handle_advance_payment_transition() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.create_guest_advance_order(UUID, UUID, INTEGER, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_guest_advance_order(UUID, UUID, INTEGER, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO service_role;

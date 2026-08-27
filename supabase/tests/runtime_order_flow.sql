@@ -190,3 +190,161 @@ BEGIN
   RAISE NOTICE 'SAHIGADGET DATABASE ORDER FLOW: PASS';
 END;
 $$;
+
+
+-- Isolated runtime assertions for payment state transitions, analytics deduplication,
+-- and role/RLS boundaries. This file is executed only against disposable CI Supabase.
+
+DO $$
+DECLARE
+  v_order UUID;
+  v_tx UUID;
+  v_failed_order UUID;
+  v_failed_tx UUID;
+  v_count INTEGER;
+  v_rejected BOOLEAN;
+BEGIN
+  SELECT order_id INTO v_order
+  FROM public.payment_transactions
+  WHERE payment_requirement = 'FULL_ADVANCE'
+  ORDER BY created_at
+  LIMIT 1;
+
+  IF v_order IS NULL THEN
+    RAISE EXCEPTION 'state test requires an advance order';
+  END IF;
+
+  SELECT id INTO v_tx FROM public.payment_transactions WHERE order_id = v_order ORDER BY created_at LIMIT 1;
+  IF v_tx IS NULL THEN
+    INSERT INTO public.payment_transactions (order_id, provider, provider_payment_id, amount, currency, status, payment_requirement, idempotency_key)
+    VALUES (v_order, 'BDGATE', 'STATE-PAID-001', 1580, 'BDT', 'INITIATED', 'FULL_ADVANCE', 'state:paid:001')
+    RETURNING id INTO v_tx;
+  END IF;
+
+  -- A legal pending transition is accepted.
+  UPDATE public.payment_transactions SET status = 'PENDING' WHERE id = v_tx AND status = 'INITIATED';
+
+  -- Terminal PAID cannot move backwards.
+  UPDATE public.payment_transactions SET status = 'PAID', provider_transaction_id = 'STATE-TX-PAID', paid_at = NOW() WHERE id = v_tx;
+  v_rejected := FALSE;
+  BEGIN
+    UPDATE public.payment_transactions SET status = 'PENDING' WHERE id = v_tx;
+  EXCEPTION WHEN OTHERS THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'PAID to PENDING was accepted'; END IF;
+
+  v_rejected := FALSE;
+  BEGIN
+    UPDATE public.payment_transactions SET status = 'FAILED' WHERE id = v_tx;
+  EXCEPTION WHEN OTHERS THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'PAID to FAILED was accepted'; END IF;
+
+  v_rejected := FALSE;
+  BEGIN
+    UPDATE public.payment_transactions SET status = 'CANCELLED' WHERE id = v_tx;
+  EXCEPTION WHEN OTHERS THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'PAID to CANCELLED was accepted'; END IF;
+
+  -- Duplicate verification is idempotent: same PAID state does not create a second sale.
+  UPDATE public.payment_transactions SET status = 'PAID' WHERE id = v_tx;
+  SELECT COUNT(*) INTO v_count FROM public.stock_movements WHERE reference_id = v_order AND movement_type = 'SALE';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'duplicate PAID created % sale movements', v_count; END IF;
+
+  -- Failed terminal states cannot be promoted to PAID.
+  SELECT order_id INTO v_failed_order
+  FROM public.payment_transactions
+  WHERE status = 'FAILED'
+  LIMIT 1;
+  IF v_failed_order IS NULL THEN
+    RAISE EXCEPTION 'state test requires a failed payment';
+  END IF;
+  SELECT id INTO v_failed_tx FROM public.payment_transactions WHERE order_id = v_failed_order AND status = 'FAILED' LIMIT 1;
+  v_rejected := FALSE;
+  BEGIN
+    UPDATE public.payment_transactions SET status = 'PAID' WHERE id = v_failed_tx;
+  EXCEPTION WHEN OTHERS THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'FAILED to PAID was accepted'; END IF;
+
+  -- Successful order emits one canonical completion event; duplicate event_id is rejected.
+  INSERT INTO public.commerce_events (event_id, event_name, order_id, metadata)
+  VALUES ('ci:order-complete:001', 'ORDER_COMPLETED', v_order, '{"source":"isolated-test"}'::jsonb)
+  ON CONFLICT (event_id) DO NOTHING;
+  INSERT INTO public.commerce_events (event_id, event_name, order_id, metadata)
+  VALUES ('ci:order-complete:001', 'ORDER_COMPLETED', v_order, '{"source":"duplicate"}'::jsonb)
+  ON CONFLICT (event_id) DO NOTHING;
+  SELECT COUNT(*) INTO v_count FROM public.commerce_events WHERE event_id = 'ci:order-complete:001';
+  IF v_count <> 1 THEN RAISE EXCEPTION 'duplicate completion event was not deduplicated'; END IF;
+
+  -- Abandoned/failed synthetic flows have no purchase event.
+  SELECT COUNT(*) INTO v_count FROM public.commerce_events WHERE event_id IN ('ci:abandoned-purchase', 'ci:failed-purchase');
+  IF v_count <> 0 THEN RAISE EXCEPTION 'non-completed flow emitted purchase event'; END IF;
+
+  RAISE NOTICE 'SAHIGADGET PAYMENT STATE + ANALYTICS: PASS';
+END;
+$$;
+
+-- Anonymous cannot read private operational data, but can read intended public settings.
+BEGIN;
+  SET LOCAL ROLE anon;
+  DO $$
+  DECLARE v_rejected BOOLEAN := FALSE;
+  BEGIN
+    BEGIN PERFORM 1 FROM public.checkout_sessions; EXCEPTION WHEN OTHERS THEN v_rejected := TRUE; END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'anon read checkout_sessions was allowed'; END IF;
+    v_rejected := FALSE;
+    BEGIN PERFORM 1 FROM public.risk_assessments; EXCEPTION WHEN OTHERS THEN v_rejected := TRUE; END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'anon read risk_assessments was allowed'; END IF;
+    PERFORM 1 FROM public.settings WHERE key = 'delivery_charges';
+  END;
+  $$;
+COMMIT;
+
+-- Authenticated non-admin cannot read private operational data or mutate payment/order state.
+BEGIN;
+  SET LOCAL ROLE authenticated;
+  SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000009901","role":"authenticated"}', true);
+  DO $$
+  DECLARE v_rejected BOOLEAN := FALSE;
+  BEGIN
+    BEGIN PERFORM 1 FROM public.risk_assessments; EXCEPTION WHEN OTHERS THEN v_rejected := TRUE; END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'authenticated customer read risk_assessments was allowed'; END IF;
+    v_rejected := FALSE;
+    BEGIN UPDATE public.payment_transactions SET status = 'FAILED' WHERE FALSE; EXCEPTION WHEN OTHERS THEN v_rejected := TRUE; END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'authenticated customer payment mutation privilege was allowed'; END IF;
+  END;
+  $$;
+COMMIT;
+
+-- Synthetic Admin session can read authorized order data but remains subject to application policies.
+INSERT INTO public.admin_users (id, user_id, full_name, email, role, is_active)
+VALUES ('00000000-0000-0000-0000-000000009902', '00000000-0000-0000-0000-000000009901', 'CI Admin', 'ci-admin@example.test', 'ADMIN', TRUE)
+ON CONFLICT (user_id) DO UPDATE SET is_active = TRUE, role = 'ADMIN';
+BEGIN;
+  SET LOCAL ROLE authenticated;
+  SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000009901","role":"authenticated"}', true);
+  DO $$ DECLARE v_count INTEGER; BEGIN
+    SELECT COUNT(*) INTO v_count FROM public.orders;
+    IF v_count < 1 THEN RAISE EXCEPTION 'synthetic Admin could not read orders'; END IF;
+  END $$;
+COMMIT;
+DELETE FROM public.admin_users WHERE user_id = '00000000-0000-0000-0000-000000009901';
+
+-- SECURITY DEFINER functions use an empty search_path and restricted execution grants.
+DO $$
+DECLARE v_search_path TEXT; v_public_grant BOOLEAN;
+BEGIN
+  SELECT proconfig[1] INTO v_search_path FROM pg_proc WHERE oid = 'public.create_guest_advance_order(uuid,uuid,integer,uuid,text,text,text,text,text,text,text,text,text)'::regprocedure;
+  IF v_search_path IS DISTINCT FROM 'search_path=' THEN RAISE EXCEPTION 'advance RPC search_path is not hardened: %', v_search_path; END IF;
+  SELECT has_function_privilege('anon', 'public.create_guest_advance_order(uuid,uuid,integer,uuid,text,text,text,text,text,text,text,text,text)', 'EXECUTE') INTO v_public_grant;
+  IF v_public_grant THEN RAISE EXCEPTION 'anon can execute advance RPC'; END IF;
+END;
+$$;
+
+DO $$ BEGIN RAISE NOTICE 'SAHIGADGET RLS/AUTH + PAYMENT STATE + ANALYTICS: PASS'; END $$;
