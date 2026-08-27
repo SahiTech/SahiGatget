@@ -338,7 +338,7 @@ DO $$
 DECLARE v_search_path TEXT; v_public_grant BOOLEAN;
 BEGIN
   SELECT proconfig[1] INTO v_search_path FROM pg_proc WHERE oid = 'public.create_guest_advance_order(uuid,uuid,integer,uuid,text,text,text,text,text,text,text,text,text)'::regprocedure;
-  IF v_search_path IS DISTINCT FROM 'search_path=' THEN RAISE EXCEPTION 'advance RPC search_path is not hardened: %', v_search_path; END IF;
+  IF v_search_path IS DISTINCT FROM 'search_path=""' THEN RAISE EXCEPTION 'advance RPC search_path is not hardened: %', v_search_path; END IF;
   SELECT has_function_privilege('anon', 'public.create_guest_advance_order(uuid,uuid,integer,uuid,text,text,text,text,text,text,text,text,text)', 'EXECUTE') INTO v_public_grant;
   IF v_public_grant THEN RAISE EXCEPTION 'anon can execute advance RPC'; END IF;
 END;
