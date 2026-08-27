@@ -15,13 +15,17 @@ process.env.BDGATE_LIVE_API_KEY = ['bd', 'live', 'synthetic_test_only'].join('_'
 
 function testRiskAndPaymentHelpers() {
   const signals = (overrides: Record<string, unknown> = {}) => ({ totalOrders: 0, cancelledOrders: 0, returnedOrders: 0, paymentFailures: 0, rapidAttempts: 0, recentCancellation: false, successfulDeliveries: 0, ...overrides })
-  return import('../lib/risk/service.ts').then(async ({ DEFAULT_RISK_POLICY, scoreCustomerRisk }) => {
+  return import('../lib/risk/service.ts').then(async ({ DEFAULT_RISK_POLICY, scoreCustomerRisk, riskCategoryForLevel }) => {
     const { unavailableFraudIntelligence } = await import('../lib/risk/fraud.ts')
     const { paymentRequirementForRiskAction, verifyServerAmount, normalizePaymentStatus } = await import('../lib/payments/service.ts')
     assert.equal(scoreCustomerRisk(signals(), DEFAULT_RISK_POLICY).action, 'ALLOW')
     assert.equal(scoreCustomerRisk(signals({ cancelledOrders: 1, recentCancellation: true }), DEFAULT_RISK_POLICY).action, 'ALLOW_WITH_VERIFICATION')
-    assert.equal(scoreCustomerRisk(signals({ returnedOrders: 1, paymentFailures: 1, rapidAttempts: 1 }), DEFAULT_RISK_POLICY).action, 'MANUAL_REVIEW')
+    assert.equal(scoreCustomerRisk(signals({ returnedOrders: 1, paymentFailures: 1, rapidAttempts: 1 }), DEFAULT_RISK_POLICY).action, 'REQUIRE_PREPAYMENT')
     assert.equal(scoreCustomerRisk(signals({ cancelledOrders: 3, returnedOrders: 1, paymentFailures: 1, rapidAttempts: 1, recentCancellation: true }), DEFAULT_RISK_POLICY).action, 'BLOCK')
+    assert.equal(riskCategoryForLevel('LOW'), 'GOOD')
+    assert.equal(riskCategoryForLevel('MEDIUM'), 'MEDIUM')
+    assert.equal(riskCategoryForLevel('HIGH'), 'BAD')
+    assert.equal(riskCategoryForLevel('CRITICAL'), 'BLOCK')
     assert.equal(paymentRequirementForRiskAction('ALLOW'), 'COD')
     assert.equal(paymentRequirementForRiskAction('ALLOW_WITH_VERIFICATION'), 'FULL_ADVANCE')
     assert.equal(paymentRequirementForRiskAction('REQUIRE_PREPAYMENT'), 'FULL_ADVANCE')
@@ -68,6 +72,7 @@ async function testBdGateAdapter() {
 
 Promise.all([testRiskAndPaymentHelpers(), testBdGateAdapter()]).then(() => {
   console.log('direct-order risk/payment synthetic tests: PASS')
+  console.log('four-tier risk routing: GOOD→COD, MEDIUM→FULL_ADVANCE, BAD→FULL_ADVANCE, BLOCK→MANUAL_REVIEW')
   console.log('external network calls: 0')
   console.log('database mutations: 0')
   console.log('real customer/payment data: 0')
