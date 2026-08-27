@@ -77,6 +77,19 @@ CREATE POLICY "Owner or admin manage product images" ON public.product_images
   USING (private.has_role(ARRAY['OWNER', 'ADMIN']))
   WITH CHECK (private.has_role(ARRAY['OWNER', 'ADMIN']));
 
+-- Supabase Storage versions used by isolated CI may create storage.buckets before
+-- applying the public/limit metadata migrations. Ensure the existing bucket upsert
+-- below is compatible; this is a no-op when the columns already exist.
+DO $$
+BEGIN
+  IF to_regclass('storage.buckets') IS NOT NULL THEN
+    ALTER TABLE storage.buckets ADD COLUMN IF NOT EXISTS "public" boolean DEFAULT false;
+    ALTER TABLE storage.buckets ADD COLUMN IF NOT EXISTS file_size_limit bigint;
+    ALTER TABLE storage.buckets ADD COLUMN IF NOT EXISTS allowed_mime_types text[];
+  END IF;
+END
+$$;
+
 -- Create a public catalogue-media bucket with strict image format and size limits.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
