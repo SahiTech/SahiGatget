@@ -348,6 +348,7 @@ DO $$ BEGIN RAISE NOTICE 'SAHIGADGET RLS/AUTH + PAYMENT STATE + ANALYTICS: PASS'
 -- Real simultaneous database execution against isolated CI PostgreSQL.
 -- dblink connections are local to the ephemeral Supabase stack and use synthetic data.
 CREATE EXTENSION IF NOT EXISTS dblink;
+GRANT EXECUTE ON FUNCTION dblink_connect_u(text, text) TO postgres;
 
 DO $$
 DECLARE
