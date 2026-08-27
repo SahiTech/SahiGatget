@@ -16,6 +16,8 @@ import {
   orderStatusSchema,
   productSchema,
   settingsSchema,
+  riskPolicySchema,
+  paymentPolicySchema,
   footerConfigSchema,
   stockAdjustmentSchema,
   variantSchema,
@@ -363,6 +365,35 @@ export async function saveOperationalSettings(input: unknown): Promise<AdminActi
   }
 }
 
+export async function savePaymentPolicy(input: unknown): Promise<AdminActionResult> {
+  try {
+    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    const parsed = paymentPolicySchema.parse(input)
+    if (!parsed.codEnabled && parsed.defaultProvider === 'COD') return { ok: false, message: 'Enable Cash on Delivery or choose an enabled online provider.' }
+    const db = createAdminClient()
+    const { error } = await db.from('settings').upsert({ key: 'payment_policy', value: parsed, description: 'Non-secret payment routing and expiry controls' }, { onConflict: 'key' })
+    if (error) throw new Error(error.message)
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'PAYMENT_POLICY_UPDATED', entityType: 'settings', details: { keys: 'payment_policy', cod_enabled: parsed.codEnabled, bdgate_enabled: parsed.bdgateEnabled, default_provider: parsed.defaultProvider, payment_expiry_minutes: parsed.paymentExpiryMinutes } })
+    refreshAdminRoutes()
+    return { ok: true, message: 'Payment routing policy saved.' }
+  } catch (error) {
+    return actionFailure(error)
+  }
+}
+export async function saveRiskPolicy(input: unknown): Promise<AdminActionResult> {
+  try {
+    const session = await requireAdmin(['OWNER', 'ADMIN'])
+    const parsed = riskPolicySchema.parse(input)
+    const db = createAdminClient()
+    const { error } = await db.from('settings').upsert({ key: 'risk_policy', value: parsed, description: 'Deterministic customer risk weights and COD decision thresholds' }, { onConflict: 'key' })
+    if (error) throw new Error(error.message)
+    await writeAdminAuditLog({ actorUserId: session.userId, action: 'RISK_POLICY_UPDATED', entityType: 'settings', details: { keys: 'risk_policy', enabled: parsed.enabled, thresholds: parsed.thresholds } })
+    refreshAdminRoutes()
+    return { ok: true, message: 'Customer risk policy saved.' }
+  } catch (error) {
+    return actionFailure(error)
+  }
+}
 export async function saveFooterSettings(input: unknown): Promise<AdminActionResult> {
   try {
     const session = await requireAdmin(['OWNER', 'ADMIN'])
