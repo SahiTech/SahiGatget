@@ -75,6 +75,16 @@ function mapStatus(value: unknown): ShipmentStatus {
   return 'CREATED'
 }
 
+export async function resolveRedxDeliveryArea(customer: CreateShipmentInput['order']['customer']) {
+  const areas = await listRedxAreas(customer.postalCode || undefined, customer.district || undefined)
+  const normalizedArea = customer.area.trim().toLowerCase()
+  const exact = areas.find((area: any) => String(area.name ?? '').trim().toLowerCase() === normalizedArea)
+  if (exact) return exact
+  const partial = areas.find((area: any) => String(area.name ?? '').trim().toLowerCase().includes(normalizedArea) || normalizedArea.includes(String(area.name ?? '').trim().toLowerCase()))
+  if (partial) return partial
+  throw new Error(`REDX delivery area could not be resolved for ${customer.area}.`)
+}
+
 export async function createRedxParcel(input: CreateShipmentInput & { deliveryArea: string; deliveryAreaId: number; pickupStoreId?: number | null; declaredValue?: number }): Promise<CreateShipmentResult> {
   const stores = await listRedxPickupStores()
   const pickupStore = input.pickupStoreId ? stores.find((store: any) => Number(store.id) === Number(input.pickupStoreId)) : stores[0]
