@@ -16,11 +16,13 @@ export function DeliveryOperationsShell({ data }: { data: DeliveryOperationsData
     const host = rootRef.current?.querySelector<HTMLElement>('aside')
     if (!host) return
 
+    host.classList.add('delivery-network-host')
     const legacyNetwork = host.querySelector<HTMLElement>(':scope > section:first-child')
     legacyNetwork?.classList.add('legacy-delivery-network')
     setNetworkHost(host)
 
     return () => {
+      host.classList.remove('delivery-network-host')
       legacyNetwork?.classList.remove('legacy-delivery-network')
     }
   }, [])
@@ -48,11 +50,7 @@ export function DeliveryOperationsShell({ data }: { data: DeliveryOperationsData
 
       <div ref={rootRef} className="contents">
         <LegacyDeliveryOperationsCenter data={data} />
-        {networkHost ? (
-          <div className="delivery-network-host contents">
-            {createPortal(<DeliveryProviderNetwork data={data} />, networkHost)}
-          </div>
-        ) : null}
+        {networkHost ? createPortal(<DeliveryProviderNetwork data={data} />, networkHost) : null}
       </div>
     </>
   )
