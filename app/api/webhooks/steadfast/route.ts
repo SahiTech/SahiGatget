@@ -14,6 +14,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: 'success', message: 'Webhook received successfully.' }, { status: 200 })
   } catch (error) {
     console.error('Steadfast webhook processing failed.', error instanceof Error ? error.message : 'Unknown error')
-    return NextResponse.json({ status: 'error', message: 'Webhook processing failed.' }, { status: 401 })
+    const message = error instanceof Error ? error.message : 'Webhook processing failed.'
+    const status = message.includes('authorization') || message.includes('token is not configured') ? 401 : 500
+    return NextResponse.json({ status: 'error', message: status === 401 ? 'Unauthorized webhook.' : 'Webhook processing failed.' }, { status })
   }
 }
