@@ -35,11 +35,13 @@ export async function testSteadfastConnection() {
 }
 
 function mapStatus(value: unknown): ShipmentStatus {
-  const status = String(value ?? '').toLowerCase()
-  if (status === 'delivered' || status === 'partial_delivered') return 'DELIVERED'
+  const status = String(value ?? '').toLowerCase().trim()
+  if (status === 'delivered') return 'DELIVERED'
+  if (status === 'partial_delivered') return 'DELIVERED'
   if (status === 'cancelled' || status === 'cancelled_approval_pending') return 'CANCELLED'
   if (status === 'hold') return 'EXCEPTION'
   if (status === 'pending' || status === 'in_review') return 'CREATED'
+  if (status === 'unknown' || !status) return 'EXCEPTION'
   return 'IN_TRANSIT'
 }
 
