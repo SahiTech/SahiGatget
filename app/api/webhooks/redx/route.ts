@@ -9,8 +9,6 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as Json
-    const headers = new Headers(request.headers)
-    headers.set('x-redx-webhook-url', request.url)
     const event = await normalizeRedxWebhook(payload, request.url)
     await processNormalizedWebhook(event)
     return NextResponse.json({ status: 'success', message: 'Webhook received successfully.' }, { status: 200 })
