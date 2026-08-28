@@ -11,8 +11,7 @@ function getProductionOrigin() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim() || process.env.SITE_URL?.trim()
   if (configured) return configured.replace(/\/$/, '')
   const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
-  if (vercel) return `https://${vercel}`
-  return 'https://sahi-gatget.vercel.app'
+  return vercel ? `https://${vercel}` : ''
 }
 
 export async function getRedxConfigurationStatusAction() {
@@ -22,12 +21,12 @@ export async function getRedxConfigurationStatusAction() {
     db.from('delivery_provider_credentials').select('base_url,encrypted_api_key,encrypted_webhook_token').eq('provider', 'REDX').maybeSingle(),
     db.from('delivery_providers').select('metadata,connection_state,is_enabled').eq('provider', 'REDX').maybeSingle(),
   ])
-  const callbackUrl = `${getProductionOrigin()}/api/webhooks/redx`
+  const origin = getProductionOrigin()
   return {
     configured: Boolean(credentials?.encrypted_api_key),
     webhookConfigured: Boolean(credentials?.encrypted_webhook_token),
     baseUrl: credentials?.base_url || REDX_BASE_URL,
-    callbackUrl,
+    callbackUrl: origin ? `${origin}/api/webhooks/redx` : '',
     connectionState: provider?.connection_state ?? 'NOT_CONNECTED',
     isEnabled: Boolean(provider?.is_enabled),
     pickupStoreId: Number(provider?.metadata?.pickup_store_id ?? 0) || null,
@@ -59,13 +58,7 @@ export async function saveRedxConfigurationAction(input: { apiToken?: string; we
   const { error } = await db.from('delivery_provider_credentials').upsert({ provider: 'REDX', environment: 'PRODUCTION', base_url: REDX_BASE_URL, encrypted_api_key: encryptedApiKey, encrypted_webhook_token: encryptedWebhookToken, last_error: null, updated_at: now }, { onConflict: 'provider' })
   if (error) return { ok: false, message: 'REDX configuration could not be saved.' }
 
-  const { error: providerError } = await db.from('delivery_providers').update({
-    connection_state: 'NOT_CONNECTED',
-    is_enabled: false,
-    capabilities: { CREATE_SHIPMENT: 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: encryptedWebhookToken ? 'SUPPORTED' : 'UNVERIFIED' },
-    metadata: { environment: 'PRODUCTION', configuration_source: 'ADMIN', configuration_status: 'CONFIGURED', configuration_updated_at: now, pickup_store_id: pickupStoreId },
-    updated_at: now,
-  }).eq('provider', 'REDX')
+  const { error: providerError } = await db.from('delivery_providers').update({ connection_state: 'NOT_CONNECTED', is_enabled: false, capabilities: { CREATE_SHIPMENT: 'UNVERIFIED', TRACK_SHIPMENT: 'UNVERIFIED', WEBHOOK: encryptedWebhookToken ? 'SUPPORTED' : 'UNVERIFIED' }, metadata: { environment: 'PRODUCTION', configuration_source: 'ADMIN', configuration_status: 'CONFIGURED', configuration_updated_at: now, pickup_store_id: pickupStoreId }, updated_at: now }).eq('provider', 'REDX')
   if (providerError) return { ok: false, message: 'REDX credentials were saved but provider readiness could not be reset. Test the connection before use.' }
 
   await writeAdminAuditLog({ actorUserId: session.userId, action: 'REDX_CONFIG_UPDATED', entityType: 'delivery_provider', entityId: null, details: { provider: 'REDX', environment: 'PRODUCTION', api_token_configured: true, webhook_token_configured: Boolean(encryptedWebhookToken), pickup_store_id: pickupStoreId } })
@@ -82,13 +75,7 @@ export async function testRedxConnectionAction() {
     const configured = await getRedxConfigurationStatusAction()
     const savedStoreId = configured.pickupStoreId && result.stores.some((store: any) => Number(store.id) === Number(configured.pickupStoreId)) ? configured.pickupStoreId : (result.stores[0]?.id ? Number(result.stores[0].id) : null)
     const passed = result.ok && Boolean(savedStoreId)
-    await db.from('delivery_providers').update({
-      connection_state: passed ? 'CONNECTED' : 'DEGRADED',
-      is_enabled: passed,
-      capabilities: { CREATE_SHIPMENT: passed ? 'SUPPORTED' : 'UNVERIFIED', TRACK_SHIPMENT: passed ? 'SUPPORTED' : 'UNVERIFIED', WEBHOOK: configured.webhookConfigured ? 'SUPPORTED' : 'UNVERIFIED' },
-      metadata: { environment: 'PRODUCTION', last_connection_test_at: now, last_connection_test: passed ? 'PASS' : 'FAIL', pickup_store_id: savedStoreId, pickup_store_count: result.stores.length, area_count: result.areas.length },
-      updated_at: now,
-    }).eq('provider', 'REDX')
+    await db.from('delivery_providers').update({ connection_state: passed ? 'CONNECTED' : 'DEGRADED', is_enabled: passed, capabilities: { CREATE_SHIPMENT: passed ? 'SUPPORTED' : 'UNVERIFIED', TRACK_SHIPMENT: passed ? 'SUPPORTED' : 'UNVERIFIED', WEBHOOK: configured.webhookConfigured ? 'SUPPORTED' : 'UNVERIFIED' }, metadata: { environment: 'PRODUCTION', last_connection_test_at: now, last_connection_test: passed ? 'PASS' : 'FAIL', pickup_store_id: savedStoreId, pickup_store_count: result.stores.length, area_count: result.areas.length }, updated_at: now }).eq('provider', 'REDX')
     await writeAdminAuditLog({ actorUserId: session.userId, action: passed ? 'REDX_CONNECTION_TESTED' : 'REDX_CONNECTION_FAILED', entityType: 'delivery_provider', entityId: null, details: { provider: 'REDX', passed, pickup_store_count: result.stores.length, area_count: result.areas.length, pickup_store_id: savedStoreId } })
     revalidatePath('/admin/delivery')
     return { ...result, passed, checkedAt: now, selectedPickupStoreId: savedStoreId }
