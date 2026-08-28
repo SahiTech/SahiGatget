@@ -12,11 +12,7 @@ async function getCredentials(): Promise<Credentials> {
   const db = createAdminClient()
   const { data, error } = await db.from('delivery_provider_credentials').select('base_url,encrypted_api_key,encrypted_webhook_token').eq('provider', 'REDX').maybeSingle()
   if (error || !data?.encrypted_api_key) throw new Error('REDX production API token is not configured.')
-  return {
-    token: decryptSecret(data.encrypted_api_key).replace(/^Bearer\s+/i, '').trim(),
-    webhookToken: data.encrypted_webhook_token ? decryptSecret(data.encrypted_webhook_token) : null,
-    baseUrl: data.base_url || REDX_BASE_URL,
-  }
+  return { token: decryptSecret(data.encrypted_api_key).replace(/^Bearer\s+/i, '').trim(), webhookToken: data.encrypted_webhook_token ? decryptSecret(data.encrypted_webhook_token) : null, baseUrl: data.base_url || REDX_BASE_URL }
 }
 
 async function redxRequest(path: string, init: RequestInit = {}) {
@@ -64,14 +60,14 @@ export async function testRedxConnection() {
 
 function mapStatus(value: unknown): ShipmentStatus {
   const status = String(value ?? '').toLowerCase().trim()
-  if (status === 'delivered' || status === 'paid') return 'DELIVERED'
-  if (status === 'returned' || status === 'agent-returning') return 'RETURNED'
-  if (status === 'delivery-in-progress') return 'OUT_FOR_DELIVERY'
-  if (status === 'ready-for-delivery' || status === 'agent-hold' || status === 'agent-area-change') return 'IN_TRANSIT'
+  if (status === 'delivered' || status === 'paid' || status.includes('delivered')) return 'DELIVERED'
+  if (status === 'returned' || status === 'agent-returning' || status.includes('returned')) return 'RETURNED'
+  if (status === 'delivery-in-progress' || status.includes('delivery-in-progress') || status.includes('dispatched to rider')) return 'OUT_FOR_DELIVERY'
+  if (status === 'ready-for-delivery' || status === 'agent-hold' || status === 'agent-area-change' || status.includes('sorting') || status.includes('in transit')) return 'IN_TRANSIT'
   if (status === 'cancelled' || status === 'canceled') return 'CANCELLED'
-  if (status === 'failed' || status === 'delivery-failed') return 'DELIVERY_FAILED'
-  if (status === 'pickup-pending') return 'PICKUP_PENDING'
-  if (status === 'picked-up' || status === 'pickup') return 'PICKED_UP'
+  if (status === 'failed' || status === 'delivery-failed' || status.includes('failed')) return 'DELIVERY_FAILED'
+  if (status === 'pickup-pending' || status.includes('created successfully')) return 'PICKUP_PENDING'
+  if (status === 'picked-up' || status === 'pickup' || status.includes('picked up')) return 'PICKED_UP'
   return 'CREATED'
 }
 
@@ -112,7 +108,8 @@ export async function trackRedxParcel(trackingNumber: string): Promise<TrackingR
   const result = await redxRequest(`/parcel/track/${encodeURIComponent(trackingNumber)}`)
   const tracking = Array.isArray(result?.tracking) ? result.tracking : []
   const latest = tracking[tracking.length - 1]
-  return { providerShipmentId: trackingNumber, trackingNumber, status: mapStatus(latest?.status ?? latest?.message_en), statusText: latest?.message_en ?? latest?.message_bn ?? null, occurredAt: latest?.time ?? null, raw: result }
+  const latestText = `${latest?.status ?? ''} ${latest?.message_en ?? ''}`.trim()
+  return { providerShipmentId: trackingNumber, trackingNumber, status: mapStatus(latestText), statusText: latest?.message_en ?? latest?.message_bn ?? null, occurredAt: latest?.time ?? null, raw: result }
 }
 
 export async function getRedxParcelInfo(trackingNumber: string) {
