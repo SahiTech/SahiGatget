@@ -28,11 +28,12 @@ type Provider = {
 }
 
 type PathaoConfigurationStatus = Parameters<typeof PathaoConfigurationCard>[0]['status']
-type ProviderNetworkData = {
+export type DeliveryProviderNetworkData = {
   providers: Provider[]
   pathao: PathaoConfigurationStatus
 }
-type Props = { data: ProviderNetworkData }
+
+type Props = { data: DeliveryProviderNetworkData }
 type PathaoTestResult = Awaited<ReturnType<typeof testPathaoConnectionAction>>
 type SteadfastStatus = Awaited<ReturnType<typeof getSteadfastConfigurationStatusAction>>
 type RedxStatus = Awaited<ReturnType<typeof getRedxConfigurationStatusAction>>
@@ -201,8 +202,13 @@ export function DeliveryProviderNetwork({ data }: Props) {
                       </p>
                       <button
                         type="button"
-                        onClick={() => setSelected(provider.provider as ConfigurationProvider)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-950 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                        onClick={() => {
+                          if (provider.provider === 'PATHAO' || provider.provider === 'STEADFAST' || provider.provider === 'REDX') {
+                            setSelected(provider.provider)
+                          }
+                        }}
+                        disabled={!['PATHAO', 'STEADFAST', 'REDX'].includes(provider.provider)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-950 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                       >
                         <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
                         Configure
@@ -282,8 +288,8 @@ export function DeliveryProviderNetwork({ data }: Props) {
                 </>
               ) : selected === 'STEADFAST' ? (
                 steadfastStatus ? <SteadfastConfigurationCard initialStatus={steadfastStatus} /> : <LoadingCard />
-              ) : selected === 'REDX' ? (
-                redxStatus ? <RedxConfigurationCard initialStatus={redxStatus} /> : <LoadingCard />
+              ) : redxStatus ? (
+                <RedxConfigurationCard initialStatus={redxStatus} />
               ) : null}
             </div>
           </section>
