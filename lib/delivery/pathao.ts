@@ -228,7 +228,7 @@ export async function listPathaoStores() {
 
 export async function listPathaoCities() {
   const token = await getAccessToken()
-  const body = await requestPathao<unknown>('/aladdin/api/v1/countries/1/city-list', { method: 'GET' }, token)
+  const body = await requestPathao<unknown>('/aladdin/api/v1/city-list', { method: 'GET' }, token)
   return unwrapData<PathaoCity[]>(body) ?? []
 }
 
@@ -253,7 +253,15 @@ export async function calculatePathaoPrice(input: { storeId: number; itemType: 1
   if (!Number.isFinite(input.itemWeight) || input.itemWeight < 0.5 || input.itemWeight > 10) throw new Error('Pathao item weight must be between 0.5 KG and 10 KG.')
   if (!Number.isInteger(input.recipientCity) || input.recipientCity < 1 || !Number.isInteger(input.recipientZone) || input.recipientZone < 1) throw new Error('Valid Pathao city and zone IDs are required.')
   const token = await getAccessToken()
-  const body = await requestPathao<unknown>('/aladdin/api/v1/merchant/price-plan', { method: 'POST', body: JSON.stringify(input) }, token)
+  const payload = {
+    store_id: input.storeId,
+    item_type: input.itemType,
+    delivery_type: input.deliveryType,
+    item_weight: input.itemWeight,
+    recipient_city: input.recipientCity,
+    recipient_zone: input.recipientZone,
+  }
+  const body = await requestPathao<unknown>('/aladdin/api/v1/merchant/price-plan', { method: 'POST', body: JSON.stringify(payload) }, token)
   return unwrapData<PathaoPricePlan>(body)
 }
 
