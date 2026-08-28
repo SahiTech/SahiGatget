@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import { NextResponse } from 'next/server'
 
 import type { Json } from '@/lib/types/database'
@@ -17,7 +19,7 @@ function timingSafeEqual(a: string, b: string) {
   const left = Buffer.from(a)
   const right = Buffer.from(b)
   if (left.length !== right.length) return false
-  return require('node:crypto').timingSafeEqual(left, right)
+  return crypto.timingSafeEqual(left, right)
 }
 
 export async function POST(request: Request) {
