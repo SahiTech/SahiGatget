@@ -1,18 +1,17 @@
 import 'server-only'
 
 import { testPathaoConnection } from './pathao'
+import { normalizePathaoWebhook } from './pathao-webhook'
 import type { DeliveryAdapter } from './contracts'
 
 /**
- * Pathao's verified Phase 2 operations require order-specific Admin Orders
- * context that the generic DeliveryAdapter input does not carry safely: the
- * selected merchant store, delivery/item type, and parcel weight. Therefore
- * the existing guarded Admin Orders flow remains the only generic-looking
- * create surface, while unsupported generic capabilities stay unregistered.
+ * Pathao's order creation remains behind the existing guarded Admin Orders
+ * surface. The adapter exposes only capabilities that are actually implemented
+ * here, so provider selection cannot advertise unsupported operations.
  */
 export const pathaoDeliveryAdapter: DeliveryAdapter = {
   provider: 'PATHAO',
-  capabilities: new Set(),
+  capabilities: new Set(['WEBHOOK']),
   async testConnection() {
     const result = await testPathaoConnection()
     const required = [result.authentication, result.store, result.city, result.zone, result.area, result.price]
@@ -23,5 +22,8 @@ export const pathaoDeliveryAdapter: DeliveryAdapter = {
         ? 'Pathao authentication, merchant store, location, and price readiness passed.'
         : 'Pathao readiness is incomplete; authentication, merchant store, city, zone, area, and price must all pass.',
     }
+  },
+  async normalizeWebhook(payload, headers) {
+    return normalizePathaoWebhook(payload, headers)
   },
 }
