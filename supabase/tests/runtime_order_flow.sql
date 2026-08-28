@@ -1,6 +1,48 @@
 -- Database-backed disposable order-flow assertions.
 -- Runs only against the local/CI Supabase database.
 
+-- Cart persistence regression: this models the server action's durable state
+-- transition, then verifies the exact state the Cart route reads.
+DO $$
+DECLARE
+  v_cart UUID := '00000000-0000-0000-0000-000000003001';
+  v_item UUID;
+  v_count INTEGER;
+  v_quantity INTEGER;
+BEGIN
+  INSERT INTO public.carts (id, guest_token, status, expires_at)
+  VALUES (v_cart, 'ci-cart-persistence-token', 'ACTIVE', NOW() + INTERVAL '1 day');
+
+  INSERT INTO public.cart_items (cart_id, product_id, variant_id, quantity)
+  VALUES (v_cart, '00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000104', 1)
+  RETURNING id INTO v_item;
+
+  SELECT count(*), max(quantity) INTO v_count, v_quantity
+  FROM public.cart_items
+  WHERE cart_id = v_cart AND variant_id = '00000000-0000-0000-0000-000000000104';
+  IF v_count <> 1 OR v_quantity <> 1 THEN
+    RAISE EXCEPTION 'Cart add/read persistence failed: count %, quantity %', v_count, v_quantity;
+  END IF;
+
+  UPDATE public.cart_items
+  SET quantity = 2, updated_at = NOW()
+  WHERE id = v_item AND cart_id = v_cart;
+
+  SELECT quantity INTO v_quantity FROM public.cart_items WHERE id = v_item AND cart_id = v_cart;
+  IF v_quantity <> 2 THEN
+    RAISE EXCEPTION 'Cart quantity update failed: got %', v_quantity;
+  END IF;
+
+  DELETE FROM public.cart_items WHERE id = v_item AND cart_id = v_cart;
+  SELECT count(*) INTO v_count FROM public.cart_items WHERE cart_id = v_cart;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'Cart removal failed: % items remain', v_count;
+  END IF;
+
+  DELETE FROM public.carts WHERE id = v_cart;
+END;
+$$;
+
 DO $$
 DECLARE
   v_first RECORD;
