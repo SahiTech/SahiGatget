@@ -6,28 +6,52 @@ import { createPortal } from 'react-dom'
 import { DeliveryOperationsCenter as LegacyDeliveryOperationsCenter } from './delivery-operations-center'
 import { DeliveryProviderNetwork } from './delivery-provider-network'
 
-export function DeliveryOperationsShell({ data }: { data: any }) {
+type DeliveryOperationsData = Parameters<typeof LegacyDeliveryOperationsCenter>[0]['data']
+
+export function DeliveryOperationsShell({ data }: { data: DeliveryOperationsData }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const [aside, setAside] = useState<HTMLElement | null>(null)
+  const [networkHost, setNetworkHost] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
-    const host = rootRef.current?.querySelector('aside') as HTMLElement | null
+    const host = rootRef.current?.querySelector<HTMLElement>('aside')
     if (!host) return
+
     host.classList.add('delivery-network-host')
-    const legacyNetwork = host.querySelector(':scope > section:first-child')
+    const legacyNetwork = host.querySelector<HTMLElement>(':scope > section:first-child')
     legacyNetwork?.classList.add('legacy-delivery-network')
-    setAside(host)
+    setNetworkHost(host)
+
     return () => {
       host.classList.remove('delivery-network-host')
       legacyNetwork?.classList.remove('legacy-delivery-network')
     }
   }, [])
 
-  return <>
-    <style jsx global>{`\n      .delivery-network-host { display: flex !important; flex-direction: column !important; }\n      .delivery-network-host > .legacy-delivery-network { display: none !important; }\n      .delivery-network-host > .delivery-provider-network { order: 1; }\n      .delivery-network-host > section:not(.delivery-provider-network) { order: 2; }\n    `}</style>
-    <div ref={rootRef} className="contents">
-      <LegacyDeliveryOperationsCenter data={data} />
-      {aside ? createPortal(<DeliveryProviderNetwork data={data} />, aside) : null}
-    </div>
-  </>
+  return (
+    <>
+      <style jsx global>{`
+        .delivery-network-host {
+          display: flex !important;
+          flex-direction: column !important;
+        }
+
+        .delivery-network-host > .legacy-delivery-network {
+          display: none !important;
+        }
+
+        .delivery-network-host > .delivery-provider-network {
+          order: 1;
+        }
+
+        .delivery-network-host > section:not(.delivery-provider-network) {
+          order: 2;
+        }
+      `}</style>
+
+      <div ref={rootRef} className="contents">
+        <LegacyDeliveryOperationsCenter data={data} />
+        {networkHost ? createPortal(<DeliveryProviderNetwork data={data} />, networkHost) : null}
+      </div>
+    </>
+  )
 }
