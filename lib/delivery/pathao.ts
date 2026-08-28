@@ -24,7 +24,7 @@ export type PathaoStore = {
   store_id: number
   store_name: string
   store_address?: string | null
-  is_active?: boolean
+  is_active?: boolean | number
   status?: string | null
 }
 
@@ -194,9 +194,12 @@ async function persistTokens(tokens: PathaoTokenResponse) {
   return { expiresAt }
 }
 
-function unwrapData<T>(body: { data?: T } | T): T {
-  if (typeof body === 'object' && body !== null && 'data' in body) return body.data as T
-  return body as T
+function unwrapData<T>(body: unknown): T {
+  let value = body
+  while (value && typeof value === 'object' && 'data' in value) {
+    value = (value as { data: unknown }).data
+  }
+  return value as T
 }
 
 async function getAccessToken(): Promise<string> {
@@ -219,27 +222,27 @@ async function getAccessToken(): Promise<string> {
 
 export async function listPathaoStores() {
   const token = await getAccessToken()
-  const body = await requestPathao<{ data?: PathaoStore[] } | PathaoStore[]>('/aladdin/api/v1/stores', { method: 'GET' }, token)
+  const body = await requestPathao<unknown>('/aladdin/api/v1/stores', { method: 'GET' }, token)
   return unwrapData<PathaoStore[]>(body) ?? []
 }
 
 export async function listPathaoCities() {
   const token = await getAccessToken()
-  const body = await requestPathao<{ data?: PathaoCity[] } | PathaoCity[]>('/aladdin/api/v1/city-list', { method: 'GET' }, token)
+  const body = await requestPathao<unknown>('/aladdin/api/v1/countries/1/city-list', { method: 'GET' }, token)
   return unwrapData<PathaoCity[]>(body) ?? []
 }
 
 export async function listPathaoZones(cityId: number) {
   if (!Number.isInteger(cityId) || cityId < 1) throw new Error('A valid Pathao city ID is required.')
   const token = await getAccessToken()
-  const body = await requestPathao<{ data?: PathaoZone[] } | PathaoZone[]>(`/aladdin/api/v1/cities/${cityId}/zone-list`, { method: 'GET' }, token)
+  const body = await requestPathao<unknown>(`/aladdin/api/v1/cities/${cityId}/zone-list`, { method: 'GET' }, token)
   return unwrapData<PathaoZone[]>(body) ?? []
 }
 
 export async function listPathaoAreas(zoneId: number) {
   if (!Number.isInteger(zoneId) || zoneId < 1) throw new Error('A valid Pathao zone ID is required.')
   const token = await getAccessToken()
-  const body = await requestPathao<{ data?: PathaoArea[] } | PathaoArea[]>(`/aladdin/api/v1/zones/${zoneId}/area-list`, { method: 'GET' }, token)
+  const body = await requestPathao<unknown>(`/aladdin/api/v1/zones/${zoneId}/area-list`, { method: 'GET' }, token)
   return unwrapData<PathaoArea[]>(body) ?? []
 }
 
@@ -250,7 +253,7 @@ export async function calculatePathaoPrice(input: { storeId: number; itemType: 1
   if (!Number.isFinite(input.itemWeight) || input.itemWeight < 0.5 || input.itemWeight > 10) throw new Error('Pathao item weight must be between 0.5 KG and 10 KG.')
   if (!Number.isInteger(input.recipientCity) || input.recipientCity < 1 || !Number.isInteger(input.recipientZone) || input.recipientZone < 1) throw new Error('Valid Pathao city and zone IDs are required.')
   const token = await getAccessToken()
-  const body = await requestPathao<{ data?: PathaoPricePlan } | PathaoPricePlan>('/aladdin/api/v1/merchant/price-plan', { method: 'POST', body: JSON.stringify(input) }, token)
+  const body = await requestPathao<unknown>('/aladdin/api/v1/merchant/price-plan', { method: 'POST', body: JSON.stringify(input) }, token)
   return unwrapData<PathaoPricePlan>(body)
 }
 
@@ -358,7 +361,7 @@ export async function testPathaoConnection(): Promise<PathaoTestResult> {
 
   try {
     stores = await listPathaoStores()
-    const activeStores = stores.filter((item) => item.is_active !== false && item.status?.toLowerCase() !== 'inactive')
+    const activeStores = stores.filter((item) => item.is_active !== false && item.is_active !== 0 && item.status?.toLowerCase() !== 'inactive')
     activeStore = activeStores[0]
     store = {
       status: activeStores.length ? 'PASS' : 'FAIL',
