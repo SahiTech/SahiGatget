@@ -32,19 +32,32 @@ CREATE POLICY "Owner or admin manage banners" ON public.homepage_banners
   USING (private.has_role(ARRAY['OWNER', 'ADMIN']))
   WITH CHECK (private.has_role(ARRAY['OWNER', 'ADMIN']));
 
--- Storage Bucket for Homepage Banners
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'homepage-banners',
-  'homepage-banners',
-  true,
-  5242880,
-  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif']
-)
-ON CONFLICT (id) DO UPDATE
-SET public = EXCLUDED.public,
-    file_size_limit = EXCLUDED.file_size_limit,
-    allowed_mime_types = EXCLUDED.allowed_mime_types;
+-- Storage Bucket for Homepage Banners.
+-- Managed Storage owns this table in some isolated Supabase images; only
+-- upsert metadata when the documented columns are available.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'storage' AND table_name = 'buckets'
+      AND column_name IN ('public', 'file_size_limit', 'allowed_mime_types')
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 3
+  ) THEN
+    EXECUTE $sql$
+      INSERT INTO storage.buckets (id, name, "public", file_size_limit, allowed_mime_types)
+      VALUES ('homepage-banners', 'homepage-banners', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+      ON CONFLICT (id) DO UPDATE
+      SET "public" = EXCLUDED."public",
+          file_size_limit = EXCLUDED.file_size_limit,
+          allowed_mime_types = EXCLUDED.allowed_mime_types
+    $sql$;
+  ELSE
+    RAISE NOTICE 'Skipping managed Storage bucket metadata upsert for homepage-banners';
+  END IF;
+END
+$$;
 
 DROP POLICY IF EXISTS "Public read banner objects" ON storage.objects;
 CREATE POLICY "Public read banner objects" ON storage.objects

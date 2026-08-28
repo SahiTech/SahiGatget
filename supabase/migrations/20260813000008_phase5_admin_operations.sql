@@ -78,18 +78,33 @@ CREATE POLICY "Owner or admin manage product images" ON public.product_images
   WITH CHECK (private.has_role(ARRAY['OWNER', 'ADMIN']));
 
 -- Create a public catalogue-media bucket with strict image format and size limits.
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'product-images',
-  'product-images',
-  true,
-  5242880,
-  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif']
-)
-ON CONFLICT (id) DO UPDATE
-SET public = EXCLUDED.public,
-    file_size_limit = EXCLUDED.file_size_limit,
-    allowed_mime_types = EXCLUDED.allowed_mime_types;
+-- Some isolated Supabase Storage images expose the bucket table before the
+-- metadata columns are installed and do not permit application migrations to
+-- alter that managed table. Preserve the cloud upsert and skip only that local
+-- metadata operation; the Storage API remains the owner of bucket creation.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'storage' AND table_name = 'buckets'
+      AND column_name IN ('public', 'file_size_limit', 'allowed_mime_types')
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 3
+  ) THEN
+    EXECUTE $sql$
+      INSERT INTO storage.buckets (id, name, "public", file_size_limit, allowed_mime_types)
+      VALUES ('product-images', 'product-images', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+      ON CONFLICT (id) DO UPDATE
+      SET "public" = EXCLUDED."public",
+          file_size_limit = EXCLUDED.file_size_limit,
+          allowed_mime_types = EXCLUDED.allowed_mime_types
+    $sql$;
+  ELSE
+    RAISE NOTICE 'Skipping managed Storage bucket metadata upsert for product-images';
+  END IF;
+END
+$$;
 
 DROP POLICY IF EXISTS "Public read product image objects" ON storage.objects;
 CREATE POLICY "Public read product image objects" ON storage.objects

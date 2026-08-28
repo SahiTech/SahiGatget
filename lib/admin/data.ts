@@ -84,7 +84,7 @@ export async function getOrderManagementData(query?: string) {
   const search = query?.trim()
   let request = db
     .from('orders')
-    .select('id, order_number, customer_id, subtotal, discount_total, delivery_charge, grand_total, payment_method, payment_status, order_status, delivery_zone, shipping_address, shipping_area, shipping_division, shipping_district, shipping_postal_code, customer_name_snapshot, customer_phone_snapshot, customer_email_snapshot, notes, created_at, updated_at, order_items(id, sku, product_name_snapshot, variant_title_snapshot, unit_price, compare_at_price_snapshot, discount_amount, quantity, line_total, warranty_policy_snapshot), order_status_history(id, previous_status, new_status, notes, changed_by, created_at), email_notifications(id, event_type, recipient, status, attempt_count, last_error, provider_message_id, created_at, updated_at, sent_at, delivered_at, failed_at, bounced_at), shipments(id, provider, status, provider_shipment_id, merchant_order_id, provider_order_status, provider_status_slug, provider_updated_at, delivery_fee, amount_to_collect, parcel_snapshot, provider_snapshot, created_at, updated_at, last_error)')
+    .select('id, order_number, customer_id, subtotal, discount_total, delivery_charge, grand_total, payment_method, payment_status, payment_requirement, order_status, delivery_zone, shipping_address, shipping_area, shipping_division, shipping_district, shipping_postal_code, customer_name_snapshot, customer_phone_snapshot, customer_email_snapshot, notes, created_at, updated_at, order_items(id, sku, product_name_snapshot, variant_title_snapshot, unit_price, compare_at_price_snapshot, discount_amount, quantity, line_total, warranty_policy_snapshot), order_status_history(id, previous_status, new_status, notes, changed_by, created_at), email_notifications(id, event_type, recipient, status, attempt_count, last_error, provider_message_id, created_at, updated_at, sent_at, delivered_at, failed_at, bounced_at), shipments(id, provider, status, provider_shipment_id, merchant_order_id, provider_order_status, provider_status_slug, provider_updated_at, delivery_fee, amount_to_collect, parcel_snapshot, provider_snapshot, created_at, updated_at, last_error), risk_assessments(id, score, level, action, reasons, override_action, internal_note, created_at, updated_at)')
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -125,7 +125,14 @@ export async function getSettingsData() {
     .select('key, value, description, updated_at')
     .in('key', ['delivery_charges', 'business_policy', 'risk_policy', 'payment_policy', 'store_profile', 'return_refund_policy', 'footer_config'])
     .limit(12)
+  const { data: incompleteCheckouts, error: checkoutError } = await db
+    .from('checkout_sessions')
+    .select('id,checkout_request_id,source,status,customer_phone,customer_email,quote_snapshot,last_activity_at,created_at')
+    .in('status', ['STARTED', 'DETAILS_ENTERED', 'QUOTED', 'PAYMENT_INITIATED', 'ABANDONED'])
+    .order('last_activity_at', { ascending: false })
+    .limit(100)
   assertNoError(error)
+  assertNoError(checkoutError)
 
   const settings = Object.fromEntries((data ?? []).map((item) => [item.key, item.value]))
   const auditLogs = session.role === 'OWNER'
@@ -138,5 +145,5 @@ export async function getSettingsData() {
     : { data: [], error: null }
   assertNoError(admins.error)
 
-  return { settings, auditLogs: auditLogs.data ?? [], admins: admins.data ?? [], isOwner: session.role === 'OWNER', bdgateConfigured: Boolean(process.env.BDGATE_LIVE_API_KEY) }
+  return { settings, auditLogs: auditLogs.data ?? [], admins: admins.data ?? [], incompleteCheckouts: incompleteCheckouts ?? [], isOwner: session.role === 'OWNER', bdgateConfigured: Boolean(process.env.BDGATE_LIVE_API_KEY) }
 }

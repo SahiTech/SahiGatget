@@ -3,42 +3,22 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { recordCommerceEvent } from '@/lib/analytics/events'
+import type { RiskCategory } from './categories'
+
+export { riskCategoryForLevel } from './categories'
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'UNKNOWN'
 export type RiskAction = 'ALLOW' | 'ALLOW_WITH_VERIFICATION' | 'MANUAL_REVIEW' | 'REQUIRE_PREPAYMENT' | 'TEMPORARILY_RESTRICT' | 'BLOCK'
 
 export type RiskPolicy = {
   enabled: boolean
-  weights: {
-    cancelledOneToTwo: number
-    cancelledThreePlus: number
-    returnedOrders: number
-    paymentFailures: number
-    rapidAttempts: number
-    recentCancellation: number
-    successfulDelivery: number
-  }
+  weights: { cancelledOneToTwo: number; cancelledThreePlus: number; returnedOrders: number; paymentFailures: number; rapidAttempts: number; recentCancellation: number; successfulDelivery: number }
   thresholds: { verification: number; review: number; block: number }
 }
 
-export type RiskSignals = {
-  totalOrders: number
-  cancelledOrders: number
-  returnedOrders: number
-  paymentFailures: number
-  rapidAttempts: number
-  recentCancellation: boolean
-  successfulDeliveries: number
-}
+export type RiskSignals = { totalOrders: number; cancelledOrders: number; returnedOrders: number; paymentFailures: number; rapidAttempts: number; recentCancellation: boolean; successfulDeliveries: number }
 
-export type RiskAssessment = {
-  score: number
-  level: RiskLevel
-  action: RiskAction
-  reasons: string[]
-  signals: RiskSignals
-  policyVersion: string
-}
+export type RiskAssessment = { score: number; level: RiskLevel; category: RiskCategory; action: RiskAction; reasons: string[]; signals: RiskSignals; policyVersion: string }
 
 export const DEFAULT_RISK_POLICY: RiskPolicy = {
   enabled: true,
@@ -69,14 +49,14 @@ export function parseRiskPolicy(value: unknown): RiskPolicy {
 function policyVersion(policy: RiskPolicy) { return createHash('sha256').update(JSON.stringify(policy)).digest('hex').slice(0, 12) }
 
 function mapPolicy(score: number, policy: RiskPolicy) {
-  if (score >= policy.thresholds.block) return { level: 'CRITICAL' as RiskLevel, action: 'BLOCK' as RiskAction }
-  if (score >= policy.thresholds.review) return { level: 'HIGH' as RiskLevel, action: 'MANUAL_REVIEW' as RiskAction }
-  if (score >= policy.thresholds.verification) return { level: 'MEDIUM' as RiskLevel, action: 'ALLOW_WITH_VERIFICATION' as RiskAction }
-  return { level: score > 0 ? 'LOW' as RiskLevel : 'UNKNOWN' as RiskLevel, action: 'ALLOW' as RiskAction }
+  if (score >= policy.thresholds.block) return { level: 'CRITICAL' as RiskLevel, category: 'BLOCK' as RiskCategory, action: 'BLOCK' as RiskAction }
+  if (score >= policy.thresholds.review) return { level: 'HIGH' as RiskLevel, category: 'BAD' as RiskCategory, action: 'REQUIRE_PREPAYMENT' as RiskAction }
+  if (score >= policy.thresholds.verification) return { level: 'MEDIUM' as RiskLevel, category: 'MEDIUM' as RiskCategory, action: 'ALLOW_WITH_VERIFICATION' as RiskAction }
+  return { level: score > 0 ? 'LOW' as RiskLevel : 'UNKNOWN' as RiskLevel, category: 'GOOD' as RiskCategory, action: 'ALLOW' as RiskAction }
 }
 
 export function scoreCustomerRisk(signals: RiskSignals, policy: RiskPolicy = DEFAULT_RISK_POLICY) {
-  if (!policy.enabled) return { score: 0, level: 'UNKNOWN' as RiskLevel, action: 'ALLOW' as RiskAction, reasons: ['Risk controls are disabled by an authorized administrator.'] }
+  if (!policy.enabled) return { score: 0, level: 'UNKNOWN' as RiskLevel, category: 'GOOD' as RiskCategory, action: 'ALLOW' as RiskAction, reasons: ['Risk controls are disabled by an authorized administrator.'] }
   let score = 0
   const reasons: string[] = []
   if (signals.cancelledOrders >= 3) { score += policy.weights.cancelledThreePlus; reasons.push('Repeated cancelled or failed orders are present.') }
@@ -94,13 +74,13 @@ const emptySignals: RiskSignals = { totalOrders: 0, cancelledOrders: 0, returned
 
 export async function assessCustomerRisk(input: { phone: string; orderId?: string }): Promise<RiskAssessment> {
   const normalized = input.phone.replace(/\D/g, '')
-  if (!/^8801[3-9]\d{8}$/.test(normalized) && !/^01[3-9]\d{8}$/.test(normalized)) return { score: 0, level: 'UNKNOWN', action: 'ALLOW_WITH_VERIFICATION', reasons: ['The mobile number needs a quick verification.'], signals: emptySignals, policyVersion: 'invalid-phone' }
+  if (!/^8801[3-9]\d{8}$/.test(normalized) && !/^01[3-9]\d{8}$/.test(normalized)) return { score: 0, level: 'UNKNOWN', category: 'MEDIUM', action: 'ALLOW_WITH_VERIFICATION', reasons: ['The mobile number needs a quick verification.'], signals: emptySignals, policyVersion: 'invalid-phone' }
   const db = createAdminClient()
   const { data: policyRow } = await db.from('settings').select('value').eq('key', 'risk_policy').maybeSingle()
   const policy = parseRiskPolicy(policyRow?.value)
   const version = policyVersion(policy)
   const { data: orders, error } = await db.from('orders').select('id,order_status,payment_status,created_at').eq('customer_phone_snapshot', normalized).order('created_at', { ascending: false }).limit(100)
-  if (error) return { score: 0, level: 'UNKNOWN', action: 'ALLOW_WITH_VERIFICATION', reasons: ['Order history is temporarily unavailable; a quick verification is recommended.'], signals: emptySignals, policyVersion: version }
+  if (error) return { score: 0, level: 'UNKNOWN', category: 'MEDIUM', action: 'ALLOW_WITH_VERIFICATION', reasons: ['Order history is temporarily unavailable; a quick verification is recommended.'], signals: emptySignals, policyVersion: version }
   const rows = (orders ?? []) as Array<{ id?: string; order_status?: string; payment_status?: string; created_at?: string }>
   const orderIds = rows.map((row) => row.id).filter((id): id is string => Boolean(id))
   const { data: events } = orderIds.length ? await db.from('commerce_events').select('event_name,order_id').in('order_id', orderIds).in('event_name', ['PAYMENT_FAILED', 'RETURN_REQUESTED']).limit(200) : { data: [] }
@@ -116,7 +96,7 @@ export async function assessCustomerRisk(input: { phone: string; orderId?: strin
   const scored = scoreCustomerRisk(signals, policy)
   const result: RiskAssessment = { ...scored, signals, policyVersion: version }
   const assessment = await db.from('risk_assessments').insert({ order_id: input.orderId ?? null, phone_hash: phoneHash(normalized), score: result.score, level: result.level, action: result.action, reasons: result.reasons }).select('id').maybeSingle()
-  if (!assessment.error) await recordCommerceEvent({ eventId: `risk:${input.orderId ?? phoneHash(normalized)}:${version}`, eventName: 'RISK_ASSESSED', orderId: input.orderId ?? null, metadata: { source: 'RISK_ENGINE', score_band: result.level, action: result.action, policy_version: version, total_orders: signals.totalOrders, cancelled_orders: signals.cancelledOrders, returned_orders: signals.returnedOrders, payment_failures: signals.paymentFailures, rapid_attempts: signals.rapidAttempts, successful_deliveries: signals.successfulDeliveries } })
+  if (!assessment.error) await recordCommerceEvent({ eventId: `risk:${input.orderId ?? phoneHash(normalized)}:${version}`, eventName: 'RISK_ASSESSED', orderId: input.orderId ?? null, metadata: { source: 'RISK_ENGINE', score_band: result.level, risk_category: result.category, action: result.action, policy_version: version, total_orders: signals.totalOrders, cancelled_orders: signals.cancelledOrders, returned_orders: signals.returnedOrders, payment_failures: signals.paymentFailures, rapid_attempts: signals.rapidAttempts, successful_deliveries: signals.successfulDeliveries } })
   return result
 }
 

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, LoaderCircle, MapPin, PackageCheck, ShieldCheck, Truck } from 'lucide-react'
 
-import { createGuestCodOrder, quoteGuestCodOrder } from '@/lib/orders/actions'
+import { createGuestOrderWithRisk, quoteGuestCodOrder, saveGuestOrderDraft } from '@/lib/orders/actions'
 import { getAnalyticsConsent } from '@/lib/analytics/client'
 import type { OrderSuccessSummary, Quote } from '@/lib/orders/schema'
 
@@ -49,6 +49,15 @@ export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { pr
     setMessage('')
   }
 
+  useEffect(() => {
+    const hasDraftData = Boolean(form.fullName || form.phone || form.email || form.division || form.district || form.area || form.address || form.postalCode || form.notes)
+    if (!hasDraftData) return
+    const timer = window.setTimeout(() => {
+      void saveGuestOrderDraft({ ...form, productId, variantId, checkoutRequestId, stage: step === 'review' ? 'QUOTED' : 'DETAILS_ENTERED' })
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [checkoutRequestId, form, productId, step, variantId])
+
   async function requestQuote() {
     setBusy(true)
     setMessage('')
@@ -66,12 +75,16 @@ export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { pr
   async function submitOrder() {
     setBusy(true)
     setMessage('')
-    const consent = getAnalyticsConsent(); const result = await createGuestCodOrder({ ...form, productId, variantId, checkoutRequestId, analyticsConsent: consent.analytics, marketingConsent: consent.marketing })
+    const consent = getAnalyticsConsent(); const result = await createGuestOrderWithRisk({ ...form, productId, variantId, checkoutRequestId, analyticsConsent: consent.analytics, marketingConsent: consent.marketing })
     setBusy(false)
     if (!result.ok) {
       setFieldErrors(result.fieldErrors ?? {})
       setMessage(result.message)
       if (result.fieldErrors && Object.keys(result.fieldErrors).length) setStep('details')
+      return
+    }
+    if ('paymentRequired' in result.data) {
+      window.location.assign(result.data.redirectUrl)
       return
     }
     window.sessionStorage.setItem('sahigatget-last-order', JSON.stringify(result.data satisfies OrderSuccessSummary))
@@ -95,7 +108,7 @@ export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { pr
       <div className="mt-6 flex items-center gap-3 text-[10px] font-bold sm:text-xs">
         <span className={`rounded-full px-3 py-1.5 ${step === 'details' ? 'bg-slate-950 text-white' : 'bg-emerald-100 text-emerald-800'}`}>1. Details</span>
         <span className="h-px flex-1 bg-slate-200" />
-        <span className={`rounded-full px-3 py-1.5 ${step === 'review' ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-500'}`}>2. Review & COD</span>
+        <span className={`rounded-full px-3 py-1.5 ${step === 'review' ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-500'}`}>2. Review & confirm</span>
       </div>
 
       {message && <div role="alert" className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold leading-6 text-rose-700 sm:text-sm">{message}</div>}
@@ -152,8 +165,8 @@ export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { pr
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
               <div>
-                <p className="font-black">Cash on Delivery</p>
-                <p className="mt-1 text-xs leading-5 text-slate-300 sm:text-sm sm:leading-6">Pay when your verified order arrives. No online payment is collected in this checkout.</p>
+                <p className="font-black">Secure payment routing</p>
+                <p className="mt-1 text-xs leading-5 text-slate-300 sm:text-sm sm:leading-6">The server confirms the safest available payment method. You may pay on delivery or be securely redirected for advance payment if required.</p>
               </div>
             </div>
           </div>
@@ -198,10 +211,10 @@ export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { pr
               <ArrowLeft className="h-4 w-4" /> Edit details
             </button>
             <button type="button" disabled={disabled} onClick={submitOrder} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60">
-              {busy ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Placing order</> : <>Confirm COD order <CheckCircle2 className="h-4 w-4" /></>}
+              {busy ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Confirming securely</> : <>Confirm order <CheckCircle2 className="h-4 w-4" /></>}
             </button>
           </div>
-          <p className="mt-4 text-center text-[10px] leading-4 text-slate-500 sm:text-xs sm:leading-5">By confirming, you agree that the final availability and totals are validated securely at the time of order creation.</p>
+          <p className="mt-4 text-center text-[10px] leading-4 text-slate-500 sm:text-xs sm:leading-5">By confirming, you agree that the final availability, totals, risk decision, and payment route are validated securely by SahiGadget’s server.</p>
         </div>
       )}
     </section>
@@ -214,7 +227,7 @@ export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { pr
       <div className="rounded-[1.5rem] border border-slate-200 bg-white p-6">
         <MapPin className="h-5 w-5 text-emerald-600" />
         <p className="mt-4 font-black text-slate-950">Need help?</p>
-        <p className="mt-2 text-sm leading-6 text-slate-500">If you need assistance before ordering, contact SahiGadget. We will never ask for payment details for Cash on Delivery.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-500">If you need assistance before ordering, contact SahiGadget. Never share card or payment credentials in this form.</p>
       </div>
     </aside>
   </div>
