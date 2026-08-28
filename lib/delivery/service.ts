@@ -6,6 +6,7 @@ import type { BulkDispatchItemResult, CreateShipmentInput, DeliveryAdapter, Deli
 import { DELIVERY_CAPABILITIES, DELIVERY_PROVIDERS } from './contracts'
 import { pathaoDeliveryAdapter } from './pathao-adapter'
 import { steadfastDeliveryAdapter } from './steadfast-adapter'
+import { redxDeliveryAdapter } from './redx-adapter'
 
 export class DeliveryError extends Error {
   constructor(message: string, readonly code: 'NOT_CONNECTED' | 'NOT_SUPPORTED' | 'INVALID_STATE' | 'DUPLICATE' | 'PROVIDER_ERROR' | 'CONFIGURATION_ERROR', readonly retryable = false, options?: ErrorOptions) { super(message, options); this.name = 'DeliveryError' }
@@ -17,6 +18,7 @@ export function getDeliveryAdapter(provider: DeliveryProviderCode) { return adap
 export function listRegisteredDeliveryAdapters() { return [...adapters.values()] }
 registerDeliveryAdapter(pathaoDeliveryAdapter)
 registerDeliveryAdapter(steadfastDeliveryAdapter)
+registerDeliveryAdapter(redxDeliveryAdapter)
 
 export function assertCapability(adapter: DeliveryAdapter, capability: DeliveryCapability) { if (!adapter.capabilities.has(capability)) throw new DeliveryError(`${adapter.provider} does not support ${capability}.`, 'NOT_SUPPORTED') }
 
