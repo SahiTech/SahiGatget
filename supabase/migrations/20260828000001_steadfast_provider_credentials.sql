@@ -1,5 +1,15 @@
--- Steadfast uses API-Key + Secret-Key authentication and an optional webhook bearer token.
--- All sensitive values are encrypted server-side before persistence.
+-- Provider-specific credential storage for Steadfast. Sensitive values are encrypted server-side.
+ALTER TABLE public.delivery_provider_credentials
+  DROP CONSTRAINT IF EXISTS delivery_provider_credentials_base_url_check;
+
+ALTER TABLE public.delivery_provider_credentials
+  ADD CONSTRAINT delivery_provider_credentials_base_url_check
+  CHECK (
+    (provider = 'PATHAO' AND base_url = 'https://api-hermes.pathao.com') OR
+    (provider = 'STEADFAST' AND base_url = 'https://portal.packzy.com/api/v1') OR
+    (provider NOT IN ('PATHAO', 'STEADFAST') AND base_url IS NOT NULL)
+  );
+
 ALTER TABLE public.delivery_provider_credentials
   ADD COLUMN IF NOT EXISTS encrypted_api_key TEXT,
   ADD COLUMN IF NOT EXISTS encrypted_secret_key TEXT,
