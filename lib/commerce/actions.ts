@@ -1,8 +1,26 @@
 'use server'
 
+import { redirect } from 'next/navigation'
+
 import { addToCart, clearCart, removeCartItem, updateCartItem } from './cart'
+import { createClient } from '@/lib/supabase/server'
+
+async function requireCustomer() {
+  const client = await createClient()
+  const {
+    data: { user },
+    error,
+  } = await client.auth.getUser()
+
+  if (error || !user) {
+    redirect('/customer/login?next=/cart')
+  }
+
+  return user
+}
 
 export async function addToCartAction(input: { productId: string; variantId: string; quantity?: number }) {
+  await requireCustomer()
   try {
     return await addToCart(input)
   } catch (error) {
@@ -12,6 +30,7 @@ export async function addToCartAction(input: { productId: string; variantId: str
 }
 
 export async function updateCartItemAction(input: { itemId: string; quantity: number }) {
+  await requireCustomer()
   try {
     return await updateCartItem(input)
   } catch (error) {
@@ -21,6 +40,7 @@ export async function updateCartItemAction(input: { itemId: string; quantity: nu
 }
 
 export async function removeCartItemAction(itemId: string) {
+  await requireCustomer()
   try {
     return await removeCartItem(itemId)
   } catch (error) {
@@ -30,6 +50,7 @@ export async function removeCartItemAction(itemId: string) {
 }
 
 export async function clearCartAction() {
+  await requireCustomer()
   try {
     return await clearCart()
   } catch (error) {
