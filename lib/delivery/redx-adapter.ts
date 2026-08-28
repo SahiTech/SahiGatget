@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { DeliveryAdapter } from './contracts'
-import { createRedxParcel, normalizeRedxWebhook, testRedxConnection, trackRedxParcel } from './redx'
+import { createRedxParcel, normalizeRedxWebhook, resolveRedxDeliveryArea, testRedxConnection, trackRedxParcel } from './redx'
 
 export const redxDeliveryAdapter: DeliveryAdapter = {
   provider: 'REDX',
@@ -15,7 +15,8 @@ export const redxDeliveryAdapter: DeliveryAdapter = {
     }
   },
   async createShipment(input) {
-    throw new Error('REDX shipment creation requires a resolved delivery area ID and is exposed through the provider-specific dispatch action.')
+    const area = await resolveRedxDeliveryArea(input.order.customer)
+    return createRedxParcel({ ...input, deliveryArea: String(area.name), deliveryAreaId: Number(area.id) })
   },
   async trackShipment(trackingNumber) { return trackRedxParcel(trackingNumber) },
   async normalizeWebhook(payload, headers) {
