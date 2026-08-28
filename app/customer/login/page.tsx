@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { Chrome, Facebook, ShoppingBag } from 'lucide-react'
 
 import { signInCustomer } from '@/lib/customer/actions'
 
@@ -22,9 +21,7 @@ export default async function CustomerLoginPage({ searchParams }: CustomerLoginP
     <main className="min-h-[70vh] bg-slate-50 px-4 py-12 sm:py-16">
       <section className="mx-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-900/5">
         <div className="bg-slate-950 px-6 py-8 text-white sm:px-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400 text-slate-950">
-            <ShoppingBag className="h-6 w-6" />
-          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400 text-sm font-black text-slate-950">SG</div>
           <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-emerald-300">SahiGadget account</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight">Sign in to your account</h1>
           <p className="mt-3 text-sm leading-6 text-slate-300">Sign in to use your cart and keep your shopping activity connected to your account.</p>
@@ -38,7 +35,8 @@ export default async function CustomerLoginPage({ searchParams }: CustomerLoginP
               <input type="hidden" name="provider" value="google" />
               <input type="hidden" name="next" value={next} />
               <button type="submit" className="flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100">
-                <Chrome className="h-5 w-5" /> Continue with Google
+                <span className="grid h-7 w-7 place-items-center rounded-full border border-slate-200 text-xs font-black">G</span>
+                Continue with Google
               </button>
             </form>
 
@@ -46,7 +44,8 @@ export default async function CustomerLoginPage({ searchParams }: CustomerLoginP
               <input type="hidden" name="provider" value="facebook" />
               <input type="hidden" name="next" value={next} />
               <button type="submit" className="flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#1877F2] px-4 py-3 text-sm font-black text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">
-                <Facebook className="h-5 w-5" /> Continue with Facebook
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-white/15 text-sm font-black">f</span>
+                Continue with Facebook
               </button>
             </form>
           </div>
