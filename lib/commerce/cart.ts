@@ -8,7 +8,7 @@ const CART_COOKIE = 'sahigadget-cart-token'
 const MAX_QUANTITY = 10
 
 type CartRow = { id: string; guest_token: string; status: string; expires_at: string }
-type CartItemRow = { id: string; product_id: string; variant_id: string; quantity: number; product?: { name: string; slug: string; product_type: string }; variant?: { sku: string; variant_title: string; price: number; compare_at_price: number | null; is_in_stock: boolean } }
+type CartItemRow = { id: string; product_id: string; variant_id: string; quantity: number; product?: { name: string; slug: string; product_type: string }; variant?: { sku: string; variant_title: string; price: number; compare_at_price: number | null; stock_quantity: number; is_active: boolean } }
 
 function clampQuantity(value: number) { return Math.min(MAX_QUANTITY, Math.max(1, Math.floor(value || 1))) }
 
@@ -30,7 +30,7 @@ async function getOrCreateCart(createIfMissing = true) {
 
 async function loadCartItems(cartId: string): Promise<CartItemRow[]> {
   const db = createAdminClient()
-  const { data, error } = await db.from('cart_items').select('id,product_id,variant_id,quantity,product:products(name,slug,product_type),variant:storefront_variants(sku,variant_title,price,compare_at_price,is_in_stock)').eq('cart_id', cartId).order('created_at')
+  const { data, error } = await db.from('cart_items').select('id,product_id,variant_id,quantity,product:products(name,slug,product_type),variant:product_variants(sku,variant_title,price,compare_at_price,stock_quantity,is_active)').eq('cart_id', cartId).order('created_at')
   if (error) throw new Error('Unable to load cart items.')
   return (data ?? []) as unknown as CartItemRow[]
 }
@@ -54,9 +54,16 @@ export async function addToCart(input: { productId: string; variantId: string; q
   const cart = await getOrCreateCart(true)
   if (!cart) return { ok: false, message: 'Unable to start a cart.' }
   const db = createAdminClient()
-  const { data: variant, error: variantError } = await db.from('storefront_variants').select('id,product_id,is_in_stock').eq('id', input.variantId).eq('product_id', input.productId).maybeSingle()
+  const { data: variant, error: variantError } = await db
+    .from('product_variants')
+    .select('id,product_id,stock_quantity,is_active,product:products!inner(id,is_published)')
+    .eq('id', input.variantId)
+    .eq('product_id', input.productId)
+    .eq('is_active', true)
+    .eq('product.is_published', true)
+    .maybeSingle()
   if (variantError || !variant) return { ok: false, message: 'This product option is no longer available.' }
-  if (!variant.is_in_stock) return { ok: false, message: 'This product option is out of stock.' }
+  if (Number(variant.stock_quantity) <= 0) return { ok: false, message: 'This product option is out of stock.' }
   const { data: existing } = await db.from('cart_items').select('id,quantity').eq('cart_id', cart.id).eq('variant_id', input.variantId).maybeSingle()
   const nextQuantity = clampQuantity(Number(existing?.quantity ?? 0) + quantity)
   const result = existing
