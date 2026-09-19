@@ -57,7 +57,10 @@ export function ProductCard({ product, priority = false }: { product: Storefront
             <div className="shrink-0">
               <AvailabilityPill product={product} />
             </div>
-            <Link href={`/products/${product.slug}`} className="inline-flex min-h-9 items-center gap-1 rounded-full border border-slate-200 px-3 text-xs font-bold text-slate-900 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100" aria-label={`View details for ${product.name}`}>Details <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+            <div className="flex items-center gap-2">
+              <ProductCardAddToCart product={product} />
+              <Link href={`/products/${product.slug}`} className="inline-flex min-h-9 items-center gap-1 rounded-full border border-slate-200 px-3 text-xs font-bold text-slate-900 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100" aria-label={`View details for ${product.name}`}>Details <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+            </div>
           </div>
         </div>
       </div>
