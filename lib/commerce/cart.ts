@@ -8,7 +8,7 @@ const CART_COOKIE = 'sahigadget-cart-token'
 const MAX_QUANTITY = 10
 
 type CartRow = { id: string; guest_token: string; status: string; expires_at: string }
-type CartItemRow = { id: string; product_id: string; variant_id: string; quantity: number; product?: { name: string; slug: string; product_type: string }; variant?: { sku: string; variant_title: string; price: number; compare_at_price: number | null; stock_quantity: number; is_active: boolean } }
+type CartItemRow = { id: string; product_id: string; variant_id: string; quantity: number; product?: { name: string; slug: string; product_type: string }; variant?: { sku: string; variant_title: string; price: number; compare_at_price: number | null; is_in_stock: boolean } }
 
 function clampQuantity(value: number) { return Math.min(MAX_QUANTITY, Math.max(1, Math.floor(value || 1))) }
 
