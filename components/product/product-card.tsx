@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowUpRight, PackageCheck } from 'lucide-react'
+import { ProductCardAddToCart } from '@/components/product/product-card-add-to-cart'
 
 import { BrandLogo } from '@/components/storefront/brand-logo'
 import type { StorefrontProduct } from '@/lib/services/storefront-utils'
