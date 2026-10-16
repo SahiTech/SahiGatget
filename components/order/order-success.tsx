@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useMemo, useSyncExternalStore } from 'react'
 import { CheckCircle2, ClipboardCheck, PackageCheck, Truck } from 'lucide-react'
+import { useEffect } from 'react'
+import { trackMetaPixelPurchase } from '@/lib/analytics/client'
 
 import type { OrderSuccessSummary } from '@/lib/orders/schema'
 
@@ -22,15 +24,31 @@ export function OrderSuccessView() {
     try { return JSON.parse(rawOrder) as OrderSuccessSummary } catch { return null }
   }, [rawOrder])
 
+  useEffect(() => {
+    if (!order || order.paymentMethod !== 'COD' || !order.orderId) return
+    trackMetaPixelPurchase({
+      orderId: order.orderId,
+      currency: 'BDT',
+      value: order.grandTotal,
+      shipping: order.delivery.charge,
+      items: order.items.map((item) => ({
+        item_id: item.sku,
+        item_name: item.productName,
+        price: item.unitPrice,
+        quantity: item.quantity,
+      })),
+    })
+  }, [order])
+
   if (!order) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
         <div className="rounded-[1.75rem] border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <ClipboardCheck className="mx-auto h-9 w-9 text-emerald-600" />
-          <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Order confirmation</p>
+          <ClipboardCheck className="mx-auto h-9 w-9 text-orange-600" />
+          <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-orange-600">Order confirmation</p>
           <h1 className="mt-3 text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl">Find your order securely.</h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">For privacy, order confirmation is shown immediately after checkout. Enter your order number and mobile number to view its safe tracking status again.</p>
-          <Link href="/track-order" className="mt-7 inline-flex min-h-11 items-center rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-emerald-600 hover:text-slate-950">Track an order</Link>
+          <Link href="/track-order" className="mt-7 inline-flex min-h-11 items-center rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-orange-600 hover:text-slate-950">Track an order</Link>
         </div>
       </div>
     )
@@ -38,19 +56,19 @@ export function OrderSuccessView() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:py-14">
-      <div className="rounded-[2rem] border border-emerald-200 bg-white shadow-xl shadow-slate-900/5">
+      <div className="rounded-[2rem] border border-orange-200 bg-white shadow-xl shadow-slate-900/5">
         <div className="rounded-t-[2rem] bg-slate-950 px-6 py-9 text-white sm:px-10">
           <div className="flex items-start justify-between gap-5">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 sm:text-xs">Order confirmed</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-300 sm:text-xs">Order confirmed</p>
               <h1 className="mt-3 truncate text-2xl font-black tracking-[-0.04em] sm:text-3xl">Thank you, {order.customerName}.</h1>
               <p className="mt-3 max-w-xl text-xs leading-5 text-slate-300 sm:text-sm sm:leading-6">Your Cash on Delivery order has been received. Keep this order number for customer care and secure tracking.</p>
             </div>
-            <CheckCircle2 className="h-8 w-8 shrink-0 text-emerald-300 sm:h-10 sm:w-10" />
+            <CheckCircle2 className="h-8 w-8 shrink-0 text-orange-300 sm:h-10 sm:w-10" />
           </div>
           <div className="mt-7 flex flex-wrap items-center rounded-2xl bg-white/10 px-4 py-3 gap-2">
             <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-300 sm:text-xs">Order number</span>
-            <span className="font-black text-emerald-300 break-all">{order.orderNumber}</span>
+            <span className="font-black text-orange-300 break-all">{order.orderNumber}</span>
           </div>
         </div>
         <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.15fr_0.85fr]">
@@ -58,7 +76,7 @@ export function OrderSuccessView() {
             <h2 className="text-lg font-black text-slate-950 sm:text-xl">Your items</h2>
             <div className="mt-5 divide-y divide-slate-100 rounded-2xl border border-slate-200">
               <div className="px-5 py-4">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700 sm:text-xs">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-orange-700 sm:text-xs">
                   <PackageCheck className="h-4 w-4" /> Cash on Delivery
                 </div>
               </div>
@@ -69,7 +87,7 @@ export function OrderSuccessView() {
                       <p className="truncate font-black text-slate-950">{item.productName}</p>
                       <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">{item.variantTitle} · {item.sku}</p>
                       <p className="mt-2 text-[10px] font-semibold text-slate-500 sm:text-xs">Qty {item.quantity} · {money(item.unitPrice)} each</p>
-                      {item.warrantyPolicy && <p className="mt-2 text-[10px] leading-4 text-emerald-700 sm:text-xs sm:leading-5">Warranty: {item.warrantyPolicy}</p>}
+                      {item.warrantyPolicy && <p className="mt-2 text-[10px] leading-4 text-orange-700 sm:text-xs sm:leading-5">Warranty: {item.warrantyPolicy}</p>}
                     </div>
                     <p className="shrink-0 font-black text-slate-950 text-sm sm:text-base">{money(item.lineTotal)}</p>
                   </div>
@@ -88,7 +106,7 @@ export function OrderSuccessView() {
           <aside>
             <div className="rounded-2xl border border-slate-200 p-5">
               <div className="flex items-center gap-2">
-                <Truck className="h-5 w-5 text-emerald-600" />
+                <Truck className="h-5 w-5 text-orange-600" />
                 <h2 className="font-black text-slate-950">Delivery</h2>
               </div>
               <p className="mt-4 text-sm font-bold text-slate-950 truncate">{order.customerName}</p>
@@ -103,13 +121,13 @@ export function OrderSuccessView() {
                 </p>
               )}
             </div>
-            <dl className="mt-5 rounded-2xl bg-emerald-50 p-5 text-xs sm:text-sm">
+            <dl className="mt-5 rounded-2xl bg-orange-50 p-5 text-xs sm:text-sm">
               <div className="flex justify-between">
                 <dt className="text-slate-600">Subtotal</dt>
                 <dd className="font-bold text-slate-950">{money(order.subtotal)}</dd>
               </div>
               {order.discountTotal > 0 && (
-                <div className="mt-3 flex justify-between text-emerald-700">
+                <div className="mt-3 flex justify-between text-orange-700">
                   <dt>Discount saved</dt>
                   <dd className="font-bold">{money(order.discountTotal)}</dd>
                 </div>
@@ -118,12 +136,12 @@ export function OrderSuccessView() {
                 <dt className="text-slate-600">Delivery charge</dt>
                 <dd className="font-bold text-slate-950">{money(order.delivery.charge)}</dd>
               </div>
-              <div className="mt-4 flex justify-between border-t border-emerald-200 pt-4 text-sm sm:text-base">
+              <div className="mt-4 flex justify-between border-t border-orange-200 pt-4 text-sm sm:text-base">
                 <dt className="font-black text-slate-950">Grand total</dt>
                 <dd className="font-black text-slate-950">{money(order.grandTotal)}</dd>
               </div>
             </dl>
-            <Link href="/track-order" className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-emerald-600 hover:text-slate-950">Track this order</Link>
+            <Link href="/track-order" className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-orange-600 hover:text-slate-950">Track this order</Link>
           </aside>
         </div>
       </div>
