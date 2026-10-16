@@ -12,13 +12,13 @@ create index if not exists imei_inventory_order_id_idx on public.imei_inventory(
 -- Some existing production databases predate inventory receiving. Keep the
 -- performance migration forward-compatible; when the feature table exists,
 -- cover its created_by FK without forcing that separate feature to be installed.
-do $
+do $guard$
 begin
   if to_regclass('public.inventory_receipts') is not null then
     execute 'create index if not exists inventory_receipts_created_by_idx on public.inventory_receipts(created_by)';
   end if;
-end
-$;
+end;
+$guard$;
 create index if not exists landing_page_products_product_id_idx on public.landing_page_products(product_id);
 create index if not exists landing_pages_created_by_idx on public.landing_pages(created_by);
 create index if not exists landing_pages_linked_product_id_idx on public.landing_pages(linked_product_id);
