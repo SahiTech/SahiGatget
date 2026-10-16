@@ -8,7 +8,7 @@ export type ProductImageRow = Database['public']['Tables']['product_images']['Ro
 
 export type StorefrontBrand = Pick<BrandRow, 'id' | 'name' | 'slug' | 'logo_url' | 'description' | 'meta_title' | 'meta_description'>
 export type StorefrontCategory = Pick<CategoryRow, 'id' | 'name' | 'slug' | 'description' | 'image_url' | 'sort_order' | 'meta_title' | 'meta_description'>
-export type StorefrontProductImage = Pick<ProductImageRow, 'id' | 'image_url' | 'alt_text' | 'is_primary' | 'sort_order'>
+export type StorefrontProductImage = Pick<ProductImageRow, 'id' | 'image_url' | 'alt_text' | 'is_primary' | 'sort_order'> & { variant_id: string | null }
 
 export type StorefrontVariant = {
   id: string
@@ -76,7 +76,7 @@ export type ProductFilters = {
 type RawProduct = ProductRow & { 
   brand?: BrandRow | null; 
   category?: CategoryRow | null;
-  product_images?: ProductImageRow[]
+  product_images?: Array<ProductImageRow & { variant_id: string | null }>
 }
 type RawStorefrontVariant = Omit<StorefrontVariant, 'price' | 'compare_at_price'> & { price: number | string; compare_at_price: number | string | null }
 
@@ -105,6 +105,7 @@ export function normalizeProduct(row: RawProduct, variants: StorefrontVariant[] 
     : null
   const images = (row.product_images || []).map(img => ({
     id: img.id,
+    variant_id: img.variant_id ?? null,
     image_url: img.image_url,
     alt_text: img.alt_text,
     is_primary: img.is_primary,
@@ -188,6 +189,14 @@ export function getProductPrimaryImage(product: StorefrontProduct) {
 
 export function getProductImageUrl(product: StorefrontProduct) {
   return getProductPrimaryImage(product)
+}
+
+export function getVariantImageUrl(product: StorefrontProduct, variantId: string | null) {
+  if (!variantId) return null
+  const variantImages = product.images
+    .filter((image) => image.variant_id === variantId)
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)
+  return variantImages[0]?.image_url || null
 }
 
 export function getProductMetaTitle(product: StorefrontProduct) {
