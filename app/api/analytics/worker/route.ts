@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAnalyticsWorkerSecret } from '@/lib/analytics/delivery-ledger'
+import { matchesBearerSecret } from '@/lib/analytics/worker-auth'
 import { processAnalyticsDeliveryWorker } from '@/lib/analytics/worker'
 
 export const runtime = 'nodejs'
@@ -7,15 +8,15 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 async function isAuthorized(request: Request) {
-  const authorization = request.headers.get('authorization') || ''
-  const configuredSecret = process.env.CRON_SECRET?.trim()
+  const authorization = request.headers.get('authorization')
 
-  if (configuredSecret) {
-    return authorization === `Bearer ${configuredSecret}`
-  }
+  // Vercel Cron uses CRON_SECRET; the Supabase scheduled worker uses its
+  // separately stored database secret. Accept either without weakening the
+  // bearer-token check, and avoid a database read for the Vercel Cron path.
+  if (matchesBearerSecret(authorization, process.env.CRON_SECRET)) return true
 
   const workerSecret = await getAnalyticsWorkerSecret()
-  return Boolean(workerSecret && authorization === `Bearer ${workerSecret}`)
+  return matchesBearerSecret(authorization, workerSecret)
 }
 
 export async function POST(request: Request) {

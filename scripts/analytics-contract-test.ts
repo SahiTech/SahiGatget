@@ -31,6 +31,14 @@ async function main() {
   const { isBrowserAnalyticsEventEnabled, isBrowserProviderEventAllowed, getMetaPixelIds, buildMetaPixelInitArgs, buildMetaPixelEventData, buildMetaPixelTrackSingleArgs } = await import('../lib/analytics/browser-registry')
   const { isAnalyticsPageViewPathAllowed } = await import('../lib/analytics/client')
   const { ANALYTICS_MAX_DELIVERY_ATTEMPTS } = await import('../lib/analytics/delivery-ledger')
+  const { matchesBearerSecret } = await import('../lib/analytics/worker-auth')
+
+  // Vercel Cron and the Supabase scheduled worker authenticate with distinct secrets.
+  assert.equal(matchesBearerSecret('Bearer configured-cron-secret', 'configured-cron-secret'), true)
+  assert.equal(matchesBearerSecret('Bearer database-worker-secret', 'configured-cron-secret'), false)
+  assert.equal(matchesBearerSecret('Bearer database-worker-secret', 'database-worker-secret'), true)
+  assert.equal(matchesBearerSecret('Bearer invalid-secret', 'database-worker-secret'), false)
+  assert.equal(matchesBearerSecret('database-worker-secret', 'database-worker-secret'), false)
 
   const base = {
     eventId: '11111111-1111-4111-8111-111111111111',
