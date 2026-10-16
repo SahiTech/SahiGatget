@@ -36,10 +36,11 @@ export function CartClient({ initialCart }: { initialCart: { items: CartItem[]; 
   }, [initialCart.items, initialCart.itemCount, initialCart.subtotal])
   async function run(action: () => Promise<{ ok: boolean; message?: string; data?: typeof initialCart }>, eventName?: 'add_to_cart' | 'remove_from_cart') {
     const previous = cart
-    setBusy(true); setMessage('')
+    setBusy(true); setMessage(''); window.dispatchEvent(new Event('sahigadget:cart-pending'))
     const result = await action()
     setBusy(false)
-    if (!result.ok) { setMessage(result.message ?? 'Unable to update your cart.'); return }
+    if (!result.ok) { window.dispatchEvent(new Event('sahigadget:cart-error')); setMessage(result.message ?? 'Unable to update your cart.'); return }
+    window.dispatchEvent(new Event('sahigadget:cart-updated'))
     if (result.data) {
       setCart(result.data)
       if (eventName) {
@@ -71,13 +72,16 @@ export function CartClient({ initialCart }: { initialCart: { items: CartItem[]; 
         itemCount: items.reduce((sum, row) => sum + row.quantity, 0),
       }
     })
+    window.dispatchEvent(new Event('sahigadget:cart-pending'))
     const result = await removeCartItemAction(item.id)
     if (!result.ok) {
+      window.dispatchEvent(new Event('sahigadget:cart-error'))
       setCart(previous)
       setMessage(result.message ?? 'Unable to remove that item.')
       return
     }
     if (result.data) setCart(result.data)
+    window.dispatchEvent(new Event('sahigadget:cart-updated'))
     trackClientEvent({
       eventName: 'remove_from_cart',
       commerce: {
@@ -107,9 +111,11 @@ export function CartClient({ initialCart }: { initialCart: { items: CartItem[]; 
       pendingQuantities.current.delete(item.id)
       pendingTimers.current.delete(item.id)
       setBusy(true)
+      window.dispatchEvent(new Event('sahigadget:cart-pending'))
       const result = await updateCartItemAction({ itemId: item.id, quantity: target })
       setBusy(false)
       if (!result.ok) {
+        window.dispatchEvent(new Event('sahigadget:cart-error'))
         setCart((current) => {
           const items = current.items.map((row) => row.id === item.id ? { ...row, quantity: previousQuantity } : row)
           const subtotal = items.reduce((sum, row) => sum + Number(row.variant?.price ?? 0) * row.quantity, 0)
@@ -119,6 +125,7 @@ export function CartClient({ initialCart }: { initialCart: { items: CartItem[]; 
         return
       }
       if (result.data) setCart(result.data)
+      window.dispatchEvent(new Event('sahigadget:cart-updated'))
       const changedQuantity = Math.abs(target - previousQuantity)
       trackClientEvent({
         eventName: target > previousQuantity ? 'add_to_cart' : 'remove_from_cart',
