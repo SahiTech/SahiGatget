@@ -60,7 +60,25 @@ export const variantSchema = z.object({
   price: z.coerce.number().finite().min(0).max(99999999),
   compareAtPrice: z.coerce.number().finite().min(0).max(99999999).nullable().optional(),
   lowStockThreshold: z.coerce.number().int().min(0).max(100000).default(5),
+  initialStock: z.coerce.number().int().min(0).max(2147483647).default(0),
+  initialCost: z.coerce.number().finite().min(0).max(9999999999).nullable().optional(),
   isActive: z.boolean().default(true),
+})
+
+export const receiveStockSchema = z.object({
+  variantId: uuid,
+  quantity: z.coerce.number().int().positive().max(2147483647),
+  unitCost: z.coerce.number().finite().min(0).max(9999999999),
+  supplierName: optionalShortText,
+  supplierReference: optionalShortText,
+  receivedAt: z.string().datetime().optional(),
+  note: z.string().trim().max(1000).optional().or(z.literal('')),
+})
+
+export const initializeInventoryCostSchema = z.object({
+  variantId: uuid,
+  unitCost: z.coerce.number().finite().min(0).max(9999999999),
+  note: z.string().trim().max(1000).optional().or(z.literal('')),
 })
 
 export const stockAdjustmentSchema = z.object({
@@ -84,6 +102,24 @@ export const orderStatusSchema = z.object({
   orderId: uuid,
   status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'READY_TO_SHIP', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURN_REQUESTED', 'RETURNED']),
   notes: z.string().trim().max(1000).optional().or(z.literal('')),
+})
+
+export const orderDetailsSchema = z.object({
+  orderId: uuid,
+  customerName: z.string().trim().min(2).max(120),
+  customerPhone: z.string().trim().min(7).max(32),
+  customerEmail: z.string().trim().email().max(254).optional().or(z.literal('')),
+  shippingAddress: z.string().trim().min(5).max(500),
+  shippingArea: z.string().trim().min(2).max(100),
+  shippingDistrict: z.string().trim().min(2).max(100),
+  shippingDivision: z.string().trim().min(2).max(100),
+  shippingPostalCode: z.string().trim().max(20).optional().or(z.literal('')),
+  notes: z.string().trim().max(1000).optional().or(z.literal('')),
+})
+
+export const deleteFakeOrderSchema = z.object({
+  orderId: uuid,
+  reason: z.string().trim().min(3).max(500),
 })
 
 const socialUrl = (platform: string) => z.string().trim().url().max(2048).refine((value) => {
