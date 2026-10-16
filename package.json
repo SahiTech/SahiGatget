@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node --max-old-space-size=4096 node_modules/next/dist/bin/next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "pnpm exec tsx scripts/direct-order-payment-test.ts && pnpm exec tsx scripts/risk-category-test.ts"
+    "test": "pnpm exec tsx scripts/analytics-contract-test.ts && pnpm exec tsx scripts/direct-order-payment-test.ts && pnpm exec tsx scripts/risk-category-test.ts && pnpm exec tsx scripts/checkout-recovery-policy-test.ts && pnpm exec tsx scripts/landing-order-contract-test.ts",
+    "performance:audit": "tsx scripts/performance/audit.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
@@ -26,11 +27,11 @@
     "react-dom": "19.2.8",
     "react-hook-form": "^7.85.0",
     "recharts": "^3.10.1",
-    "regenerator-runtime": "^0.14.1",
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "regenerator-runtime": "^0.14.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
