@@ -67,12 +67,12 @@ BEGIN
       shipping_postal_code = NULLIF(btrim(COALESCE(p_shipping_postal_code, '')), ''),
       delivery_zone = v_delivery_zone,
       delivery_charge = v_delivery_charge,
-      grand_total = subtotal + v_delivery_charge,
+      grand_total = subtotal - discount_total + v_delivery_charge,
       notes = NULLIF(btrim(COALESCE(p_notes, '')), ''),
       updated_at = NOW()
   WHERE id = p_order_id;
 
-  RETURN QUERY SELECT p_order_id, v_order.order_number, v_delivery_charge, v_order.subtotal + v_delivery_charge;
+  RETURN QUERY SELECT p_order_id, v_order.order_number, v_delivery_charge, v_order.subtotal - v_order.discount_total + v_delivery_charge;
 END;
 $function$;
 REVOKE ALL ON FUNCTION public.admin_update_order_contact_details(uuid, text, text, text, text, text, text, text, text, text, uuid) FROM PUBLIC;
