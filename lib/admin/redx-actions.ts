@@ -73,7 +73,7 @@ export async function testRedxConnectionAction() {
     const now = new Date().toISOString()
     const db = createAdminClient()
     const configured = await getRedxConfigurationStatusAction()
-    const savedStoreId = configured.pickupStoreId && result.stores.some((store: any) => Number(store.id) === Number(configured.pickupStoreId)) ? configured.pickupStoreId : (result.stores[0]?.id ? Number(result.stores[0].id) : null)
+    const savedStoreId = configured.pickupStoreId && result.stores.some((store) => Number(store.id) === Number(configured.pickupStoreId)) ? configured.pickupStoreId : (result.stores[0]?.id ? Number(result.stores[0].id) : null)
     const passed = result.ok && Boolean(savedStoreId)
     await db.from('delivery_providers').update({ connection_state: passed ? 'CONNECTED' : 'DEGRADED', is_enabled: passed, capabilities: { CREATE_SHIPMENT: passed ? 'SUPPORTED' : 'UNVERIFIED', TRACK_SHIPMENT: passed ? 'SUPPORTED' : 'UNVERIFIED', WEBHOOK: configured.webhookConfigured ? 'SUPPORTED' : 'UNVERIFIED' }, metadata: { environment: 'PRODUCTION', last_connection_test_at: now, last_connection_test: passed ? 'PASS' : 'FAIL', pickup_store_id: savedStoreId, pickup_store_count: result.stores.length, area_count: result.areas.length }, updated_at: now }).eq('provider', 'REDX')
     await writeAdminAuditLog({ actorUserId: session.userId, action: passed ? 'REDX_CONNECTION_TESTED' : 'REDX_CONNECTION_FAILED', entityType: 'delivery_provider', entityId: null, details: { provider: 'REDX', passed, pickup_store_count: result.stores.length, area_count: result.areas.length, pickup_store_id: savedStoreId } })
