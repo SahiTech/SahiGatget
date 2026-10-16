@@ -1,13 +1,20 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f7faf9;
-  --foreground: #0f172a;
+/* Tailwind source scanning stays centralized in the root stylesheet so storefront routes can share one CSS asset. */
+
+ :root {
+  --background: #f6f7f9;
+  --brand-navy: #151c2f;
+  --brand-orange: #ff6b00;
+  --foreground: #111827;
   --surface: #ffffff;
-  --muted: #64748b;
-  --line: #e2e8f0;
-  --accent: #10b981;
-  --ring: #a7f3d0;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: var(--brand-orange);
+  --accent-dark: #e85d04;
+  --ring: #ffd6b3;
+  --success: #16a34a;
+  --danger: #dc2626;
 }
 
 @theme inline {
@@ -19,10 +26,13 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+body { background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }/* Premium charcoal, ivory & orange storefront system */
+.storefront-dark { background: var(--brand-navy); color: #fff; }
+.storefront-surface { background: var(--surface); color: var(--foreground); }
+
 button, a, input, select { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
-::selection { background: #a7f3d0; color: #064e3b; }
+::selection { background: #fed7aa; color: #7c2d12; }
 
 @keyframes brand-in {
   from { opacity: 0; transform: translateY(2px); }
@@ -47,6 +57,16 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+@keyframes purchase-icon-in {
+  0% { opacity: 0; transform: scale(0.72) rotate(-8deg); }
+  65% { opacity: 1; transform: scale(1.06) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+.purchase-icon { animation: purchase-icon-in 420ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.grid > .group:nth-child(2) .purchase-icon { animation-delay: 55ms; }
+.grid > .group:nth-child(3) .purchase-icon { animation-delay: 110ms; }
 
 @keyframes loading-progress {
   0% { transform: translateX(-120%); opacity: 0.35; }
@@ -110,4 +130,23 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
     break-inside: avoid;
     page-break-inside: avoid;
   }
+}
+
+
+/* Landing-page Lighthouse contrast fixes: keep secondary copy readable on white and dark surfaces. */
+section[role="dialog"] p.text-slate-400 {
+  color: #475569 !important;
+}
+
+footer .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+/* Emerald-600 with white small text misses WCAG AA contrast on landing CTAs. */
+main[data-landing-page] button.bg-emerald-600.text-white {
+  background-color: #047857;
+}
+
+main[data-landing-page] button.bg-emerald-600.text-white:hover {
+  background-color: #065f46;
 }
