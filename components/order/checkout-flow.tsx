@@ -1,234 +1,349 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, LoaderCircle, MapPin, PackageCheck, ShieldCheck, Truck } from 'lucide-react'
+import { CheckCircle2, LoaderCircle, PackageCheck, ShieldCheck } from 'lucide-react'
+import Image from 'next/image'
 
-import { createGuestOrderWithRisk, quoteGuestCodOrder, saveGuestOrderDraft } from '@/lib/orders/actions'
-import { getAnalyticsConsent } from '@/lib/analytics/client'
-import type { OrderSuccessSummary, Quote } from '@/lib/orders/schema'
+import { createGuestOrderWithRisk, prepareGuestCheckout, quoteDeliveryZones } from '@/lib/orders/actions'
+import { saveCheckoutRecoveryDraft } from '@/lib/commerce/checkout-recovery-actions'
+import { isValidBangladeshMobile, normalizePhone } from '@/lib/orders/phone'
+import { getDeliveryZoneForDivision, DIVISIONS } from '@/lib/orders/locations'
+import { getAnalyticsConsent, trackClientEvent } from '@/lib/analytics/client'
+import type { DeliveryZonesQuote, OrderSuccessSummary } from '@/lib/orders/schema'
+import { SearchSelect } from '@/components/order/search-select'
 
 type FormState = {
   fullName: string
   phone: string
-  email: string
   division: string
-  district: string
-  area: string
   address: string
-  postalCode: string
-  notes: string
-  quantity: number
 }
 
-const initialForm: FormState = {
-  fullName: '', phone: '', email: '', division: '', district: '', area: '', address: '', postalCode: '', notes: '', quantity: 1,
+const initialForm: FormState = { fullName: '', phone: '', division: '', address: '' }
+
+function money(value: number | null | undefined) {
+  return value === null || value === undefined ? '—' : '৳' + value.toLocaleString('bn-BD')
 }
 
-function money(value: number) {
-  return `৳${new Intl.NumberFormat('en-BD', { maximumFractionDigits: 0 }).format(value)}`
+function localizedOrderError(message: string) {
+  if (/INSUFFICIENT_STOCK|no longer available|not currently available|unavailable to order/i.test(message)) return 'দুঃখিত, এই পণ্যটি বর্তমানে পর্যাপ্ত স্টকে নেই।'
+  if (/price|total|quote|মোট মূল্য/i.test(message)) return 'পণ্যের মূল্য বা ডেলিভারি চার্জ বদলেছে। নতুন মোট মূল্য দেখে আবার অর্ডার কনফার্ম করুন।'
+  if (/verify|manual review|restricted|prepayment/i.test(message)) return 'অর্ডারটি নিশ্চিত করার আগে কিছু তথ্য যাচাই করতে হবে। প্রয়োজনে আমাদের সঙ্গে যোগাযোগ করুন।'
+  if (/quantity/i.test(message)) return 'অনুগ্রহ করে সঠিক পরিমাণ নির্বাচন করুন।'
+  return 'এই মুহূর্তে অর্ডার নেওয়া যাচ্ছে না। তথ্য যাচাই করে আবার চেষ্টা করুন।'
 }
 
-function Input({ label, name, value, onChange, error, optional = false, type = 'text', placeholder = '' }: { label: string; name: keyof FormState; value: string | number; onChange: (value: string) => void; error?: string; optional?: boolean; type?: string; placeholder?: string }) {
-  return <label className="block"><span className="flex items-center justify-between text-sm font-black text-slate-800">{label}{optional && <span className="text-xs font-medium text-slate-400">Optional</span>}</span><input name={name} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={`mt-2 h-12 w-full rounded-xl border bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 ${error ? 'border-rose-400' : 'border-slate-200'}`} />{error && <span className="mt-1.5 block text-xs font-bold text-rose-600">{error}</span>}</label>
+function recoveryTokenFor(checkoutRequestId: string) {
+  const key = 'sahigadget-recovery-token:' + checkoutRequestId
+  try {
+    const saved = window.sessionStorage.getItem(key)
+    if (saved) return saved
+    const token = crypto.randomUUID() + crypto.randomUUID()
+    window.sessionStorage.setItem(key, token)
+    return token
+  } catch {
+    return crypto.randomUUID() + crypto.randomUUID()
+  }
 }
 
-export function CheckoutFlow({ productId, variantId, initialQuantity = 1 }: { productId: string; variantId: string; initialQuantity?: number }) {
+export function CheckoutFlow({ productId, variantId, initialQuantity = 1, initialCheckoutRequestId }: { productId: string; variantId: string; initialQuantity?: number; initialCheckoutRequestId?: string }) {
   const router = useRouter()
-  const [form, setForm] = useState<FormState>(() => ({ ...initialForm, quantity: Math.min(10, Math.max(1, initialQuantity || 1)) }))
-  const [step, setStep] = useState<'details' | 'review'>('details')
-  const [quote, setQuote] = useState<Quote | null>(null)
+  const [form, setForm] = useState<FormState>(initialForm)
+  const [quantity, setQuantity] = useState(() => Math.min(10, Math.max(1, initialQuantity || 1)))
+  const [quote, setQuote] = useState<DeliveryZonesQuote | null>(null)
+  const [quoteLoading, setQuoteLoading] = useState(true)
+  const [quoteError, setQuoteError] = useState('')
+  const [quoteAttempt, setQuoteAttempt] = useState(0)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [checkoutRequestId] = useState(() => crypto.randomUUID())
+  const [recoveryConsent, setRecoveryConsent] = useState(true)
+  const [checkoutRequestId] = useState(() => initialCheckoutRequestId || crypto.randomUUID())
+  const [recoveryToken] = useState(() => typeof window === 'undefined' ? crypto.randomUUID() + crypto.randomUUID() : recoveryTokenFor(checkoutRequestId))
+  const quoteSequence = useRef(0)
+  const startedCheckout = useRef(Boolean(initialCheckoutRequestId))
+  const formInteracted = useRef(false)
+  const submittingRef = useRef(false)
+  const funnelEventsSent = useRef(false)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const phoneRef = useRef<HTMLInputElement>(null)
+  const addressRef = useRef<HTMLTextAreaElement>(null)
 
-  function update(name: keyof FormState, value: string) {
-    setForm((current) => ({ ...current, [name]: name === 'quantity' ? Math.max(1, Number(value) || 1) : value }))
+  function startCheckout() {
+    formInteracted.current = true
+    if (startedCheckout.current) return
+    startedCheckout.current = true
+    void prepareGuestCheckout({
+      productId,
+      variantId,
+      quantity,
+      checkoutRequestId,
+      source: 'QUICK_ORDER',
+    }).catch(() => undefined)
+  }
+
+  // Reset the previous quote synchronously with the new product/variant/quantity request.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const request = ++quoteSequence.current
+    let active = true
+    setQuote(null)
+    setQuoteError('')
+    setQuoteLoading(true)
+    void quoteDeliveryZones({ productId, variantId, quantity }).then((result) => {
+      if (!active || request !== quoteSequence.current) return
+      if (!result.ok) {
+        setQuoteError(localizedOrderError(result.message))
+        return
+      }
+      setQuote(result.data)
+    }).catch(() => {
+      if (active && request === quoteSequence.current) setQuoteError('সঠিক মূল্য হিসাব করা যাচ্ছে না। আবার চেষ্টা করুন।')
+    }).finally(() => {
+      if (active && request === quoteSequence.current) setQuoteLoading(false)
+    })
+    return () => { active = false }
+  }, [productId, variantId, quantity, quoteAttempt])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (!formInteracted.current || (!form.fullName.trim() && !form.phone.trim() && !form.division && !form.address.trim())) return
+    const timer = window.setTimeout(() => {
+      void saveCheckoutRecoveryDraft({
+        checkoutRequestId,
+        recoveryToken,
+        source: 'QUICK_ORDER',
+        productId,
+        variantId,
+        quantity,
+        fullName: form.fullName,
+        phone: form.phone,
+        division: form.division,
+        address: form.address,
+        recoveryConsent,
+      }).catch(() => undefined)
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [checkoutRequestId, recoveryToken, productId, variantId, quantity, form, recoveryConsent])
+
+  const selectedDeliveryCharge = quote && form.division
+    ? getDeliveryZoneForDivision(form.division) === 'dhaka' ? quote.dhakaCharge : quote.outsideDhakaCharge
+    : null
+  const displayedTotal = quote && selectedDeliveryCharge !== null ? quote.subtotal + selectedDeliveryCharge : null
+  const phoneIsValid = Boolean(form.phone.trim() && isValidBangladeshMobile(form.phone))
+
+  function update<K extends keyof FormState>(name: K, value: FormState[K]) {
+    formInteracted.current = true
+    setForm((current) => ({ ...current, [name]: value }))
     setFieldErrors((current) => ({ ...current, [name]: '' }))
     setMessage('')
   }
 
-  useEffect(() => {
-    const hasDraftData = Boolean(form.fullName || form.phone || form.email || form.division || form.district || form.area || form.address || form.postalCode || form.notes)
-    if (!hasDraftData) return
-    const timer = window.setTimeout(() => {
-      void saveGuestOrderDraft({ ...form, productId, variantId, checkoutRequestId, stage: step === 'review' ? 'QUOTED' : 'DETAILS_ENTERED' })
-    }, 700)
-    return () => window.clearTimeout(timer)
-  }, [checkoutRequestId, form, productId, step, variantId])
+  function focusInvalid(errors: Record<string, string>) {
+    const next = ['fullName', 'phone', 'division', 'address'].find((field) => errors[field])
+    if (!next) return
+    const target = next === 'fullName' ? nameRef.current
+      : next === 'phone' ? phoneRef.current
+      : next === 'division' ? document.getElementById('product-checkout-division')
+      : addressRef.current
+    target?.focus()
+    target?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }
 
-  async function requestQuote() {
-    setBusy(true)
-    setMessage('')
-    const result = await quoteGuestCodOrder({ productId, variantId, quantity: form.quantity, division: form.division })
-    setBusy(false)
-    if (!result.ok) {
-      setFieldErrors(result.fieldErrors ?? {})
-      setMessage(result.message)
-      return
+  function validateForm() {
+    const errors: Record<string, string> = {}
+    if (form.fullName.trim().length < 2) errors.fullName = 'আপনার নাম অন্তত ২ অক্ষরে লিখুন।'
+    if (!isValidBangladeshMobile(form.phone)) errors.phone = 'সঠিক ১১ সংখ্যার মোবাইল নম্বর দিন।'
+    if (!form.division) errors.division = 'ডেলিভারির বিভাগ নির্বাচন করুন।'
+    if (form.address.trim().length < 8) errors.address = 'বাড়ি/রোড, এলাকা/থানা, জেলা ও কাছের পরিচিত স্থানসহ ঠিকানা লিখুন।'
+    setFieldErrors(errors)
+    if (Object.keys(errors).length) {
+      focusInvalid(errors)
+      return false
     }
-    setQuote(result.data)
-    setStep('review')
+    setForm((current) => ({ ...current, phone: normalizePhone(current.phone) }))
+    return true
   }
 
   async function submitOrder() {
-    setBusy(true)
-    setMessage('')
-    const consent = getAnalyticsConsent(); const result = await createGuestOrderWithRisk({ ...form, productId, variantId, checkoutRequestId, analyticsConsent: consent.analytics, marketingConsent: consent.marketing })
-    setBusy(false)
-    if (!result.ok) {
-      setFieldErrors(result.fieldErrors ?? {})
-      setMessage(result.message)
-      if (result.fieldErrors && Object.keys(result.fieldErrors).length) setStep('details')
+    if (busy || submittingRef.current) return
+    startCheckout()
+    if (!validateForm()) return
+    if (quoteLoading || !quote || displayedTotal === null) {
+      setMessage('মোট মূল্য প্রস্তুত হচ্ছে। একটু পর আবার চেষ্টা করুন।')
       return
     }
+    if (!quote.available) {
+      setMessage('এই ভ্যারিয়েন্টটি বর্তমানে পর্যাপ্ত স্টকে নেই। অন্য পরিমাণ বা ভ্যারিয়েন্ট বেছে নিন।')
+      return
+    }
+
+    submittingRef.current = true
+    setBusy(true)
+    setMessage('')
+    if (!funnelEventsSent.current) {
+      const commerce = {
+        currency: 'BDT',
+        value: quote.subtotal,
+        items: [{ item_id: quote.sku, item_name: quote.productName, price: quote.unitPrice, quantity: quote.quantity }],
+      }
+      trackClientEvent({ eventName: 'begin_checkout', commerce })
+      trackClientEvent({
+        eventName: 'add_shipping_info',
+        commerce: { ...commerce, shipping_tier: getDeliveryZoneForDivision(form.division) },
+      })
+      funnelEventsSent.current = true
+    }
+
+    let result
+    try {
+      const consent = getAnalyticsConsent()
+      result = await createGuestOrderWithRisk({
+        fullName: form.fullName.trim(),
+        phone: normalizePhone(form.phone),
+        division: form.division,
+        address: form.address.trim(),
+        email: '',
+        productId,
+        variantId,
+        quantity,
+        checkoutRequestId,
+        checkoutSource: 'QUICK_ORDER',
+        analyticsConsent: consent.analytics,
+        marketingConsent: consent.marketing,
+        expectedGrandTotal: displayedTotal,
+      })
+    } catch (error) {
+      console.error('[product-checkout] confirm order failed', error)
+      setMessage('সংযোগে সমস্যা হয়েছে। একই অর্ডারটি আবার নিশ্চিত করার চেষ্টা করুন।')
+      submittingRef.current = false
+      setBusy(false)
+      return
+    }
+
+    if (!result.ok) {
+      const nextErrors: Record<string, string> = {}
+      if (result.fieldErrors) {
+        if (result.fieldErrors.fullName) nextErrors.fullName = 'আপনার নাম সঠিকভাবে লিখুন।'
+        if (result.fieldErrors.phone) nextErrors.phone = 'সঠিক ১১ সংখ্যার মোবাইল নম্বর দিন।'
+        if (result.fieldErrors.division) nextErrors.division = 'ডেলিভারির বিভাগ নির্বাচন করুন।'
+        if (result.fieldErrors.address) nextErrors.address = 'সম্পূর্ণ ডেলিভারি ঠিকানা লিখুন।'
+      }
+      setFieldErrors(nextErrors)
+      const staleTotal = /price|total|quote|মোট মূল্য/i.test(result.message)
+      setMessage(staleTotal
+        ? 'পণ্যের মূল্য বা ডেলিভারি চার্জ বদলেছে। নতুন মোট মূল্য দেখে আবার অর্ডার কনফার্ম করুন।'
+        : localizedOrderError(result.message))
+      submittingRef.current = false
+      setBusy(false)
+      if (staleTotal || /INSUFFICIENT_STOCK|no longer available|not currently available/i.test(result.message)) setQuoteAttempt((value) => value + 1)
+      if (Object.keys(nextErrors).length) focusInvalid(nextErrors)
+      return
+    }
+
     if ('paymentRequired' in result.data) {
       window.location.assign(result.data.redirectUrl)
       return
     }
-    window.sessionStorage.setItem('sahigatget-last-order', JSON.stringify(result.data satisfies OrderSuccessSummary))
-    router.push('/order/success')
+
+    try {
+      window.sessionStorage.setItem('sahigatget-last-order', JSON.stringify(result.data satisfies OrderSuccessSummary))
+      window.sessionStorage.removeItem('sahigadget-recovery-token:' + checkoutRequestId)
+      window.sessionStorage.removeItem('sahigadget-recovery-consent:' + checkoutRequestId)
+    } catch {
+      // Navigation must not be blocked after the server accepts the order.
+    }
+    router.replace('/order/success')
   }
 
-  const disabled = busy
-  return <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start">
-    <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-6">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600 sm:text-xs">Guest checkout</p>
-          <h1 className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-3xl">Place your order</h1>
-          <p className="mt-2 max-w-lg text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6">No account is required. We verify price, delivery, and availability securely before confirmation.</p>
-        </div>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 sm:h-11 sm:w-11">
-          <PackageCheck className="h-5 w-5" />
-        </span>
-      </div>
+  const disabledReason = busy ? 'অর্ডার হচ্ছে…'
+    : quoteLoading ? 'পণ্যের মূল্য যাচাই হচ্ছে…'
+    : quoteError ? 'মূল্য দেখা যাচ্ছে না — আবার চেষ্টা করুন'
+    : !quote ? 'মোট মূল্য প্রস্তুত নয়'
+    : !form.division ? 'ডেলিভারির বিভাগ নির্বাচন করুন'
+    : !quote.available ? 'এই ভ্যারিয়েন্টটি স্টকে নেই'
+    : null
 
-      <div className="mt-6 flex items-center gap-3 text-[10px] font-bold sm:text-xs">
-        <span className={`rounded-full px-3 py-1.5 ${step === 'details' ? 'bg-slate-950 text-white' : 'bg-emerald-100 text-emerald-800'}`}>1. Details</span>
-        <span className="h-px flex-1 bg-slate-200" />
-        <span className={`rounded-full px-3 py-1.5 ${step === 'review' ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-500'}`}>2. Review & confirm</span>
-      </div>
-
-      {message && <div role="alert" className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-semibold leading-6 text-rose-700 sm:text-sm">{message}</div>}
-
-      {step === 'details' ? (
-        <div className="mt-7 space-y-9">
-          <section>
-            <h2 className="text-base font-black text-slate-950 sm:text-lg">Customer information</h2>
-            <p className="mt-1 text-xs text-slate-500 sm:text-sm">আপনার তথ্য সঠিকভাবে দিন, যেন আমরা অর্ডার নিশ্চিত করতে পারি।</p>
-            <div className="mt-5 grid gap-5 sm:grid-cols-2">
-              <Input label="Full name" name="fullName" value={form.fullName} onChange={(value) => update('fullName', value)} error={fieldErrors.fullName} placeholder="Your full name" />
-              <Input label="Mobile number" name="phone" value={form.phone} onChange={(value) => update('phone', value)} error={fieldErrors.phone} type="tel" placeholder="01XXXXXXXXX" />
-              <div className="sm:col-span-2">
-                <Input label="Email address" name="email" value={form.email} onChange={(value) => update('email', value)} error={fieldErrors.email} optional type="email" placeholder="you@example.com" />
-              </div>
-            </div>
-          </section>
-          <section className="border-t border-slate-100 pt-8">
-            <h2 className="text-base font-black text-slate-950 sm:text-lg">Delivery information</h2>
-            <p className="mt-1 text-xs text-slate-500 sm:text-sm">আপনার ঠিকানা অনুযায়ী ডেলিভারি চার্জ স্বয়ংক্রিয়ভাবে হিসাব হবে।</p>
-            <div className="mt-5 grid gap-5 sm:grid-cols-2">
-              <Input label="Division" name="division" value={form.division} onChange={(value) => update('division', value)} error={fieldErrors.division} placeholder="Dhaka" />
-              <Input label="District" name="district" value={form.district} onChange={(value) => update('district', value)} error={fieldErrors.district} placeholder="Narayanganj" />
-              <Input label="Area / Upazila" name="area" value={form.area} onChange={(value) => update('area', value)} error={fieldErrors.area} placeholder="Araihazar" />
-              <Input label="Postal code" name="postalCode" value={form.postalCode} onChange={(value) => update('postalCode', value)} error={fieldErrors.postalCode} optional placeholder="1460" />
-              <label className="block sm:col-span-2">
-                <span className="flex items-center justify-between text-sm font-black text-slate-800">Full delivery address</span>
-                <textarea name="address" value={form.address} onChange={(event) => update('address', event.target.value)} rows={3} placeholder="House, road, landmark, village or area" className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 ${fieldErrors.address ? 'border-rose-400' : 'border-slate-200'}`} />
-                {fieldErrors.address && <span className="mt-1.5 block text-xs font-bold text-rose-600">{fieldErrors.address}</span>}
-              </label>
-              <label className="block sm:col-span-2">
-                <span className="flex items-center justify-between text-sm font-black text-slate-800">Delivery instructions <span className="text-xs font-medium text-slate-400">Optional</span></span>
-                <textarea name="notes" value={form.notes} onChange={(event) => update('notes', event.target.value)} rows={2} placeholder="Landmark, preferred delivery time, or any useful note" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" />
-              </label>
-            </div>
-          </section>
-          <section className="rounded-2xl bg-slate-50 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="font-black text-slate-950">Quantity</p>
-                <p className="mt-1 text-xs text-slate-500">The final stock check happens during confirmation.</p>
-              </div>
-              <input aria-label="Quantity" type="number" min="1" max="10" value={form.quantity} onChange={(event) => update('quantity', event.target.value)} className="h-11 w-20 rounded-xl border border-slate-200 bg-white px-3 text-center font-black outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" />
-            </div>
-            {fieldErrors.quantity && <p className="mt-3 text-xs font-bold text-rose-600">{fieldErrors.quantity}</p>}
-          </section>
-          <button type="button" disabled={disabled} onClick={requestQuote} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-6 py-3 text-sm font-black text-white transition hover:bg-emerald-600 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60">
-            {busy ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Checking order details</> : <>Continue to review <CheckCircle2 className="h-4 w-4" /></>}
-          </button>
+  return <section className="mx-auto max-w-6xl px-3 py-3 pb-32 sm:px-6 sm:py-6 sm:pb-8">
+    <form noValidate onSubmit={(event) => { event.preventDefault(); void submitOrder() }} onFocusCapture={startCheckout} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600"><PackageCheck className="h-5 w-5" aria-hidden="true" /></span>
+          <div className="min-w-0"><h1 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">অর্ডার কনফার্ম করুন</h1><p className="mt-1 text-sm leading-5 text-slate-600">শুধু ৪টি তথ্য দিন। ক্যাশ অন ডেলিভারি।</p></div>
         </div>
-      ) : (
-        <div className="mt-7">
-          <div className="rounded-2xl bg-slate-950 p-5 text-white">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
-              <div>
-                <p className="font-black">Secure payment routing</p>
-                <p className="mt-1 text-xs leading-5 text-slate-300 sm:text-sm sm:leading-6">The server confirms the safest available payment method. You may pay on delivery or be securely redirected for advance payment if required.</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-7 rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-black text-slate-950">{quote?.productName}</p>
-                <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">{quote?.variantTitle} · {quote?.sku}</p>
-              </div>
-              <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-700 sm:text-xs">{form.quantity} item{form.quantity === 1 ? '' : 's'}</span>
-            </div>
-            <dl className="mt-5 space-y-3 border-t border-slate-100 pt-5 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Subtotal</dt>
-                <dd className="font-bold text-slate-950">{money(quote?.subtotal ?? 0)}</dd>
-              </div>
-              {(quote?.discountTotal ?? 0) > 0 && (
-                <div className="flex justify-between text-emerald-700">
-                  <dt>Saved from regular price</dt>
-                  <dd className="font-bold">{money(quote?.discountTotal ?? 0)}</dd>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Delivery ({quote?.deliveryZone === 'dhaka' ? 'Dhaka' : 'Outside Dhaka'})</dt>
-                <dd className="font-bold text-slate-950">{money(quote?.deliveryCharge ?? 0)}</dd>
-              </div>
-              <div className="flex justify-between border-t border-slate-100 pt-4 text-base">
-                <dt className="font-black text-slate-950">Grand total</dt>
-                <dd className="font-black text-slate-950">{money(quote?.grandTotal ?? 0)}</dd>
-              </div>
-            </dl>
-          </div>
-          <div className="mt-6 rounded-2xl bg-slate-50 p-5">
-            <p className="font-black text-slate-950">Delivery to</p>
-            <p className="mt-2 break-words text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
-              {form.fullName} · {form.phone}<br />
-              {form.address}, {form.area}, {form.district}, {form.division}{form.postalCode ? ` – ${form.postalCode}` : ''}
-            </p>
-          </div>
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <button type="button" disabled={disabled} onClick={() => setStep('details')} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-slate-300 px-6 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-60">
-              <ArrowLeft className="h-4 w-4" /> Edit details
-            </button>
-            <button type="button" disabled={disabled} onClick={submitOrder} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60">
-              {busy ? <><LoaderCircle className="h-4 w-4 animate-spin" /> Confirming securely</> : <>Confirm order <CheckCircle2 className="h-4 w-4" /></>}
-            </button>
-          </div>
-          <p className="mt-4 text-center text-[10px] leading-4 text-slate-500 sm:text-xs sm:leading-5">By confirming, you agree that the final availability, totals, risk decision, and payment route are validated securely by SahiGadget’s server.</p>
+
+        {message && <div role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm font-semibold leading-6 text-rose-700">{message}</div>}
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <label className="block min-w-0" htmlFor="product-checkout-name">
+            <span className="text-sm font-bold text-slate-800">আপনার নাম</span>
+            <input ref={nameRef} id="product-checkout-name" name="name" required value={form.fullName} onChange={(event) => update('fullName', event.target.value)} autoComplete="name" aria-invalid={Boolean(fieldErrors.fullName)} aria-describedby={fieldErrors.fullName ? 'product-name-error' : undefined} className={'mt-1.5 h-12 w-full rounded-xl border bg-white px-3.5 text-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100 ' + (fieldErrors.fullName ? 'border-rose-400' : 'border-slate-200')} placeholder="আপনার পুরো নাম" />
+            {fieldErrors.fullName && <span id="product-name-error" className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.fullName}</span>}
+          </label>
+          <label className="block min-w-0" htmlFor="product-checkout-phone">
+            <span className="text-sm font-bold text-slate-800">মোবাইল নম্বর</span>
+            <span className="relative block">
+              <input ref={phoneRef} id="product-checkout-phone" name="phone" type="tel" inputMode="tel" required value={form.phone} onChange={(event) => update('phone', event.target.value)} onBlur={() => { const phone = normalizePhone(form.phone); if (isValidBangladeshMobile(phone)) update('phone', phone); else setFieldErrors((current) => ({ ...current, phone: 'সঠিক ১১ সংখ্যার মোবাইল নম্বর দিন।' })) }} autoComplete="tel" aria-invalid={Boolean(fieldErrors.phone)} aria-describedby={fieldErrors.phone ? 'product-phone-error' : undefined} className={'mt-1.5 h-12 w-full rounded-xl border bg-white px-3.5 pr-10 text-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100 ' + (fieldErrors.phone ? 'border-rose-400' : 'border-slate-200')} placeholder="01XXXXXXXXX" />
+              {phoneIsValid && !fieldErrors.phone && <CheckCircle2 className="absolute right-3 top-4 h-4 w-4 text-emerald-600" aria-label="মোবাইল নম্বর সঠিক" />}
+            </span>
+            {fieldErrors.phone && <span id="product-phone-error" className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.phone}</span>}
+          </label>
+          <SearchSelect label="বিভাগ" id="product-checkout-division" value={form.division} options={DIVISIONS} placeholder="বিভাগ নির্বাচন করুন" autoComplete="address-level1" error={fieldErrors.division} onChange={(value) => update('division', value)} />
+          <label className="block min-w-0 sm:col-span-2" htmlFor="product-checkout-address">
+            <span className="text-sm font-bold text-slate-800">ডেলিভারি ঠিকানা</span>
+            <textarea ref={addressRef} id="product-checkout-address" name="address" required value={form.address} onChange={(event) => update('address', event.target.value)} rows={3} autoComplete="street-address" aria-invalid={Boolean(fieldErrors.address)} aria-describedby={fieldErrors.address ? 'product-address-error' : undefined} className={'mt-1.5 w-full resize-y rounded-xl border bg-white px-3.5 py-3 text-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100 ' + (fieldErrors.address ? 'border-rose-400' : 'border-slate-200')} placeholder="বাড়ি/রোড, এলাকা/থানা, জেলা ও কাছের পরিচিত স্থান লিখুন" />
+            {fieldErrors.address && <span id="product-address-error" className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.address}</span>}
+          </label>
         </div>
-      )}
-    </section>
-    <aside className="space-y-4 lg:sticky lg:top-24">
-      <div className="rounded-[1.5rem] bg-emerald-500 p-6 text-slate-950">
-        <Truck className="h-6 w-6" />
-        <p className="mt-5 text-lg font-black">Clear delivery pricing</p>
-        <p className="mt-2 text-sm leading-6 text-slate-800">Your location determines the delivery zone. The displayed amount is always calculated by the server from current business settings.</p>
+
+        <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">
+          <input type="checkbox" checked={recoveryConsent} onChange={(event) => { formInteracted.current = true; startCheckout(); setRecoveryConsent(event.target.checked) }} className="mt-0.5 h-4 w-4 shrink-0 accent-orange-600" />
+          <span>অসম্পূর্ণ অর্ডারে সহায়তার জন্য SahiGadget যোগাযোগ করতে পারবে <span className="font-semibold text-slate-500">(ঐচ্ছিক; যেকোনো সময় বন্ধ করতে পারবেন)</span></span>
+        </label>
+
+        <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-slate-500"><ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden="true" /> নিরাপদ অর্ডার · ক্যাশ অন ডেলিভারি</p>
+      </section>
+
+      <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-live="polite">
+        <div className="flex items-start gap-3">
+          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-50">
+            {quote?.imageUrl ? <Image src={quote.imageUrl} alt={quote.productName} fill sizes="80px" className="object-contain p-1" /> : <div className="flex h-full items-center justify-center"><PackageCheck className="h-7 w-7 text-slate-300" aria-hidden="true" /></div>}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-black text-slate-950">অর্ডারের সারাংশ</h2>
+            <p className="mt-1 text-sm font-bold leading-5 text-slate-800">{quote?.productName ?? 'আপনার পণ্য'}</p>
+            <p className="mt-0.5 break-words text-xs leading-5 text-slate-500">{quote?.variantTitle ?? 'নির্বাচিত ভ্যারিয়েন্ট'} · {quantity}টি</p>
+            {quote?.available === false && <p className="mt-1 text-xs font-bold text-rose-600">স্টকে নেই</p>}
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <span className="text-xs font-semibold text-slate-600">পরিমাণ</span>
+          <div className="flex items-center gap-3">
+            <button type="button" disabled={busy || quantity <= 1} aria-label="পরিমাণ কমান" onClick={() => setQuantity((value) => Math.max(1, value - 1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg font-bold disabled:opacity-40">−</button>
+            <span className="min-w-4 text-center text-sm font-black tabular-nums">{quantity.toLocaleString('bn-BD')}</span>
+            <button type="button" disabled={busy || quantity >= 10} aria-label="পরিমাণ বাড়ান" onClick={() => setQuantity((value) => Math.min(10, value + 1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg font-bold disabled:opacity-40">+</button>
+          </div>
+        </div>
+
+        <dl className="mt-4 space-y-3 text-sm">
+          <div className="flex items-center justify-between gap-3"><dt className="text-slate-600">পণ্যের মূল্য</dt><dd className="shrink-0 font-bold text-slate-900">{quote ? money(quote.subtotal) : '—'}</dd></div>
+          {quote && quote.discountTotal > 0 && <div className="flex items-center justify-between gap-3 text-emerald-700"><dt>আপনার সাশ্রয়</dt><dd className="shrink-0 font-semibold">{money(quote.discountTotal)}</dd></div>}
+          <div className="flex items-center justify-between gap-3"><dt className="text-slate-600">ডেলিভারি চার্জ</dt><dd className="shrink-0 font-bold text-slate-900">{selectedDeliveryCharge === null ? 'বিভাগ নির্বাচন করুন' : money(selectedDeliveryCharge)}</dd></div>
+          <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3"><dt className="font-black text-slate-950">সর্বমোট</dt><dd className="shrink-0 text-lg font-black text-emerald-800">{displayedTotal === null ? '—' : money(displayedTotal)}</dd></div>
+        </dl>
+        {quoteLoading && <p className="mt-3 text-xs text-slate-500">সঠিক মূল্য যাচাই হচ্ছে…</p>}
+        {quoteError && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-rose-700"><span>{quoteError}</span><button type="button" onClick={() => setQuoteAttempt((value) => value + 1)} className="min-h-10 rounded-lg px-2 underline underline-offset-2">আবার চেষ্টা করুন</button></div>}
+      </aside>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/98 px-3 pt-2.5 pb-[calc(.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-18px_rgba(15,23,42,.35)] backdrop-blur lg:static lg:col-span-2 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-0">
+        <button type="submit" disabled={busy || quoteLoading || !quote || !form.division || !quote.available || Boolean(quoteError)} className="mx-auto flex min-h-12 w-full max-w-6xl items-center justify-center gap-2 rounded-xl bg-[var(--brand-orange)] px-5 text-sm font-black text-slate-950 shadow-md transition hover:brightness-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:shadow-none">
+          {busy && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          {busy ? 'অর্ডার হচ্ছে...' : 'অর্ডার কনফার্ম করুন'}
+        </button>
+        {disabledReason && !busy && <p className="mx-auto mt-1.5 max-w-6xl text-center text-xs leading-5 text-slate-500">{disabledReason}</p>}
       </div>
-      <div className="rounded-[1.5rem] border border-slate-200 bg-white p-6">
-        <MapPin className="h-5 w-5 text-emerald-600" />
-        <p className="mt-4 font-black text-slate-950">Need help?</p>
-        <p className="mt-2 text-sm leading-6 text-slate-500">If you need assistance before ordering, contact SahiGadget. Never share card or payment credentials in this form.</p>
-      </div>
-    </aside>
-  </div>
+    </form>
+  </section>
 }
