@@ -1,0 +1,26 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm build",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "crons": [
+    { "path": "/api/cron/checkout-recovery", "schedule": "0 8 * * *" }
+  ],
+  "functions": {
+    "app/(storefront)/products/[slug]/page.tsx": {
+      "regions": [
+        "sin1"
+      ],
+      "functionFailoverRegions": [
+        "iad1"
+      ]
+    },
+    "app/(storefront)/order/page.tsx": {
+      "regions": [
+        "sin1"
+      ],
+      "functionFailoverRegions": [
+        "iad1"
+      ]
+    }
+  }
+}

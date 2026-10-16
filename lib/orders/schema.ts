@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isValidBangladeshMobile, normalizePhone } from '@/lib/orders/phone'
 
 const optionalText = z.string().trim().max(500).optional().or(z.literal(''))
 
@@ -10,14 +11,16 @@ export const orderSelectionSchema = z.object({
 
 export const customerDetailsSchema = z.object({
   fullName: z.string().trim().min(2, 'Please enter your full name.').max(120, 'Name is too long.'),
-  phone: z.string().trim().regex(/^(?:\+?88)?01[3-9]\d{8}$/, 'Enter a valid Bangladeshi mobile number.'),
+  phone: z.string().trim().transform(normalizePhone).refine(isValidBangladeshMobile, 'Enter a valid Bangladeshi mobile number.'),
   email: z.union([z.literal(''), z.string().trim().email('Enter a valid email address.')]).optional(),
 })
 
 export const deliveryDetailsSchema = z.object({
   division: z.string().trim().min(2, 'Select your division.').max(80),
-  district: z.string().trim().min(2, 'Enter your district.').max(80),
-  area: z.string().trim().min(2, 'Enter your area or upazila.').max(100),
+  // These legacy fields are optional in the customer form; the server derives
+  // them from the full address when the existing COD RPC requires them.
+  district: z.string().trim().min(2, 'Enter your district.').max(80).optional().or(z.literal('')),
+  area: z.string().trim().min(2, 'Enter your area or upazila.').max(100).optional().or(z.literal('')),
   address: z.string().trim().min(8, 'Enter your full delivery address.').max(500),
   postalCode: optionalText,
   notes: optionalText,
@@ -26,7 +29,7 @@ export const deliveryDetailsSchema = z.object({
 export const guestOrderInputSchema = orderSelectionSchema
   .merge(customerDetailsSchema)
   .merge(deliveryDetailsSchema)
-  .extend({ checkoutRequestId: z.string().uuid('Unable to verify this checkout request. Please try again.'), analyticsConsent: z.boolean().optional().default(false), marketingConsent: z.boolean().optional().default(false) })
+  .extend({ checkoutRequestId: z.string().uuid('Unable to verify this checkout request. Please try again.'), checkoutSource: z.enum(['QUICK_ORDER', 'LANDING_PAGE']).optional().default('QUICK_ORDER'), analyticsConsent: z.boolean().optional().default(false), marketingConsent: z.boolean().optional().default(false), expectedGrandTotal: z.number().finite().nonnegative().optional() })
 
 export const orderQuoteInputSchema = orderSelectionSchema.merge(z.object({
   division: z.string().trim().min(2, 'Select your division.').max(80),
@@ -34,7 +37,7 @@ export const orderQuoteInputSchema = orderSelectionSchema.merge(z.object({
 
 export const trackingLookupSchema = z.object({
   orderNumber: z.string().trim().regex(/^SG-\d{8}-[A-F0-9]{8}$/i, 'Enter the complete SahiGadget order number.'),
-  phone: z.string().trim().regex(/^(?:\+?88)?01[3-9]\d{8}$/, 'Enter the mobile number used for the order.'),
+  phone: z.string().trim().transform(normalizePhone).refine(isValidBangladeshMobile, 'Enter the mobile number used for the order.'),
 })
 
 export type GuestOrderInput = z.infer<typeof guestOrderInputSchema>
@@ -44,6 +47,8 @@ export type TrackingLookupInput = z.infer<typeof trackingLookupSchema>
 export type Quote = {
   productName: string
   variantTitle: string
+  color: string | null
+  imageUrl: string | null
   sku: string
   quantity: number
   unitPrice: number
@@ -53,6 +58,23 @@ export type Quote = {
   deliveryCharge: number
   grandTotal: number
   deliveryZone: 'dhaka' | 'outside_dhaka'
+  warrantyPolicy: string
+  available: boolean
+}
+
+export type DeliveryZonesQuote = {
+  productName: string
+  variantTitle: string
+  color: string | null
+  imageUrl: string | null
+  sku: string
+  quantity: number
+  unitPrice: number
+  compareAtPrice: number | null
+  discountTotal: number
+  subtotal: number
+  dhakaCharge: number
+  outsideDhakaCharge: number
   warrantyPolicy: string
   available: boolean
 }

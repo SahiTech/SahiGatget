@@ -2,54 +2,115 @@ import 'server-only'
 
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAnalyticsPersistenceAdapter } from './persistence'
+import { COMMERCE_EVENT_NAMES as COMMERCE_EVENTS, type CanonicalCommerceEvent, type CommerceEventName } from './types'
 
-export const COMMERCE_EVENTS = [
-  'CART_CREATED', 'CART_ITEM_ADDED', 'CART_ITEM_UPDATED', 'CART_ITEM_REMOVED', 'CHECKOUT_STARTED', 'CHECKOUT_QUOTED', 'CHECKOUT_ABANDONED', 'ORDER_COMPLETED', 'PAYMENT_INITIATED', 'PAYMENT_VERIFIED', 'PAYMENT_FAILED', 'RISK_ASSESSED', 'SHIPMENT_CREATED', 'SHIPMENT_TRACKED', 'RETURN_REQUESTED',
-  'page_view', 'view_item', 'view_item_list', 'search', 'select_item', 'add_to_cart', 'remove_from_cart', 'view_cart', 'begin_checkout', 'add_shipping_info', 'add_payment_info', 'purchase', 'refund', 'checkout_error', 'login', 'sign_up', 'generate_lead', 'contact', 'support_request', 'whatsapp_click', 'cart_created', 'cart_updated', 'cart_abandoned', 'cart_recovered', 'order_created', 'order_confirmed', 'order_cancelled', 'order_status_changed', 'checkout_started', 'checkout_progress', 'checkout_abandoned', 'checkout_recovered',
-] as const
-export type CommerceEventName = (typeof COMMERCE_EVENTS)[number]
+export { COMMERCE_EVENT_NAMES as COMMERCE_EVENTS } from './types'
+export type { CanonicalCommerceEvent, CommerceEventName } from './types'
 
-export type CanonicalCommerceEvent = {
-  eventId: string
-  eventName: CommerceEventName
-  eventVersion: '1.0'
-  occurredAt: string
-  sessionId: string | null
-  anonymousId: string | null
-  pageUrl: string | null
-  pagePath: string | null
-  referrer: string | null
-  source: string | null
-  medium: string | null
-  campaign: string | null
-  device: { type?: string; language?: string } | null
-  consent: { necessary: true; analytics: boolean; marketing: boolean }
-  commerce?: Record<string, unknown>
-  metadata?: Record<string, string | number | boolean | null>
-  testMode?: boolean
+const EMAIL_VALUE_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+const BANGLADESH_PHONE_PATTERN = /(?:\+?88)?01[3-9]\d{8}/
+
+function scrubSensitiveAnalyticsText(value: string, maxLength = 500) {
+  const sanitized = value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, maxLength)
+  // Do not send obvious customer contact details embedded in otherwise allowed
+  // analytics fields such as search terms, UTM values, or product labels.
+  if (EMAIL_VALUE_PATTERN.test(sanitized) || BANGLADESH_PHONE_PATTERN.test(sanitized)) return '[redacted]'
+  return sanitized
+}
+
+function sanitizeAnalyticsPath(value: string | null | undefined) {
+  if (!value) return null
+  const path = value.split(/[?#]/, 1)[0].slice(0, 500)
+  // Order verification URLs contain a private token in the path segment.
+  return path.replace(/(^|\/)verify-order\/[^/]+/i, '$1verify-order/[redacted]')
 }
 
 function scrubMetadata(input: Record<string, unknown> = {}) {
   const denied = /phone|email|address|password|token|secret|authorization|payment|notes?|message|cookie|ip|user.?agent/i
-  return Object.fromEntries(Object.entries(input).filter(([key]) => !denied.test(key)).map(([key, value]) => [key, typeof value === 'string' ? value.slice(0, 500) : value]).filter(([, value]) => value === null || ['string', 'number', 'boolean'].includes(typeof value))) as Record<string, string | number | boolean | null>
+  return Object.fromEntries(Object.entries(input).filter(([key]) => !denied.test(key)).map(([key, value]) => [key, typeof value === 'string' ? scrubSensitiveAnalyticsText(value) : value]).filter(([, value]) => value === null || ['string', 'number', 'boolean'].includes(typeof value))) as Record<string, string | number | boolean | null>
+}
+
+function sanitizeUrl(value: string | null | undefined, maxLength: number) {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    url.search = ''
+    url.hash = ''
+    url.pathname = sanitizeAnalyticsPath(url.pathname) || '/'
+    return url.toString().slice(0, maxLength)
+  } catch {
+    return sanitizeAnalyticsPath(value)
+  }
+}
+
+const COMMERCE_ALLOWED_KEYS = new Set([
+  'transaction_id', 'value', 'currency', 'tax', 'shipping', 'items',
+  'item_id', 'item_name', 'item_brand', 'item_category', 'price', 'quantity',
+  'content_ids', 'contents', 'content_type', 'search_term', 'list_name',
+  'item_count', 'source', 'status', 'error_category', 'test_mode',
+])
+
+const ITEM_ALLOWED_KEYS = new Set([
+  'item_id', 'item_name', 'item_brand', 'item_category', 'price', 'quantity',
+  'item_list_name', 'item_variant', 'item_category2', 'item_category3',
+  'item_category4', 'item_category5', 'index', 'discount', 'coupon',
+])
+
+const CONTENT_ALLOWED_KEYS = new Set(['id', 'quantity', 'item_price', 'price'])
+
+function scalar(value: unknown) {
+  return value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)) || typeof value === 'boolean'
+}
+
+function scrubRecordArray(value: unknown, allowed: Set<string>) {
+  if (!Array.isArray(value)) return []
+  return value
+    .slice(0, 50)
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null && !Array.isArray(item))
+    .map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => allowed.has(key) && scalar(item[key])).map(([key, itemValue]) => [key, typeof itemValue === 'string' ? scrubSensitiveAnalyticsText(itemValue, 200) : itemValue])))
 }
 
 export function sanitizeCommerceEvent(input: CanonicalCommerceEvent): CanonicalCommerceEvent {
-  return { ...input, pageUrl: input.pageUrl?.slice(0, 1000) ?? null, pagePath: input.pagePath?.slice(0, 500) ?? null, referrer: input.referrer?.slice(0, 1000) ?? null, source: input.source?.slice(0, 100) ?? null, medium: input.medium?.slice(0, 100) ?? null, campaign: input.campaign?.slice(0, 200) ?? null, metadata: scrubMetadata(input.metadata), commerce: input.commerce ? scrubCommerce(input.commerce) : undefined }
+  return {
+    ...input,
+    pageUrl: sanitizeUrl(input.pageUrl, 1000),
+    pagePath: sanitizeAnalyticsPath(input.pagePath),
+    referrer: sanitizeUrl(input.referrer, 1000),
+    source: input.source ? scrubSensitiveAnalyticsText(input.source, 100) : null,
+    medium: input.medium ? scrubSensitiveAnalyticsText(input.medium, 100) : null,
+    campaign: input.campaign ? scrubSensitiveAnalyticsText(input.campaign, 200) : null,
+    metadata: scrubMetadata(input.metadata),
+    commerce: input.commerce ? scrubCommerce(input.commerce) : undefined,
+  }
 }
 
 function scrubCommerce(input: Record<string, unknown>) {
-  const allowed = ['transaction_id', 'value', 'currency', 'tax', 'shipping', 'items', 'item_id', 'item_name', 'item_brand', 'item_category', 'price', 'quantity', 'content_ids', 'contents', 'content_type', 'search_term', 'list_name', 'item_count', 'source', 'status', 'error_category', 'test_mode']
-  return Object.fromEntries(Object.entries(input).filter(([key]) => allowed.includes(key)).map(([key, value]) => [key, Array.isArray(value) ? value.slice(0, 50) : value]))
+  return Object.fromEntries(
+    Object.entries(input)
+      .filter(([key]) => COMMERCE_ALLOWED_KEYS.has(key))
+      .map(([key, value]) => {
+        if (key === 'items') return [key, scrubRecordArray(value, ITEM_ALLOWED_KEYS)]
+        if (key === 'contents') return [key, scrubRecordArray(value, CONTENT_ALLOWED_KEYS)]
+        if (key === 'content_ids' && Array.isArray(value)) return [key, value.slice(0, 50).filter((item) => typeof item === 'string').map((item) => scrubSensitiveAnalyticsText(item, 200))]
+        if (scalar(value)) return [key, typeof value === 'string' ? scrubSensitiveAnalyticsText(value, 500) : value]
+        return [key, undefined]
+      })
+      .filter(([, value]) => value !== undefined),
+  )
 }
 
 export async function recordCommerceEvent(input: { eventId?: string; eventName: CommerceEventName; sessionId?: string | null; orderId?: string | null; cartId?: string | null; metadata?: Record<string, unknown> }) {
-  const db = createAdminClient()
+  const eventId = input.eventId ?? crypto.randomUUID()
   const metadata = scrubMetadata(input.metadata)
-  const { error } = await db.from('commerce_events').insert({ event_id: input.eventId ?? crypto.randomUUID(), event_name: input.eventName, session_id: input.sessionId ?? null, order_id: input.orderId ?? null, cart_id: input.cartId ?? null, metadata })
-  if (error?.code === '23505') return { ok: true, duplicate: true }
-  if (error) return { ok: false, duplicate: false }
-  return { ok: true, duplicate: false }
+  return getAnalyticsPersistenceAdapter().recordEvent({
+    eventId,
+    eventName: input.eventName,
+    sessionId: input.sessionId,
+    orderId: input.orderId,
+    cartId: input.cartId,
+    metadata,
+  })
 }
 
 export async function recordCanonicalEvent(input: CanonicalCommerceEvent & { orderId?: string | null; cartId?: string | null }) {
@@ -59,7 +120,11 @@ export async function recordCanonicalEvent(input: CanonicalCommerceEvent & { ord
 
 export async function recordPurchaseOnce(input: { orderId: string; orderNumber: string; value: number; items: Array<{ item_id: string; item_name: string; item_brand?: string; item_category?: string; price: number; quantity: number }>; sessionId?: string | null; cartId?: string | null; attribution?: Record<string, unknown>; consent?: { analytics: boolean; marketing: boolean } }) {
   try {
-    const event: CanonicalCommerceEvent & { orderId: string; cartId?: string | null } = { eventId: `purchase:${input.orderId}`, eventName: 'purchase', eventVersion: '1.0', occurredAt: new Date().toISOString(), sessionId: input.sessionId ?? null, anonymousId: null, pageUrl: null, pagePath: null, referrer: null, source: null, medium: null, campaign: null, device: null, consent: { necessary: true, analytics: input.consent?.analytics ?? false, marketing: input.consent?.marketing ?? false }, commerce: { transaction_id: input.orderNumber, value: input.value, currency: 'BDT', items: input.items, ...input.attribution }, orderId: input.orderId, cartId: input.cartId }
+    const itemValue = input.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    const { getAnalyticsConfig } = await import('./server')
+    const analyticsConfig = await getAnalyticsConfig()
+    const shipping = Math.max(input.value - itemValue, 0)
+    const event: CanonicalCommerceEvent & { orderId: string; cartId?: string | null } = { eventId: `purchase:${input.orderId}`, eventName: 'purchase', eventVersion: '1.0', occurredAt: new Date().toISOString(), sessionId: input.sessionId ?? null, anonymousId: null, pageUrl: null, pagePath: null, referrer: null, source: null, medium: null, campaign: null, device: null, consent: { necessary: true, analytics: input.consent?.analytics ?? false, marketing: input.consent?.marketing ?? false }, commerce: { transaction_id: input.orderNumber, value: input.value, shipping, currency: analyticsConfig.currency, items: input.items, ...input.attribution }, orderId: input.orderId, cartId: input.cartId }
     const persisted = await recordCanonicalEvent(event)
     if (!persisted.ok || persisted.duplicate) return persisted
     const { dispatchAnalyticsEvent } = await import('./server')
@@ -76,4 +141,24 @@ export async function markCheckoutSession(input: { checkoutRequestId: string; so
   return { ok: !error }
 }
 
-export const canonicalCommerceEventSchema = z.object({ eventId: z.string().uuid(), eventName: z.enum(COMMERCE_EVENTS), eventVersion: z.literal('1.0'), occurredAt: z.string(), sessionId: z.string().nullable(), anonymousId: z.string().nullable(), pageUrl: z.string().nullable(), pagePath: z.string().nullable(), referrer: z.string().nullable(), source: z.string().nullable(), medium: z.string().nullable(), campaign: z.string().nullable(), consent: z.object({ necessary: z.literal(true), analytics: z.boolean(), marketing: z.boolean() }), testMode: z.boolean().optional() }).passthrough()
+const analyticsRecordSchema = z.record(z.string(), z.unknown())
+
+export const canonicalCommerceEventSchema = z.object({
+  eventId: z.string().uuid(),
+  eventName: z.enum(COMMERCE_EVENTS),
+  eventVersion: z.literal('1.0'),
+  occurredAt: z.string().refine((value) => Number.isFinite(Date.parse(value)), 'Invalid event timestamp.'),
+  sessionId: z.string().uuid().nullable(),
+  anonymousId: z.string().uuid().nullable(),
+  pageUrl: z.string().max(1000).nullable(),
+  pagePath: z.string().max(500).nullable(),
+  referrer: z.string().max(1000).nullable(),
+  source: z.string().max(100).nullable(),
+  medium: z.string().max(100).nullable(),
+  campaign: z.string().max(200).nullable(),
+  device: z.object({ type: z.string().max(32).optional(), language: z.string().max(32).optional() }).nullable(),
+  consent: z.object({ necessary: z.literal(true), analytics: z.boolean(), marketing: z.boolean() }),
+  commerce: analyticsRecordSchema.optional(),
+  metadata: z.record(z.string(), z.union([z.string().max(500), z.number().finite(), z.boolean(), z.null()])).optional(),
+  testMode: z.boolean().optional(),
+}).strict()

@@ -1,10 +1,9 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CheckCircle2, LoaderCircle, ShieldCheck, Truck } from 'lucide-react'
-import { createGuestCodOrder, quoteGuestCodOrder } from '@/lib/orders/actions'
-import type { OrderSuccessSummary, Quote } from '@/lib/orders/schema'
+import dynamic from 'next/dynamic'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { BatteryCharging, Bluetooth, Camera, CircleCheck, Quote, Radio, ShieldCheck, Smartphone, Sparkles, Truck, UserRound } from 'lucide-react'
 import type { LandingSection } from '@/lib/landing-pages/types'
 import type { StorefrontProduct, StorefrontVariant } from '@/lib/services/storefront-utils'
 
@@ -15,6 +14,8 @@ function money(value: number | null | undefined) {
 function customerText(value: string | undefined) {
   if (!value) return value
   return value
+    .replace(/^\s*#{1,6}\s*/gm, '')
+    .replace(/^\s*[—–]\s*/gm, '')
     .replace(/server[- ]authoritative/gi, 'নিরাপদ')
     .replace(/live catalogue/gi, 'বর্তমান পণ্যের')
     .replace(/catalogue/gi, 'পণ্যের')
@@ -63,47 +64,104 @@ function primaryImage(product: StorefrontProduct) {
 function imageForVariant(product: StorefrontProduct, variant?: StorefrontVariant, overrideUrl?: string) {
   if (overrideUrl) return { image_url: overrideUrl, alt_text: product.name, is_primary: false } as StorefrontProduct['images'][number]
   if (!variant) return primaryImage(product)
+  const linkedImage = product.images.find((image) => image.variant_id === variant.id)
+  if (linkedImage) return linkedImage
   const tokens = [variant.color, variant.variant_title].filter(Boolean).join(' ').toLowerCase().split(/\s+|\//).filter((token) => token.length > 2)
   return product.images.find((image) => tokens.some((token) => `${image.alt_text ?? ''} ${image.image_url}`.toLowerCase().includes(token))) ?? primaryImage(product)
 }
 
-type FormState = {
-  fullName: string
-  phone: string
-  email: string
-  division: string
-  district: string
-  area: string
-  address: string
-}
-
-const initialForm: FormState = { fullName: '', phone: '', email: '', division: '', district: '', area: '', address: '' }
-
 function scrollToOrder() {
-  document.getElementById('order-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  document.getElementById('order-form')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
 }
 
-function ProductHero({ section, product, variant, fixedImageUrl }: { section?: Extract<LandingSection, { type: 'hero' }>; product?: StorefrontProduct; variant?: StorefrontVariant; fixedImageUrl?: string | null }) {
+function ProductHero({ section, product, variant, fixedImageUrl, onSelect }: { section?: Extract<LandingSection, { type: 'hero' }>; product?: StorefrontProduct; variant?: StorefrontVariant; fixedImageUrl?: string | null; onSelect: (id: string) => void }) {
+  const gallery = useMemo(() => {
+    if (!product) return []
+    const seen = new Set<string>()
+    return product.variants.map((candidate) => {
+      const image = imageForVariant(product, candidate) ?? imageForVariant(product, undefined, fixedImageUrl || section?.imageUrl)
+      if (!image || seen.has(image.image_url)) return null
+      seen.add(image.image_url)
+      return { variant: candidate, image }
+    }).filter((entry): entry is { variant: StorefrontVariant; image: StorefrontProduct['images'][number] } => Boolean(entry))
+  }, [product, fixedImageUrl, section?.imageUrl])
+  const [fallbackGalleryIndex, setFallbackGalleryIndex] = useState(0)
+  const selectedGalleryIndex = gallery.findIndex((entry) => entry.variant.id === variant?.id)
+  const activeGalleryIndex = selectedGalleryIndex >= 0 ? selectedGalleryIndex : fallbackGalleryIndex
+  const touchStartXRef = useRef(0)
   if (!product) return null
-  const image = imageForVariant(product, undefined, fixedImageUrl || section?.imageUrl) ?? primaryImage(product)
-  const title = customerText(section?.title) || product.name
-  const body = customerText(section?.body) || product.short_description || product.description
+  const active = selectedGalleryIndex >= 0 ? gallery[selectedGalleryIndex] : gallery[activeGalleryIndex]
+  const image = active?.image ?? imageForVariant(product, variant) ?? imageForVariant(product, undefined, fixedImageUrl || section?.imageUrl) ?? primaryImage(product)
+  const colorVariants = product.variants.filter((candidate, index, allVariants) => {
+    const color = (candidate.color ?? '').trim().toLowerCase()
+    return Boolean(color) && allVariants.findIndex((item) => (item.color ?? '').trim().toLowerCase() === color) === index
+  })
   const compareAt = variant?.compare_at_price && variant.price < variant.compare_at_price ? variant.compare_at_price : null
+  const colorDot = (color?: string | null) => {
+    const value = (color || '').toLowerCase()
+    if (/black|কালো/.test(value)) return '#171717'
+    if (/white|সাদা|silver|রূপালি/.test(value)) return '#e5e7eb'
+    if (/gold|সোনালি/.test(value)) return '#d6a84f'
+    if (/green|সবুজ/.test(value)) return '#16834a'
+    if (/blue|নীল/.test(value)) return '#2563eb'
+    if (/red|লাল/.test(value)) return '#dc2626'
+    if (/gray|grey|ধূসর/.test(value)) return '#9ca3af'
+    return '#0f766e'
+  }
+  const moveGallery = (direction: number) => {
+    if (gallery.length < 2) return
+    const next = (activeGalleryIndex + direction + gallery.length) % gallery.length
+    setFallbackGalleryIndex(next)
+    onSelect(gallery[next].variant.id)
+  }
   return <section className="overflow-hidden border-b border-emerald-100 bg-gradient-to-b from-emerald-50 via-white to-white">
-    <div className="mx-auto grid max-w-5xl items-center gap-6 px-4 py-5 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-12 lg:py-14">
-      <div className="relative mx-auto aspect-square w-full max-w-[30rem] overflow-hidden rounded-[1.75rem] bg-white shadow-sm ring-1 ring-emerald-100">
-        {image ? <Image src={image.image_url} alt={image.alt_text || product.name} fill priority className="object-contain p-3 sm:p-6" sizes="(max-width: 1024px) 92vw, 42vw" /> : null}
+    <div className="mx-auto grid max-w-5xl items-center gap-2 px-3 py-2 sm:gap-4 sm:px-6 sm:py-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-8 lg:py-7">
+      <div className="min-w-0">
+        <div className="relative mx-auto aspect-[5/4] w-full max-w-[23rem] overflow-hidden rounded-2xl border border-white bg-white shadow-[0_8px_24px_rgba(16,185,129,0.08)] ring-1 ring-emerald-100 sm:aspect-square sm:max-w-[30rem] sm:rounded-[1.5rem] sm:shadow-[0_16px_40px_rgba(16,185,129,0.10)]"
+          onTouchStart={(event) => { touchStartXRef.current = event.touches[0]?.clientX ?? 0 }}
+          onTouchEnd={(event) => { const delta = (event.changedTouches[0]?.clientX ?? touchStartXRef.current) - touchStartXRef.current; if (Math.abs(delta) > 42) moveGallery(delta < 0 ? 1 : -1) }}
+          aria-label="ফোনের রং সোয়াইপ করে দেখুন">
+          <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(167,243,208,0.45),transparent_60%)]" />
+          {image ? <Image key={image.image_url} src={image.image_url} alt={image.alt_text || product.name} fill preload fetchPriority="high" className="object-contain p-2 transition-opacity duration-300 sm:p-6" sizes="(max-width: 640px) 88vw, (max-width: 1024px) 92vw, 42vw" /> : null}
+          <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full border border-amber-300/90 bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-300 px-3 py-2 text-xs font-black text-orange-950 shadow-[0_6px_18px_rgba(217,119,6,0.28)] ring-1 ring-white/80"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> স্পেশাল অফার</div>
+          <div className="absolute bottom-3 right-3 rounded-2xl bg-slate-950 px-3.5 py-2.5 text-white shadow-lg"><p className="text-[10px] font-bold text-emerald-200">বর্তমান মূল্য</p><p className="text-lg font-black">{money(variant?.price)}</p></div>
+          {gallery.length > 1 ? <><button type="button" onClick={() => moveGallery(-1)} aria-label="আগের রং দেখুন" className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-lg font-black text-slate-800 shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2">‹</button><button type="button" onClick={() => moveGallery(1)} aria-label="পরের রং দেখুন" className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-lg font-black text-slate-800 shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2">›</button></> : null}
+        </div>
+        {colorVariants.length > 1 ? <div className="mx-auto mt-1.5 flex w-full max-w-[23rem] items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white px-3 py-1.5 sm:max-w-[30rem] sm:px-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-slate-500">রং নির্বাচন</p>
+            <p aria-live="polite" aria-atomic="true" className="truncate text-sm font-black text-slate-900">{variant?.color || active?.variant.color || 'রং বেছে নিন'}</p>
+          </div>
+          <div className="flex max-w-[58%] shrink-0 flex-wrap items-center justify-end gap-2 sm:max-w-[60%] lg:max-w-[62%]" role="group" aria-label="রং নির্বাচন করুন">
+            {colorVariants.map((candidate) => {
+              const color = (candidate.color ?? '').trim().toLowerCase()
+              const selected = Boolean(color && variant?.color && color === variant.color.trim().toLowerCase())
+              const darkCheck = /white|সাদা|silver|রূপালি|gold|সোনালি|gray|grey|ধূসর/.test(color)
+              return <button key={candidate.id} type="button" onClick={() => {
+                const matchingVariant = product.variants.find((item) =>
+                  (item.color ?? '').trim().toLowerCase() === color &&
+                  item.ram === variant?.ram &&
+                  item.storage === variant?.storage
+                ) ?? candidate
+                const galleryIndex = gallery.findIndex((entry) => entry.variant.id === matchingVariant.id)
+                if (galleryIndex >= 0) setFallbackGalleryIndex(galleryIndex)
+                onSelect(matchingVariant.id)
+              }} aria-label={`${candidate.color || candidate.variant_title || 'রং'} নির্বাচন করুন`} aria-pressed={selected} title={candidate.color || candidate.variant_title} className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${selected ? 'border-2 border-emerald-700 bg-emerald-50 ring-2 ring-emerald-600 ring-offset-2 shadow-[0_0_0_4px_rgba(16,185,129,0.10)]' : 'border border-slate-200 bg-white hover:border-slate-400'}`}>
+                <span className="relative flex h-6 w-6 items-center justify-center rounded-full border border-black/15 shadow-sm" style={{ backgroundColor: colorDot(candidate.color) }}>
+                  {selected ? <span aria-hidden="true" className={`text-[13px] font-black leading-none drop-shadow-sm ${darkCheck ? 'text-slate-900' : 'text-white'}`}>✓</span> : null}
+                </span>
+              </button>
+            })}
+          </div>
+        </div> : active?.variant.color ? <p className="mx-auto mt-3 max-w-[23rem] text-center text-sm font-bold text-slate-600 sm:max-w-[30rem]">{variant?.color ?? active?.variant.color}</p> : null}
       </div>
       <div className="min-w-0 lg:py-5">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">{product.brand?.name || 'SahiGadget'}</p>
-        <h1 className="mt-3 text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-5xl">{title}</h1>
-        {body ? <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">{body}</p> : null}
-        <div className="mt-5 flex flex-wrap items-end gap-x-3 gap-y-1">
-          <span className="text-3xl font-black text-emerald-700">{money(variant?.price)}</span>
-          {compareAt ? <span className="text-base font-semibold text-slate-400 line-through">{money(compareAt)}</span> : null}
-        </div>
-        <p className="mt-2 text-sm font-bold text-slate-600">{variant ? `${variantLabel(variant)} · ${variant.is_in_stock ? 'স্টকে আছে' : 'এই ভ্যারিয়েন্টটি বর্তমানে অনুপলব্ধ'}` : 'একটি ভ্যারিয়েন্ট নির্বাচন করুন'}</p>
-        <button type="button" onClick={scrollToOrder} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-7 py-3 text-base font-black text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 sm:w-auto">{customerText(section?.ctaLabel) || 'অর্ডার করুন'}</button>
+        <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-950 sm:text-5xl">{product.name}</h1>
+        <div className="mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-1"><span className="text-3xl font-black text-emerald-700">{money(variant?.price)}</span>{compareAt ? <span className="text-base font-semibold text-slate-400 line-through">{money(compareAt)}</span> : null}</div>
+        <p className="mt-1.5 text-sm font-bold text-slate-600">{variant ? `${variantLabel(variant)} · ${variant.is_in_stock ? 'স্টকে আছে' : 'এই ভ্যারিয়েন্টটি বর্তমানে অনুপলব্ধ'}` : 'একটি ভ্যারিয়েন্ট নির্বাচন করুন'}</p>
+        <div className="mt-2 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl border border-emerald-100 bg-white/90 px-2 py-2.5"><Truck className="mx-auto h-5 w-5 text-emerald-700" /><span className="mt-1.5 block text-[11px] font-bold text-slate-700">সারা দেশে ডেলিভারি</span></div><div className="rounded-xl border border-emerald-100 bg-white/90 px-2 py-3"><ShieldCheck className="mx-auto h-5 w-5 text-emerald-700" /><span className="mt-1.5 block text-[11px] font-bold text-slate-700">৭ দিনের গ্যারান্টি</span></div><div className="rounded-xl border border-emerald-100 bg-white/90 px-2 py-3"><CircleCheck className="mx-auto h-5 w-5 text-emerald-700" /><span className="mt-1.5 block text-[11px] font-bold text-slate-700">সহজ অর্ডার</span></div></div>
+        <button type="button" onClick={scrollToOrder} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-emerald-600 px-7 py-3 text-base font-black text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 sm:w-auto">অর্ডার করুন</button>
       </div>
     </div>
   </section>
@@ -113,7 +171,7 @@ function VariantSelector({ section, product, selectedVariantId, onSelect, quanti
   if (!product?.variants.length) return null
   const max = Math.min(maxQuantity, 10)
   return <section aria-labelledby={`${section.id}-title`} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-10 ${visibility(section)}`}>
-    <h2 id={`${section.id}-title`} className="text-2xl font-black tracking-tight text-slate-950">{customerText(section.title) || 'ভ্যারিয়েন্ট নির্বাচন করুন'}</h2>
+    <h2 id={`${section.id}-title`} className="text-2xl font-black tracking-tight text-slate-950">পছন্দের রংটি বেছে নিন</h2>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       {product.variants.map((variant) => {
         const image = imageForVariant(product, variant, section.variantImages?.[variant.id])
@@ -131,30 +189,115 @@ function VariantSelector({ section, product, selectedVariantId, onSelect, quanti
 }
 
 function TextSection({ section, title, tone = 'plain' }: { section: Extract<LandingSection, { type: 'delivery_info' | 'warranty' | 'trust' | 'social_proof' }>; title?: string; tone?: 'plain' | 'green' }) {
-  return <section className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 ${visibility(section)}`}><div className={`border-b border-slate-100 py-4 ${tone === 'green' ? 'bg-emerald-50 px-5' : ''}`}><h2 className="text-xl font-black tracking-tight text-slate-950">{customerText(title || section.title)}</h2>{'body' in section ? <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{customerText(section.body)}</p> : null}{'items' in section ? <ul className="mt-4 grid gap-2 sm:grid-cols-2">{section.items.map((item) => <li key={item} className="text-sm font-semibold text-slate-700">✓ {customerText(item)}</li>)}</ul> : null}{'disclaimer' in section && section.disclaimer ? <p className="mt-4 text-xs font-semibold text-slate-500">{customerText(section.disclaimer)}</p> : null}</div></section>
+  const isWarranty = section.type === 'warranty'
+  const isTrust = section.type === 'trust'
+  const sectionTitle = title || (isWarranty ? 'কেনাকাটায় নিশ্চিন্ত থাকুন' : isTrust ? 'অর্ডার করার আগে যা জানবেন' : section.title)
+  return <section className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 ${visibility(section)}`}>
+    <div className={`rounded-2xl border border-slate-200 p-4 sm:p-5 ${isWarranty || isTrust ? 'bg-gradient-to-br from-emerald-50 via-white to-white shadow-sm' : tone === 'green' ? 'border-emerald-100 bg-emerald-50/80' : 'bg-white'}`}>
+      <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{customerText(sectionTitle)}</h2>
+      {'body' in section ? <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{customerText(section.body)}</p> : null}
+      {'items' in section ? <ul className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">{section.items.map((item) => {
+        const label = customerText(item) || ''
+        const Icon = /ডেলিভারি|বাংলাদেশজুড়ে|সারা দেশে/.test(label) ? Truck : /মূল্য|স্টক|ভ্যারিয়েন্ট|খরচ|রিভিউ|অর্ডার নিশ্চিত|ক্যাশ অন ডেলিভারি/.test(label) ? CircleCheck : ShieldCheck
+        return <li key={item} className="flex min-w-0 items-start gap-3 rounded-xl border border-emerald-100/90 bg-white/90 px-3.5 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><Icon className="h-4 w-4" aria-hidden="true" /></span>
+          <span className="text-sm font-semibold leading-6 text-slate-700">{label.replace(/^✓\s*/, '')}</span>
+        </li>
+      })}</ul> : null}
+      {'disclaimer' in section && section.disclaimer ? <p className="mt-4 text-xs font-semibold text-slate-500">{customerText(section.disclaimer)}</p> : null}
+    </div>
+  </section>
 }
 
 function ReviewSection({ section }: { section: Extract<LandingSection, { type: 'social_proof' }> }) {
   const reviews = (section.reviews ?? []).filter((review) => review.enabled !== false).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
   if (!reviews.length) return null
-  return <section className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`} aria-labelledby={`${section.id}-title`}><h2 id={`${section.id}-title`} className="text-2xl font-black tracking-tight">{customerText(section.title)}</h2>{section.body ? <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">{customerText(section.body)}</p> : null}<div className="mt-5 grid gap-4 sm:grid-cols-2">{reviews.map((review) => <article key={`${review.name}-${review.text}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start gap-3">{review.imageUrl && review.imageEnabled !== false ? <Image src={review.imageUrl} alt={review.imageCaption || `${review.name} এর পর্যালোচনা ছবি`} width={48} height={48} className="h-12 w-12 rounded-full object-cover" loading="lazy" /> : null}<div><p className="font-black text-slate-950">{customerText(review.name)}</p>{review.rating ? <p className="mt-1 text-sm font-bold text-amber-600" aria-label={`${review.rating} out of 5`}>{'★'.repeat(review.rating)}<span className="sr-only"> / ৫</span></p> : null}</div></div><p className="mt-4 text-sm leading-7 text-slate-700">{customerText(review.text)}</p></article>)}</div>{section.disclaimer ? <p className="mt-4 text-xs font-semibold text-slate-500">{customerText(section.disclaimer)}</p> : null}</section>
+
+  // Hide the old builder placeholder copy, but continue to support meaningful custom copy on other pages.
+  const body = section.body?.trim()
+  const showBody = body && !/প্রকৃত ক্রেতাদের যাচাই করা অভিজ্ঞতা এখানে প্রকাশ করা হবে/.test(body)
+  const disclaimer = section.disclaimer?.trim()
+  const galleryImages = (section.galleryImages ?? []).filter(Boolean)
+  const showDisclaimer = disclaimer && !/প্রকাশের আগে প্রকৃত গ্রাহকের অনুমতি-সহ মতামত যোগ করুন/.test(disclaimer)
+
+  return <section className={`mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-8 ${visibility(section)}`} aria-labelledby={`${section.id}-title`}>
+    <header className="mb-4 flex flex-col gap-2.5 border-b border-emerald-100 pb-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+      <div className="min-w-0">
+        <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-extrabold text-emerald-800 sm:text-xs">
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          প্রকৃত ক্রেতাদের মতামত
+        </p>
+        <h2 id={`${section.id}-title`} className="text-2xl font-black leading-tight tracking-tight text-slate-950 sm:text-3xl">{customerText(section.title)}</h2>
+        {showBody ? <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-600">{customerText(body)}</p> : null}
+      </div>
+      <span className="inline-flex w-fit shrink-0 items-center rounded-full border border-emerald-100 bg-white px-3 py-1.5 text-xs font-bold text-slate-600">
+        {reviews.length.toLocaleString('bn-BD')}টি রিভিউ
+      </span>
+    </header>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {reviews.map((review) => {
+        const proofImage = galleryImages[reviews.indexOf(review)] ?? (review.imageUrl && review.imageEnabled !== false ? review.imageUrl : null)
+        return <article key={`${review.name}-${review.text}`} className="relative min-w-0 overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-white via-white to-emerald-50/70 p-4 shadow-[0_3px_16px_rgba(15,23,42,0.055)] transition-shadow duration-200 hover:shadow-md motion-reduce:transition-none sm:p-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-emerald-100 bg-emerald-50 text-emerald-700">
+              <UserRound className="h-5 w-5" strokeWidth={1.8} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="break-words text-sm font-black leading-snug text-slate-950 sm:text-base">{customerText(review.name)}</p>
+              {review.rating ? <p className="mt-1 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-sm font-bold tracking-wide text-amber-600" aria-label={`${review.rating} out of 5`}>{'★'.repeat(review.rating)}<span className="sr-only"> / ৫</span></p> : null}
+            </div>
+            <Quote className="h-5 w-5 shrink-0 self-start text-emerald-200" aria-hidden="true" />
+          </div>
+          <p className="mt-3 whitespace-pre-line break-words border-t border-emerald-100/80 pt-3 text-sm leading-6 text-slate-700 sm:leading-7">{customerText(review.text)}</p>
+          {proofImage ? <figure className="mt-3 overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50 p-1.5">
+            <div className="relative mx-auto aspect-[16/9] max-h-40 w-full overflow-hidden rounded-lg bg-white sm:max-h-44">
+              <Image src={proofImage} alt={review.imageCaption || `${review.name} এর ডেলিভারি প্রমাণ`} fill sizes="(max-width: 640px) 90vw, (max-width: 1024px) 44vw, 28vw" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none' }} className="object-contain" />
+            </div>
+            {review.imageCaption ? <figcaption className="px-1 pt-1.5 text-[11px] leading-4 text-slate-500">{customerText(review.imageCaption)}</figcaption> : null}
+          </figure> : null}
+        </article>
+      })}
+    </div>
+    {showDisclaimer ? <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">{customerText(disclaimer)}</p> : null}
+  </section>
+}
+function LandingOrderFormPlaceholder() {
+  return <section id="order-form" className="mx-auto max-w-5xl scroll-mt-4 px-4 py-8 sm:px-6" aria-busy="true">
+    <div className="min-h-48 animate-pulse rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-8">
+      <p className="sr-only">অর্ডার ফর্ম প্রস্তুত হচ্ছে</p>
+      <div className="h-6 w-40 rounded bg-slate-200" />
+      <div className="mt-4 h-12 rounded-xl bg-slate-200" />
+      <div className="mt-3 h-12 rounded-xl bg-slate-200" />
+    </div>
+  </section>
 }
 
-type OrderFormProps = { product: StorefrontProduct; variant: StorefrontVariant; quantity: number }
-function OrderForm({ product, variant, quantity }: OrderFormProps) {
-  const [form, setForm] = useState<FormState>(initialForm)
-  const [step, setStep] = useState<'details' | 'review' | 'success'>('details')
-  const [quote, setQuote] = useState<Quote | null>(null)
-  const [success, setSuccess] = useState<OrderSuccessSummary | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [message, setMessage] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [checkoutRequestId] = useState(() => crypto.randomUUID())
-  function update(name: keyof FormState, value: string) { setForm((current) => ({ ...current, [name]: value })); setFieldErrors((current) => ({ ...current, [name]: '' })); setMessage('') }
-  async function requestQuote() { setBusy(true); setMessage(''); const result = await quoteGuestCodOrder({ productId: product.id, variantId: variant.id, quantity, division: form.division }); setBusy(false); if (!result.ok) { setFieldErrors(result.fieldErrors ?? {}); setMessage(result.message); return } setQuote(result.data); setStep('review') }
-  async function submitOrder() { setBusy(true); setMessage(''); const result = await createGuestCodOrder({ ...form, productId: product.id, variantId: variant.id, quantity, checkoutRequestId }); setBusy(false); if (!result.ok) { setFieldErrors(result.fieldErrors ?? {}); setMessage(result.message); if (result.fieldErrors && Object.keys(result.fieldErrors).length) setStep('details'); return } setSuccess(result.data); setStep('success') }
-  if (step === 'success' && success) return <section id="order-form" className="mx-auto max-w-5xl scroll-mt-4 px-4 py-8 sm:px-6"><div role="status" className="border border-emerald-200 bg-emerald-50 p-6 sm:p-8"><CheckCircle2 className="h-8 w-8 text-emerald-700" /><h2 className="mt-4 text-2xl font-black text-slate-950">অর্ডার সফল হয়েছে</h2><p className="mt-2 text-sm leading-7 text-slate-700">আপনার অর্ডার নম্বর <strong>{success.orderNumber}</strong>। আমাদের টিম আপনার সঙ্গে যোগাযোগ করবে।</p><dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-slate-500">পণ্য</dt><dd className="font-bold text-slate-950">{success.items[0]?.productName}</dd></div><div><dt className="text-slate-500">মোট</dt><dd className="font-bold text-slate-950">{money(success.grandTotal)}</dd></div></dl></div></section>
-  return <section id="order-form" className="mx-auto max-w-5xl scroll-mt-4 px-4 py-8 sm:px-6"><div className="border border-slate-200 bg-white p-5 shadow-sm sm:p-8"><div className="flex items-start gap-3"><Truck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><h2 className="text-2xl font-black text-slate-950">অর্ডার ফর্ম</h2><p className="mt-1 text-sm leading-6 text-slate-600">ক্যাশ অন ডেলিভারি। পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন।</p></div></div>{message ? <div role="alert" className="mt-5 border border-rose-200 bg-rose-50 p-4 text-sm font-semibold leading-6 text-rose-700">{message}</div> : null}{step === 'details' ? <div className="mt-6 space-y-5"><div className="grid gap-4 sm:grid-cols-2"><label className="block"><span className="text-sm font-bold text-slate-800">আপনার নাম</span><input value={form.fullName} onChange={(e) => update('fullName', e.target.value)} className="mt-2 h-12 w-full border border-slate-200 bg-white px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" autoComplete="name" />{fieldErrors.fullName ? <small className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.fullName}</small> : null}</label><label className="block"><span className="text-sm font-bold text-slate-800">মোবাইল নম্বর</span><input value={form.phone} onChange={(e) => update('phone', e.target.value)} className="mt-2 h-12 w-full border border-slate-200 bg-white px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" />{fieldErrors.phone ? <small className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.phone}</small> : null}</label></div><label className="block"><span className="text-sm font-bold text-slate-800">ইমেইল <em className="text-xs font-normal text-slate-400">ঐচ্ছিক</em></span><input value={form.email} onChange={(e) => update('email', e.target.value)} className="mt-2 h-12 w-full border border-slate-200 bg-white px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" type="email" autoComplete="email" />{fieldErrors.email ? <small className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.email}</small> : null}</label><div className="grid gap-4 sm:grid-cols-3"><label className="block"><span className="text-sm font-bold text-slate-800">বিভাগ</span><input value={form.division} onChange={(e) => update('division', e.target.value)} className="mt-2 h-12 w-full border border-slate-200 bg-white px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="ঢাকা" />{fieldErrors.division ? <small className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.division}</small> : null}</label><label className="block"><span className="text-sm font-bold text-slate-800">জেলা</span><input value={form.district} onChange={(e) => update('district', e.target.value)} className="mt-2 h-12 w-full border border-slate-200 bg-white px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="জেলা" />{fieldErrors.district ? <small className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.district}</small> : null}</label><label className="block"><span className="text-sm font-bold text-slate-800">এলাকা</span><input value={form.area} onChange={(e) => update('area', e.target.value)} className="mt-2 h-12 w-full border border-slate-200 bg-white px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="এলাকা / উপজেলা" />{fieldErrors.area ? <small className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.area}</small> : null}</label></div><label className="block"><span className="text-sm font-bold text-slate-800">সম্পূর্ণ ঠিকানা</span><textarea value={form.address} onChange={(e) => update('address', e.target.value)} rows={3} className="mt-2 w-full border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="বাড়ি, রোড, এলাকা ও ল্যান্ডমার্ক" />{fieldErrors.address ? <small className="mt-1 block text-xs font-bold text-rose-600">{fieldErrors.address}</small> : null}</label><div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-5"><div><p className="font-black text-slate-950">{product.name}</p><p className="mt-1 text-xs text-slate-500">{variantLabel(variant)} · {quantity}টি</p></div><button type="button" disabled={busy} onClick={requestQuote} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-6 py-3 text-sm font-black text-white disabled:opacity-60">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}পরবর্তী ধাপ</button></div></div> : <div className="mt-6"><div className="border border-slate-200 bg-slate-50 p-5"><div className="flex items-start justify-between gap-4"><div><p className="font-black text-slate-950">{quote?.productName}</p><p className="mt-1 text-xs text-slate-500">{quote?.variantTitle} · {quantity}টি</p></div><ShieldCheck className="h-5 w-5 text-emerald-600" /></div><dl className="mt-5 space-y-3 text-sm"><div className="flex justify-between"><dt className="text-slate-500">পণ্যের মূল্য</dt><dd className="font-bold">{money(quote?.subtotal)}</dd></div><div className="flex justify-between"><dt className="text-slate-500">ডেলিভারি</dt><dd className="font-bold">{money(quote?.deliveryCharge)}</dd></div><div className="flex justify-between border-t border-slate-200 pt-3"><dt className="font-black">সর্বমোট</dt><dd className="font-black text-emerald-700">{money(quote?.grandTotal)}</dd></div></dl></div><div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row"><button type="button" disabled={busy} onClick={() => setStep('details')} className="inline-flex min-h-12 items-center justify-center gap-2 border border-slate-300 px-6 py-3 text-sm font-black text-slate-700 disabled:opacity-60"><ArrowLeft className="h-4 w-4" />তথ্য সম্পাদনা</button><button type="button" disabled={busy} onClick={submitOrder} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 bg-emerald-600 px-6 py-3 text-sm font-black text-white disabled:opacity-60">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}অর্ডার নিশ্চিত করুন</button></div><p className="mt-4 text-center text-xs leading-5 text-slate-500">অর্ডার নিশ্চিত করার আগে মূল্য, ডেলিভারি ও পণ্যের প্রাপ্যতা যাচাই করা হবে।</p></div>}</div></section>
+const LazyLandingOrderForm = dynamic(() => import('./landing-order-form').then((module) => module.LandingOrderForm), {
+  ssr: false,
+  loading: () => <LandingOrderFormPlaceholder />,
+})
+
+function DeferredOrderForm({ product, variant, quantity }: { product: StorefrontProduct; variant: StorefrontVariant; quantity: number }) {
+  const [loadForm, setLoadForm] = useState(false)
+  useEffect(() => {
+    if (loadForm) return
+    if (typeof IntersectionObserver === 'undefined') {
+      const frame = window.requestAnimationFrame(() => setLoadForm(true))
+      return () => window.cancelAnimationFrame(frame)
+    }
+    const target = document.getElementById('order-form')
+    if (!target) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setLoadForm(true)
+        observer.disconnect()
+      }
+    }, { rootMargin: '480px 0px' })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [loadForm])
+  if (!loadForm) return <LandingOrderFormPlaceholder />
+  return <LazyLandingOrderForm product={product} variant={variant} quantity={quantity} />
 }
 
 export function LandingConversionSections({ sections, products, fixedImageUrl }: { sections: LandingSection[]; products: StorefrontProduct[]; fixedImageUrl?: string | null }) {
@@ -166,23 +309,58 @@ export function LandingConversionSections({ sections, products, fixedImageUrl }:
   const [showSticky, setShowSticky] = useState(false)
   const selectedVariant = useMemo(() => selectedProduct?.variants.find((variant) => variant.id === selectedVariantId) ?? firstAvailable, [selectedProduct, selectedVariantId, firstAvailable])
   const renderSections = useMemo(() => {
-    const withoutOrders: LandingSection[] = sections.filter((section) => section.type !== 'order' && section.type !== 'quantity_selector')
+    const sectionOrder: Record<string, number> = {
+      hero: 0,
+      announcement: 5,
+      features: 10,
+      benefits: 10,
+      variant_selector: 20,
+      order: 30,
+      delivery_info: 40,
+      specifications: 50,
+      warranty: 60,
+      trust: 65,
+      social_proof: 70,
+      faq: 80,
+      rich_text: 85,
+      cta: 90,
+      quantity_selector: 95,
+    }
+    const orderedSections: LandingSection[] = sections
+      .filter((section) => section.type !== 'order' && section.type !== 'quantity_selector')
+      .sort((a, b) => (sectionOrder[a.type] ?? 55) - (sectionOrder[b.type] ?? 55))
     const orders = sections.filter((section): section is Extract<LandingSection, { type: 'order' }> => section.type === 'order' && section.enabled !== false)
-    if (!orders.length) return withoutOrders
-    const anchorIndexes = withoutOrders.map((section, index) => (section.type === 'variant_selector' ? index : -1)).filter((index) => index >= 0)
-    const heroIndex = withoutOrders.findIndex((section) => section.type === 'hero')
-    const insertAt = (anchorIndexes.length ? Math.max(...anchorIndexes) : heroIndex) + 1
-    withoutOrders.splice(Math.max(0, insertAt), 0, ...orders)
-    return withoutOrders
+    if (!orders.length) return orderedSections
+    const variantIndex = orderedSections.findIndex((section) => section.type === 'variant_selector')
+    const featureIndexes = orderedSections.map((section, index) => (section.type === 'features' || section.type === 'benefits' ? index : -1)).filter((index) => index >= 0)
+    const heroIndex = orderedSections.findIndex((section) => section.type === 'hero')
+    const insertAt = variantIndex >= 0
+      ? variantIndex + 1
+      : featureIndexes.length
+        ? Math.max(...featureIndexes) + 1
+        : Math.max(0, heroIndex + 1)
+    orderedSections.splice(insertAt, 0, ...orders)
+    return orderedSections
   }, [sections])
-  useEffect(() => { const onScroll = () => setShowSticky(window.scrollY > 420); window.addEventListener('scroll', onScroll, { passive: true }); return () => window.removeEventListener('scroll', onScroll) }, [])
+  useEffect(() => {
+    let lastVisibility = false
+    const updateStickyVisibility = () => {
+      const nextVisibility = window.scrollY > 420
+      if (nextVisibility === lastVisibility) return
+      lastVisibility = nextVisibility
+      setShowSticky(nextVisibility)
+    }
+    updateStickyVisibility()
+    window.addEventListener('scroll', updateStickyVisibility, { passive: true })
+    return () => window.removeEventListener('scroll', updateStickyVisibility)
+  }, [])
   if (!selectedProduct || !selectedVariant) return <div className="mx-auto max-w-2xl px-4 py-16 text-center text-slate-600">এই পণ্যটি বর্তমানে পাওয়া যাচ্ছে না।</div>
-  return <div className="min-h-screen overflow-x-clip bg-white pb-24 text-slate-950"><ProductHero section={hero} product={selectedProduct} variant={selectedVariant} fixedImageUrl={fixedImageUrl} />
+  return <div className="min-h-screen overflow-x-clip bg-white pb-0 text-slate-950"><ProductHero section={hero} product={selectedProduct} variant={selectedVariant} fixedImageUrl={fixedImageUrl} onSelect={setSelectedVariantId} />
     {renderSections.map((section) => {
       if (section.enabled === false || section.type === 'hero' || section.type === 'product' || section.type === 'announcement' || section.type === 'offer' || section.type === 'countdown' || section.type === 'product_gallery' || section.type === 'related_products' || section.type === 'sticky_mobile_cta') return null
       if (section.type === 'variant_selector') { const quantitySection = sections.find((candidate): candidate is Extract<LandingSection, { type: 'quantity_selector' }> => candidate.type === 'quantity_selector'); return <VariantSelector key={section.id} section={section} product={selectedProduct} selectedVariantId={selectedVariantId} onSelect={setSelectedVariantId} quantity={quantity} onChange={setQuantity} maxQuantity={quantitySection?.maxQuantity ?? 10} /> }
       if (section.type === 'quantity_selector') return null
-      if (section.type === 'features' || section.type === 'benefits') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{customerText(section.title)}</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{section.items.filter((item) => item.enabled !== false).map((item) => <article key={item.title} className="border-b border-slate-100 py-3"><h3 className="font-bold">{customerText(item.title)}</h3>{item.body ? <p className="mt-1 text-sm leading-6 text-slate-600">{customerText(item.body)}</p> : null}</article>)}</div></section>
+      if (section.type === 'features' || section.type === 'benefits') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-5 sm:px-6 sm:py-7 ${visibility(section)}`}><div><p className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">দৈনন্দিন ব্যবহারে</p><h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">{customerText(section.title)}</h2></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">{section.items.filter((item) => item.enabled !== false && !(selectedProduct.name.toLowerCase().includes('nokia 6310') && /কীপ্যাড|keypad|প্রয়োজনীয় কানেক্টিভিটি|কানেক্টিভিটি|connectivity/i.test(item.title))).map((item) => { const label = item.title.toLowerCase(); const Icon = /ব্যাটারি|battery|চার্জ/.test(label) ? BatteryCharging : /bluetooth|ব্লুটুথ|কানেক্টিভিটি/.test(label) ? Bluetooth : /camera|ক্যামেরা/.test(label) ? Camera : /radio|রেডিও|fm/.test(label) ? Radio : /ডিসপ্লে|display|screen|স্ক্রিন/.test(label) ? Smartphone : CircleCheck; return <article key={item.title} className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"><Icon className="h-4 w-4" /></span><h3 className="min-w-0 text-sm font-bold leading-snug text-slate-950">{customerText(item.title)}</h3></article> })}</div></section>
       if (section.type === 'specifications') { const fields = section.fields.filter((field) => field.enabled !== false && field.value.trim()); if (!fields.length) return null; return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><details className="group rounded-2xl border border-slate-200 bg-white shadow-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-xl font-black tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:px-6"><span>{customerText(section.title) || 'পণ্যের বিস্তারিত'}</span><span aria-hidden="true" className="text-2xl leading-none text-emerald-700 transition-transform group-open:rotate-45">+</span></summary><dl className="grid gap-x-8 border-t border-slate-100 px-5 pb-4 sm:grid-cols-2 sm:px-6">{fields.map((field) => <div key={field.label} className="flex justify-between gap-4 border-b border-slate-100 py-3 text-sm"><dt className="font-semibold text-slate-500">{customerText(field.label)}</dt><dd className="text-right font-bold">{customerText(field.value)}</dd></div>)}</dl></details></section> }
       if (section.type === 'social_proof') return <ReviewSection key={section.id} section={section} />
       if (section.type === 'delivery_info' || section.type === 'warranty' || section.type === 'trust') return <TextSection key={section.id} section={section} tone={section.type === 'delivery_info' ? 'green' : 'plain'} title={section.type === 'delivery_info' ? 'ডেলিভারি ও পেমেন্ট' : undefined} />
@@ -194,7 +372,7 @@ export function LandingConversionSections({ sections, products, fixedImageUrl }:
       ] : section.items.filter((item) => item.enabled !== false).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)); if (!items.length) return null; return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black tracking-tight">{customerText(section.title) || 'সাধারণ জিজ্ঞাসা'}</h2><div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">{items.map((item) =>
  <details key={item.question} className="py-4"><summary className="cursor-pointer pr-6 font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{customerText(item.question)}</summary><p className="mt-3 text-sm leading-7 text-slate-600">{customerText(item.answer)}</p></details>)}</div></section> }
       if (section.type === 'rich_text') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black">{customerText(section.title)}</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{customerText(section.body)}</p></section>
-      if (section.type === 'order') return <OrderForm key={section.id} product={selectedProduct} variant={selectedVariant} quantity={quantity} />
+      if (section.type === 'order') return <DeferredOrderForm key={section.id} product={selectedProduct} variant={selectedVariant} quantity={quantity} />
       if (section.type === 'cta') return <section key={section.id} className={`mx-auto max-w-5xl px-4 py-7 text-center sm:px-6 ${visibility(section)}`}><h2 className="text-2xl font-black">{customerText(section.title)}</h2>{section.body ? <p className="mt-2 text-sm leading-7 text-slate-600">{customerText(section.body)}</p> : null}<button type="button" onClick={scrollToOrder} className="mt-4 inline-flex min-h-12 items-center rounded-xl bg-emerald-600 px-7 py-3 text-sm font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{customerText(section.label)}</button></section>
       return null
     })}

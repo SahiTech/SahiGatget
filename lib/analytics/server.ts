@@ -1,25 +1,105 @@
 import 'server-only'
 
+import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { recordCanonicalEvent, type CanonicalCommerceEvent } from './events'
+import { ANALYTICS_EVENT_MAP } from './registry'
+import { ANALYTICS_PROVIDER_ADAPTERS, type AnalyticsProviderId } from './provider-adapters'
+import { ensureDeliveryLedgerEntry, recordDeliveryResult } from './delivery-ledger'
+import { DEFAULT_ANALYTICS_PROJECT_CONFIG, normalizeAnalyticsCurrency, normalizeAnalyticsProjectKey } from './project-config'
 
-export type AnalyticsConfig = { enabled: boolean; marketingEnabled: boolean; consentMode: 'basic' | 'advanced'; debugMode: boolean; ga4MeasurementId: string; gtmContainerId: string; metaPixelId: string; metaCapiEnabled: boolean; serverGtmEndpoint: string; environment: 'development' | 'preview' | 'production'; eventControls: Record<string, boolean> }
-export const DEFAULT_ANALYTICS_CONFIG: AnalyticsConfig = { enabled: false, marketingEnabled: false, consentMode: 'advanced', debugMode: false, ga4MeasurementId: '', gtmContainerId: '', metaPixelId: '', metaCapiEnabled: false, serverGtmEndpoint: '', environment: process.env.VERCEL_ENV === 'production' ? 'production' : process.env.VERCEL_ENV === 'preview' ? 'preview' : 'development', eventControls: {} }
+export type AnalyticsConfig = { projectKey: string; currency: string; enabled: boolean; marketingEnabled: boolean; consentMode: 'basic' | 'advanced'; debugMode: boolean; ga4MeasurementId: string; gtmContainerId: string; metaPixelId: string; metaCapiEnabled: boolean; tiktokPixelId: string; tiktokEventsApiEnabled: boolean; serverGtmEnabled: boolean; serverGtmEndpoint: string; environment: 'development' | 'preview' | 'production'; eventControls: Record<string, boolean> }
+export const DEFAULT_ANALYTICS_CONFIG: AnalyticsConfig = { ...DEFAULT_ANALYTICS_PROJECT_CONFIG, enabled: false, marketingEnabled: false, consentMode: 'advanced', debugMode: false, ga4MeasurementId: '', gtmContainerId: '', metaPixelId: '', metaCapiEnabled: false, tiktokPixelId: '', tiktokEventsApiEnabled: false, serverGtmEnabled: false, serverGtmEndpoint: '', environment: process.env.VERCEL_ENV === 'production' ? 'production' : process.env.VERCEL_ENV === 'preview' ? 'preview' : 'development', eventControls: {} }
 
-async function readConfig(): Promise<AnalyticsConfig> { try { const db = createAdminClient(); const { data } = await db.from('settings').select('value').eq('key', 'analytics_config').maybeSingle(); const stored = (data?.value as Partial<AnalyticsConfig> | null) || {}; return { ...DEFAULT_ANALYTICS_CONFIG, ...stored, eventControls: { ...DEFAULT_ANALYTICS_CONFIG.eventControls, ...(stored.eventControls || {}) }, environment: DEFAULT_ANALYTICS_CONFIG.environment } } catch { return DEFAULT_ANALYTICS_CONFIG } }
-export async function getAnalyticsConfig() { return readConfig() }
+export function safeAnalyticsConfigForEnvironment(config: AnalyticsConfig, environment: AnalyticsConfig['environment']): AnalyticsConfig {
+  if (environment === 'production') return { ...config, environment }
 
-async function postJson(url: string, body: unknown, headers: Record<string, string> = {}) { for (let attempt = 0; attempt < 2; attempt += 1) { const started = Date.now(); const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 3500); try { const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body), signal: controller.signal, cache: 'no-store' }); const latency = Date.now() - started; if (response.ok) return { ok: true, latency }; if (response.status < 500) return { ok: false, latency, category: 'HTTP_ERROR' } } catch (error) { const latency = Date.now() - started; if (attempt === 1) return { ok: false, latency, category: error instanceof Error && error.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR' } } finally { clearTimeout(timer) } } return { ok: false, category: 'RETRY_EXHAUSTED' } }
-
-function ga4Payload(event: CanonicalCommerceEvent) { return { client_id: event.anonymousId || event.sessionId || event.eventId, events: [{ name: event.eventName.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase(), params: { ...event.commerce, event_id: event.eventId, engagement_time_msec: 1 } }] } }
-function metaPayload(event: CanonicalCommerceEvent) { return { data: [{ event_name: event.eventName, event_time: Math.floor(new Date(event.occurredAt).getTime() / 1000), event_id: event.eventId, action_source: 'website', user_data: {}, custom_data: event.commerce || {} }] } }
-
-export async function dispatchAnalyticsEvent(event: CanonicalCommerceEvent) { const config = await readConfig(); if (!config.enabled || config.eventControls[event.eventName] === false || !event.consent.analytics || (event.testMode !== true && config.environment === 'development' && !config.debugMode)) return { ok: true, skipped: true, destinations: [] as string[] }; const deliveries: Array<{ destination: string; ok: boolean; category?: string; latency?: number }> = []; const destinations: Promise<void>[] = []
-  const ga4Secret = process.env.GA4_API_SECRET
-  if (config.ga4MeasurementId && ga4Secret) destinations.push(postJson(`https://www.google-analytics.com/mp/collect?measurement_id=${encodeURIComponent(config.ga4MeasurementId)}&api_secret=${encodeURIComponent(ga4Secret)}`, ga4Payload(event)).then((result) => { deliveries.push({ destination: 'GA4', ...result }) }))
-  if (config.marketingEnabled && event.consent.marketing && config.metaCapiEnabled && process.env.META_CAPI_ACCESS_TOKEN && config.metaPixelId) destinations.push(postJson(`https://graph.facebook.com/v20.0/${encodeURIComponent(config.metaPixelId)}/events?access_token=${encodeURIComponent(process.env.META_CAPI_ACCESS_TOKEN)}`, metaPayload(event)).then((result) => { deliveries.push({ destination: 'META_CAPI', ...result }) }))
-  if (config.serverGtmEndpoint) destinations.push(postJson(config.serverGtmEndpoint, { ...event, destination: 'SERVER_GTM' }).then((result) => { deliveries.push({ destination: 'SERVER_GTM', ...result }) }))
-  await Promise.allSettled(destinations); return { ok: deliveries.every((item) => item.ok), skipped: false, deliveries }
+  // Preview/local deployments share the production settings database. Never
+  // expose live production pixel IDs or allow their events to be dispatched.
+  return {
+    ...config,
+    environment,
+    enabled: false,
+    marketingEnabled: false,
+    ga4MeasurementId: '',
+    gtmContainerId: '',
+    metaPixelId: '',
+    metaCapiEnabled: false,
+    tiktokPixelId: '',
+    tiktokEventsApiEnabled: false,
+    serverGtmEnabled: false,
+    serverGtmEndpoint: '',
+  }
 }
 
-export async function trackServerCommerceEvent(input: CanonicalCommerceEvent & { orderId?: string | null; cartId?: string | null }) { try { const persisted = await recordCanonicalEvent(input); if (!persisted.ok || persisted.duplicate) return { ...persisted, deliveries: [] }; return { ...persisted, ...(await dispatchAnalyticsEvent(input)) } } catch { return { ok: true, skipped: true, deliveries: [] } } }
+const readStoredConfig = unstable_cache(async (): Promise<Partial<AnalyticsConfig>> => {
+  try {
+    const db = createAdminClient()
+    const { data } = await db.from('settings').select('value').eq('key', 'analytics_config').maybeSingle()
+    return (data?.value as Partial<AnalyticsConfig> | null) || {}
+  } catch {
+    return {}
+  }
+}, ['analytics-config-stored-v1'], { revalidate: 60, tags: ['analytics-config'] })
+
+export async function getAnalyticsConfig() {
+  const stored = await readStoredConfig()
+  const candidate: AnalyticsConfig = {
+    ...DEFAULT_ANALYTICS_CONFIG,
+    ...stored,
+    projectKey: normalizeAnalyticsProjectKey(stored.projectKey),
+    currency: normalizeAnalyticsCurrency(stored.currency),
+    eventControls: { ...DEFAULT_ANALYTICS_CONFIG.eventControls, ...(stored.eventControls || {}) },
+    environment: DEFAULT_ANALYTICS_CONFIG.environment,
+  }
+  // Apply deployment-specific safety after the shared cached DB read: a Preview
+  // deployment must never inherit a cached Production destination configuration.
+  return safeAnalyticsConfigForEnvironment(candidate, DEFAULT_ANALYTICS_CONFIG.environment)
+}
+export async function dispatchAnalyticsEvent(event: CanonicalCommerceEvent) {
+  const config = await getAnalyticsConfig()
+  const definition = ANALYTICS_EVENT_MAP[event.eventName]
+  const allows = (provider: AnalyticsProviderId) => Boolean(definition?.providers.includes(provider))
+  const masterAllowed = config.enabled &&
+    (definition?.required || config.eventControls[event.eventName] !== false) &&
+    (event.consent.analytics || event.consent.marketing || event.testMode === true) &&
+    !(config.environment === 'development' && !config.debugMode)
+
+  if (!masterAllowed) return { ok: true, skipped: true, destinations: [] as string[] }
+
+  const adapters = Object.values(ANALYTICS_PROVIDER_ADAPTERS).filter((adapter) => allows(adapter.id) && adapter.canDispatch(event, config))
+  const reservations = await Promise.all(adapters.map(async (adapter) => ({
+    adapter,
+    reservation: await ensureDeliveryLedgerEntry(event, adapter.id),
+  })))
+  const leased = reservations.filter(({ reservation }) => Boolean(reservation?.leaseToken))
+
+  const deliveries = await Promise.all(leased.map(async ({ adapter, reservation }) => {
+    const leaseToken = reservation?.leaseToken || null
+    try {
+      const result = await adapter.dispatch(event, config)
+      await recordDeliveryResult(event, adapter.id, result, leaseToken)
+      return { destination: adapter.id, ...result }
+    } catch (error) {
+      const result = {
+        ok: false,
+        latency: 0,
+        category: 'NETWORK_ERROR' as const,
+        attempts: 0,
+        responseBody: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+      }
+      await recordDeliveryResult(event, adapter.id, result, leaseToken)
+      return { destination: adapter.id, ...result }
+    }
+  }))
+
+  return {
+    ok: deliveries.every((item) => item.ok),
+    skipped: false,
+    deliveries,
+    destinations: leased.map(({ adapter }) => adapter.id),
+  }
+}
+
+export async function trackServerCommerceEvent(input: CanonicalCommerceEvent & { orderId?: string | null; cartId?: string | null }) { try { const persisted = await recordCanonicalEvent(input); if (!persisted.ok || persisted.duplicate) return { ...persisted, deliveries: [] }; return { ...persisted, ...(await dispatchAnalyticsEvent(input)) } } catch { return { ok: true, skipped: true, deliveries: [] } }
+}

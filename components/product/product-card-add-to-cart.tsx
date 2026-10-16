@@ -14,6 +14,7 @@ export function ProductCardAddToCart({ product }: { product: StorefrontProduct }
   async function handleAdd() {
     if (!variant || busy) return
 
+    window.dispatchEvent(new Event('sahigadget:cart-pending'))
     setBusy(true)
     setAdded(false)
 
@@ -26,8 +27,13 @@ export function ProductCardAddToCart({ product }: { product: StorefrontProduct }
 
       if (result.ok) {
         setAdded(true)
+        window.dispatchEvent(new Event('sahigadget:cart-updated'))
         window.setTimeout(() => setAdded(false), 1800)
+      } else {
+        window.dispatchEvent(new Event('sahigadget:cart-error'))
       }
+    } catch {
+      window.dispatchEvent(new Event('sahigadget:cart-error'))
     } finally {
       setBusy(false)
     }

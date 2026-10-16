@@ -4,6 +4,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin/auth'
 import type { InvoiceDocument, InvoiceDocumentItem } from '@/lib/invoices/types'
 
+export async function getInvoiceGenerationStatus() {
+  const db = createAdminClient()
+  const { data, error } = await db.from('settings').select('value').eq('key', 'invoice_generation').maybeSingle()
+  if (error) throw new Error('Unable to read invoice generation settings safely.')
+  const value = data?.value
+  return !(value && typeof value === 'object' && !Array.isArray(value) && (value as Record<string, unknown>).enabled === false)
+}
+
 function numberValue(value: unknown) {
   const number = Number(value)
   return Number.isFinite(number) ? number : 0

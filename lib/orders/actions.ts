@@ -3,8 +3,11 @@
 import 'server-only'
 
 import { z } from 'zod'
+import { after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/orders/phone'
+import { getDeliveryZoneForDivision, resolveDeliveryFieldsFromAddress } from '@/lib/orders/locations'
+import { buildDeliveryZonesQuote } from '@/lib/orders/delivery-quote'
 import { queueOrderConfirmationEmails } from '@/lib/email/service'
 import { markCheckoutSession, recordCommerceEvent, recordPurchaseOnce } from '@/lib/analytics/events'
 import { assessCustomerRisk } from '@/lib/risk/service'
@@ -13,25 +16,28 @@ import { getPaymentsForOrder, initiatePaymentForOrder, paymentProviderForPayment
 import {
   guestOrderInputSchema,
   orderQuoteInputSchema,
+  orderSelectionSchema,
   trackingLookupSchema,
   type GuestOrderInput,
   type OrderSuccessSummary,
   type Quote,
+  type DeliveryZonesQuote,
   type TrackingSummary,
 } from '@/lib/orders/schema'
 
-type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string; fieldErrors?: Record<string, string> }
+type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string; fieldErrors?: Record<string, string>; quote?: Quote }
 
 type VariantRow = {
   id: string
   product_id: string
   sku: string
   variant_title: string
+  color: string | null
   price: number | string
   compare_at_price: number | string | null
   stock_quantity: number
   is_active: boolean
-  product: { id: string; name: string; is_published: boolean; warranty_policy: string } | null
+  product: { id: string; name: string; is_published: boolean; warranty_policy: string; product_images: Array<{ image_url: string; variant_id: string | null; is_primary: boolean; sort_order: number }> } | null
 }
 
 type SettingsRow = { key: string; value: unknown }
@@ -48,68 +54,126 @@ function numeric(value: unknown) {
 function deliveryForDivision(division: string, settings: SettingsRow[]) {
   const config = settings.find((setting) => setting.key === 'delivery_charges')?.value
   const delivery = (config && typeof config === 'object' ? config : {}) as Record<string, unknown>
-  const deliveryZone: 'dhaka' | 'outside_dhaka' = division.trim().toLowerCase() === 'dhaka' ? 'dhaka' : 'outside_dhaka'
-  const deliveryCharge = numeric(delivery[deliveryZone === 'dhaka' ? 'dhaka' : 'outside_dhaka'])
+  const deliveryZone = getDeliveryZoneForDivision(division)
+  const deliveryCharge = numeric(delivery[deliveryZone])
   if (deliveryCharge === null || deliveryCharge < 0) throw new Error('Delivery configuration is unavailable.')
   return { deliveryZone, deliveryCharge }
 }
 
-async function loadVariantQuote(selection: { productId: string; variantId: string; quantity: number }, division: string): Promise<Quote> {
+type VariantQuoteContext = {
+  variant: VariantRow
+  settings: SettingsRow[]
+  imageUrl: string | null
+  unitPrice: number
+  compareAtPrice: number | null
+  subtotal: number
+  discountTotal: number
+  quantity: number
+}
+
+async function loadVariantQuoteContext(selection: { productId: string; variantId: string; quantity: number }): Promise<VariantQuoteContext> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('product_variants')
-    .select('id,product_id,sku,variant_title,price,compare_at_price,stock_quantity,is_active,product:products!inner(id,name,is_published,warranty_policy)')
-    .eq('id', selection.variantId)
-    .eq('product_id', selection.productId)
-    .maybeSingle()
-
-  if (error || !data) throw new Error('This product variant is no longer available.')
-  const variant = data as unknown as VariantRow
-  if (!variant.is_active || !variant.product?.is_published) throw new Error('This product is not currently available to order.')
-
-  const [settingsResult] = await Promise.all([
+  const [variantResult, settingsResult] = await Promise.all([
+    admin
+      .from('product_variants')
+      .select('id,product_id,sku,variant_title,ram,storage,color,price,compare_at_price,stock_quantity,is_active,product:products!inner(id,name,is_published,warranty_policy,product_images(image_url,variant_id,is_primary,sort_order))')
+      .eq('id', selection.variantId)
+      .eq('product_id', selection.productId)
+      .maybeSingle(),
     admin.from('settings').select('key,value').eq('key', 'delivery_charges').limit(1),
   ])
+
+  if (variantResult.error || !variantResult.data) throw new Error('This product variant is no longer available.')
   if (settingsResult.error) throw new Error('Delivery configuration is unavailable.')
 
+  const variant = variantResult.data as unknown as VariantRow
+  if (!variant.is_active || !variant.product?.is_published) throw new Error('This product is not currently available to order.')
+
+  const variantImages = (variant.product?.product_images ?? [])
+    .filter((image) => image.variant_id === variant.id)
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)
+  const imageUrl = variantImages[0]?.image_url ?? ((variant.product?.product_images ?? []).find((image) => image.is_primary)?.image_url ?? null)
   const unitPrice = numeric(variant.price)
   const compareAtPrice = variant.compare_at_price === null ? null : numeric(variant.compare_at_price)
   if (unitPrice === null || unitPrice < 0) throw new Error('The selected variant has no valid selling price.')
-  const { deliveryZone, deliveryCharge } = deliveryForDivision(division, (settingsResult.data ?? []) as SettingsRow[])
-  const subtotal = unitPrice * selection.quantity
-  const discountTotal = Math.max((compareAtPrice ?? unitPrice) - unitPrice, 0) * selection.quantity
 
   return {
-    productName: variant.product.name,
-    variantTitle: variant.variant_title,
-    sku: variant.sku,
-    quantity: selection.quantity,
+    variant,
+    settings: (settingsResult.data ?? []) as SettingsRow[],
+    imageUrl,
     unitPrice,
     compareAtPrice,
-    discountTotal,
-    subtotal,
+    subtotal: unitPrice * selection.quantity,
+    discountTotal: Math.max((compareAtPrice ?? unitPrice) - unitPrice, 0) * selection.quantity,
+    quantity: selection.quantity,
+  }
+}
+
+function quoteFromContext(context: VariantQuoteContext, division: string): Quote {
+  const { variant } = context
+  const product = variant.product
+  if (!product) throw new Error('This product is no longer available.')
+  const { deliveryZone, deliveryCharge } = deliveryForDivision(division, context.settings)
+  return {
+    productName: product.name,
+    variantTitle: variant.variant_title,
+    color: variant.color ?? null,
+    imageUrl: context.imageUrl,
+    sku: variant.sku,
+    quantity: context.quantity,
+    unitPrice: context.unitPrice,
+    compareAtPrice: context.compareAtPrice,
+    discountTotal: context.discountTotal,
+    subtotal: context.subtotal,
     deliveryCharge,
-    grandTotal: subtotal + deliveryCharge,
+    grandTotal: context.subtotal + deliveryCharge,
     deliveryZone,
-    warrantyPolicy: variant.product.warranty_policy,
-    available: variant.stock_quantity >= selection.quantity,
+    warrantyPolicy: product.warranty_policy,
+    available: variant.stock_quantity >= context.quantity,
+  }
+}
+
+async function loadVariantQuote(selection: { productId: string; variantId: string; quantity: number }, division: string): Promise<Quote> {
+  return quoteFromContext(await loadVariantQuoteContext(selection), division)
+}
+
+export async function quoteDeliveryZones(input: unknown): Promise<ActionResult<DeliveryZonesQuote>> {
+  const parsed = orderSelectionSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: 'সঠিক পণ্য ও পরিমাণ নির্বাচন করুন।', fieldErrors: fieldErrors(parsed.error) }
+  try {
+    const context = await loadVariantQuoteContext(parsed.data)
+    const dhaka = quoteFromContext(context, 'Dhaka')
+    const outside = quoteFromContext(context, 'outside_dhaka')
+    if (!dhaka.available || !outside.available) {
+      return { ok: true, data: buildDeliveryZonesQuote(dhaka, { dhakaCharge: dhaka.deliveryCharge, outsideDhakaCharge: outside.deliveryCharge }) }
+    }
+    return {
+      ok: true,
+      data: buildDeliveryZonesQuote(dhaka, {
+        dhakaCharge: dhaka.deliveryCharge,
+        outsideDhakaCharge: outside.deliveryCharge,
+      }),
+    }
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'মোট মূল্য হিসাব করা যায়নি। আবার চেষ্টা করুন।' }
   }
 }
 
 export async function loadOrderSuccessById(orderId: string): Promise<OrderSuccessSummary> {
   const admin = createAdminClient()
-  const { data: order, error: orderError } = await admin
-    .from('orders')
-    .select('id,order_number,order_status,created_at,subtotal,discount_total,delivery_charge,grand_total,payment_method,customer_name_snapshot,customer_phone_snapshot,customer_email_snapshot,shipping_division,shipping_district,shipping_area,shipping_address,shipping_postal_code,notes')
-    .eq('id', orderId)
-    .maybeSingle()
+  const [{ data: order, error: orderError }, { data: items, error: itemsError }] = await Promise.all([
+    admin
+      .from('orders')
+      .select('id,order_number,order_status,created_at,subtotal,discount_total,delivery_charge,grand_total,payment_method,customer_name_snapshot,customer_phone_snapshot,customer_email_snapshot,shipping_division,shipping_district,shipping_area,shipping_address,shipping_postal_code,notes')
+      .eq('id', orderId)
+      .maybeSingle(),
+    admin
+      .from('order_items')
+      .select('product_name_snapshot,variant_title_snapshot,sku,quantity,unit_price,compare_at_price_snapshot,discount_amount,line_total,warranty_policy_snapshot')
+      .eq('order_id', orderId)
+      .order('created_at'),
+  ])
   if (orderError || !order) throw new Error('Your order was created, but its confirmation could not be loaded. Please use order tracking.')
-
-  const { data: items, error: itemsError } = await admin
-    .from('order_items')
-    .select('product_name_snapshot,variant_title_snapshot,sku,quantity,unit_price,compare_at_price_snapshot,discount_amount,line_total,warranty_policy_snapshot')
-    .eq('order_id', orderId)
-    .order('created_at')
   if (itemsError) throw new Error('Your order was created, but its item summary could not be loaded. Please use order tracking.')
 
   const row = order as unknown as Record<string, unknown>
@@ -148,12 +212,78 @@ export async function loadOrderSuccessById(orderId: string): Promise<OrderSucces
   }
 }
 
+const prepareGuestCheckoutSchema = orderSelectionSchema.extend({ checkoutRequestId: z.string().uuid().optional(), source: z.enum(['QUICK_ORDER', 'LANDING_PAGE']).default('QUICK_ORDER') })
+
+export async function prepareGuestCheckout(input: unknown): Promise<ActionResult<{ checkoutRequestId: string; redirectUrl: string }>> {
+  const parsed = prepareGuestCheckoutSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, message: 'Please select a valid product option and quantity.', fieldErrors: fieldErrors(parsed.error) }
+
+  try {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('product_variants')
+      .select('id,product_id,sku,variant_title,price,stock_quantity,is_active,product:products!inner(id,name,is_published)')
+      .eq('id', parsed.data.variantId)
+      .eq('product_id', parsed.data.productId)
+      .maybeSingle()
+
+    if (error || !data) return { ok: false, message: 'This product option is no longer available.' }
+
+    const variant = data as unknown as {
+      id: string
+      product_id: string
+      sku: string
+      variant_title: string
+      price: number | string
+      stock_quantity: number
+      is_active: boolean
+      product: { id: string; name: string; is_published: boolean } | null
+    }
+
+    if (!variant.is_active || !variant.product?.is_published) return { ok: false, message: 'This product is not currently available to order.' }
+    if (variant.stock_quantity < parsed.data.quantity) return { ok: false, message: 'The selected quantity is no longer available.' }
+
+    const checkoutRequestId = parsed.data.checkoutRequestId ?? crypto.randomUUID()
+    const source = parsed.data.source
+    const quoteSnapshot = {
+      product_id: variant.product_id,
+      variant_id: variant.id,
+      product_name: variant.product.name,
+      variant_title: variant.variant_title,
+      sku: variant.sku,
+      quantity: parsed.data.quantity,
+      unit_price: numeric(variant.price),
+    }
+
+    // Do not make the customer wait for analytics/session persistence.
+    // The checkout page and final order creation remain authoritative.
+    after(() =>
+      Promise.all([
+        markCheckoutSession({ checkoutRequestId, source, status: 'STARTED', quoteSnapshot }),
+        recordCommerceEvent({ eventId: `${checkoutRequestId}:started`, eventName: 'CHECKOUT_STARTED', sessionId: checkoutRequestId, metadata: { source, product_id: variant.product_id, variant_id: variant.id, quantity: parsed.data.quantity } }),
+      ]).catch((error) => console.error('[checkout] session tracking failed', error)),
+    )
+
+    return {
+      ok: true,
+      data: {
+        checkoutRequestId,
+        redirectUrl: `/order?productId=${encodeURIComponent(variant.product_id)}&variantId=${encodeURIComponent(variant.id)}&quantity=${parsed.data.quantity}&checkoutRequestId=${encodeURIComponent(checkoutRequestId)}`,
+      },
+    }
+  } catch (error) {
+    console.error('[checkout] prepareGuestCheckout failed', error)
+    return { ok: false, message: 'We could not start checkout right now. Please try again.' }
+  }
+}
+
 export async function quoteGuestCodOrder(input: unknown): Promise<ActionResult<Quote>> {
   const parsed = orderQuoteInputSchema.safeParse(input)
   if (!parsed.success) return { ok: false, message: 'Please correct the highlighted details.', fieldErrors: fieldErrors(parsed.error) }
   try {
     const quote = await loadVariantQuote(parsed.data, parsed.data.division)
     if (!quote.available) return { ok: false, message: 'The selected quantity is no longer available. Please adjust your order and try again.' }
+    void recordCommerceEvent({ eventId: `quote:${crypto.randomUUID()}`, eventName: 'CHECKOUT_QUOTED', metadata: { source: 'QUICK_ORDER', product_id: parsed.data.productId, variant_id: parsed.data.variantId, quantity: parsed.data.quantity, value: quote.grandTotal, delivery_charge: quote.deliveryCharge } }).catch(() => undefined)
     return { ok: true, data: quote }
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : 'Unable to calculate your order total right now.' }
@@ -212,7 +342,14 @@ export async function createGuestCodOrder(input: unknown): Promise<ActionResult<
   const parsed = guestOrderInputSchema.safeParse(input)
   if (!parsed.success) return { ok: false, message: 'Please correct the highlighted details.', fieldErrors: fieldErrors(parsed.error) }
 
-  const payload: GuestOrderInput = { ...parsed.data, phone: normalizePhone(parsed.data.phone), email: parsed.data.email || '' }
+  const inferredLocation = resolveDeliveryFieldsFromAddress(parsed.data.division, parsed.data.address)
+  const payload: GuestOrderInput = {
+    ...parsed.data,
+    phone: normalizePhone(parsed.data.phone),
+    email: parsed.data.email || '',
+    district: parsed.data.district?.trim() || inferredLocation.district,
+    area: parsed.data.area?.trim() || inferredLocation.area,
+  }
   try {
     // This preflight makes unavailable-state feedback clearer; the database function performs the final locked revalidation.
     const quote = await loadVariantQuote(payload, payload.division)
@@ -247,12 +384,17 @@ export async function createGuestCodOrder(input: unknown): Promise<ActionResult<
     }
 
     const summary = await loadOrderSuccessById(String(data[0].order_id))
-    await recordPurchaseOnce({ orderId: summary.orderId, orderNumber: summary.orderNumber, value: summary.grandTotal, sessionId: payload.checkoutRequestId, consent: { analytics: payload.analyticsConsent, marketing: payload.marketingConsent }, items: summary.items.map((item) => ({ item_id: item.sku, item_name: item.productName, price: item.unitPrice, quantity: item.quantity })) })
-    try {
-      await queueOrderConfirmationEmails(summary)
-    } catch (emailError) {
-      console.error('[email] order confirmation notification failed', emailError instanceof Error ? emailError.message : emailError)
-    }
+    after(async () => {
+      const results = await Promise.allSettled([
+        markCheckoutSession({ checkoutRequestId: payload.checkoutRequestId, source: 'QUICK_ORDER', status: 'COMPLETED', customerPhone: payload.phone, customerEmail: payload.email || null, completedOrderId: summary.orderId }),
+        recordCommerceEvent({ eventId: `${payload.checkoutRequestId}:completed`, eventName: 'ORDER_COMPLETED', sessionId: payload.checkoutRequestId, orderId: summary.orderId, metadata: { source: 'QUICK_ORDER', order_number: summary.orderNumber } }),
+        recordPurchaseOnce({ orderId: summary.orderId, orderNumber: summary.orderNumber, value: summary.grandTotal, sessionId: payload.checkoutRequestId, consent: { analytics: payload.analyticsConsent, marketing: payload.marketingConsent }, items: summary.items.map((item) => ({ item_id: item.sku, item_name: item.productName, price: item.unitPrice, quantity: item.quantity })) }),
+        queueOrderConfirmationEmails(summary),
+      ])
+      const purchaseResult = results[2]
+      if (purchaseResult.status === 'rejected') console.error('[analytics] purchase dispatch failed', purchaseResult.reason instanceof Error ? purchaseResult.reason.message : String(purchaseResult.reason))
+      else { const value = purchaseResult.value as { ok: boolean; duplicate: boolean; skipped?: boolean; deliveries?: unknown }; console.log(JSON.stringify({ level: 'info', msg: 'purchase_analytics_result', orderId: summary.orderId, ok: value.ok, skipped: value.skipped, duplicate: value.duplicate, deliveries: value.deliveries })) }
+    })
     return { ok: true, data: summary }
   } catch (error) {
     return { ok: false, message: error instanceof Error && error.message.includes('available') ? error.message : 'We could not place your order right now. No payment has been collected. Please try again.' }
@@ -264,14 +406,61 @@ type AdvancePaymentResult = { paymentRequired: true; orderId: string; orderNumbe
 export async function createGuestOrderWithRisk(input: unknown): Promise<ActionResult<OrderSuccessSummary | AdvancePaymentResult>> {
   const parsed = guestOrderInputSchema.safeParse(input)
   if (!parsed.success) return { ok: false, message: 'Please correct the highlighted details.', fieldErrors: fieldErrors(parsed.error) }
-  const payload: GuestOrderInput = { ...parsed.data, phone: normalizePhone(parsed.data.phone), email: parsed.data.email || '' }
+  const inferredLocation = resolveDeliveryFieldsFromAddress(parsed.data.division, parsed.data.address)
+  const payload: GuestOrderInput = {
+    ...parsed.data,
+    phone: normalizePhone(parsed.data.phone),
+    email: parsed.data.email || '',
+    district: parsed.data.district?.trim() || inferredLocation.district,
+    area: parsed.data.area?.trim() || inferredLocation.area,
+  }
 
   try {
-    const quote = await loadVariantQuote(payload, payload.division)
+    // Run the two independent preflight checks together; the database RPC remains the final authoritative check.
+    const [quote, risk] = await Promise.all([
+      loadVariantQuote(payload, payload.division),
+      assessCustomerRisk({ phone: payload.phone }),
+    ])
     if (!quote.available) return { ok: false, message: 'The selected quantity is no longer available. Please adjust your order and try again.' }
-    const risk = await assessCustomerRisk({ phone: payload.phone })
+    if (payload.expectedGrandTotal !== undefined && payload.expectedGrandTotal !== quote.grandTotal) {
+      return { ok: false, message: 'মোট মূল্য পরিবর্তিত হয়েছে। নতুন মূল্য দেখে আবার অর্ডার কনফার্ম করুন।', quote }
+    }
     const paymentRequirement = paymentRequirementForRiskAction(risk.action)
-    if (paymentRequirement === 'COD') return createGuestCodOrder(input)
+    if (paymentRequirement === 'COD') {
+      const db = createAdminClient()
+      const { data, error } = await db.rpc('create_guest_cod_order', {
+        p_product_id: payload.productId,
+        p_variant_id: payload.variantId,
+        p_quantity: payload.quantity,
+        p_checkout_request_id: payload.checkoutRequestId,
+        p_customer_name: payload.fullName,
+        p_customer_phone: payload.phone,
+        p_customer_email: payload.email || null,
+        p_division: payload.division,
+        p_district: payload.district,
+        p_area: payload.area,
+        p_address: payload.address,
+        p_postal_code: payload.postalCode || null,
+        p_notes: payload.notes || null,
+      })
+      if (error || !Array.isArray(data) || !data[0]?.order_id) {
+        const message = error?.message ?? 'Unable to create your order.'
+        if (message.includes('INSUFFICIENT_STOCK')) return { ok: false, message: 'The selected quantity is no longer available. Please adjust your order and try again.' }
+        if (message.includes('PRODUCT_UNAVAILABLE')) return { ok: false, message: 'This product is not currently available to order.' }
+        if (message.includes('INVALID_QUANTITY')) return { ok: false, message: 'Please choose a valid quantity.' }
+        return { ok: false, message: 'We could not place your order right now. No payment has been collected. Please try again.' }
+      }
+      const summary = await loadOrderSuccessById(String(data[0].order_id))
+      after(async () => {
+        await Promise.allSettled([
+          markCheckoutSession({ checkoutRequestId: payload.checkoutRequestId, source: payload.checkoutSource, status: 'COMPLETED', customerPhone: payload.phone, customerEmail: payload.email || null, completedOrderId: summary.orderId }),
+          recordCommerceEvent({ eventId: `${payload.checkoutRequestId}:completed`, eventName: 'ORDER_COMPLETED', sessionId: payload.checkoutRequestId, orderId: summary.orderId, metadata: { source: payload.checkoutSource, order_number: summary.orderNumber } }),
+          recordPurchaseOnce({ orderId: summary.orderId, orderNumber: summary.orderNumber, value: summary.grandTotal, sessionId: payload.checkoutRequestId, consent: { analytics: payload.analyticsConsent, marketing: payload.marketingConsent }, items: summary.items.map((item) => ({ item_id: item.sku, item_name: item.productName, price: item.unitPrice, quantity: item.quantity })) }),
+          queueOrderConfirmationEmails(summary),
+        ])
+      })
+      return { ok: true, data: summary }
+    }
     if (paymentRequirement === 'MANUAL_REVIEW') return { ok: false, message: 'We need to verify a few details before accepting this order. Please contact support for help.' }
     const provider = await paymentProviderForPaymentRequirement(paymentRequirement)
     verifyPaymentProvider(provider)
@@ -310,8 +499,8 @@ export async function createGuestOrderWithRisk(input: unknown): Promise<ActionRe
       return { ok: false, message: 'Secure online payment could not be started. No payment was collected. Please try again.' }
     }
     if (!payment.paymentUrl) return { ok: false, message: 'Secure online payment could not be started. No payment was collected. Please try again.' }
-    await markCheckoutSession({ checkoutRequestId: payload.checkoutRequestId, source: 'QUICK_ORDER', status: 'PAYMENT_INITIATED', customerPhone: payload.phone, customerEmail: payload.email || null, completedOrderId: null })
-    await recordCommerceEvent({ eventId: `${payload.checkoutRequestId}:payment-initiated`, eventName: 'PAYMENT_INITIATED', sessionId: payload.checkoutRequestId, orderId: row.order_id, metadata: { source: 'QUICK_ORDER', provider: 'BDGATE' } })
+    await markCheckoutSession({ checkoutRequestId: payload.checkoutRequestId, source: payload.checkoutSource, status: 'PAYMENT_INITIATED', customerPhone: payload.phone, customerEmail: payload.email || null, completedOrderId: null })
+    await recordCommerceEvent({ eventId: `${payload.checkoutRequestId}:payment-initiated`, eventName: 'PAYMENT_INITIATED', sessionId: payload.checkoutRequestId, orderId: row.order_id, metadata: { source: payload.checkoutSource, provider: 'BDGATE' } })
     return { ok: true, data: { paymentRequired: true, orderId: row.order_id, orderNumber: row.order_number, paymentId: payment.id, redirectUrl: payment.paymentUrl } }
   } catch (error) {
     return { ok: false, message: error instanceof Error && error.message.includes('available') ? error.message : 'We could not prepare your order securely. No payment was collected. Please try again.' }

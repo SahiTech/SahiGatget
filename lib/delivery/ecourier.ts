@@ -3,8 +3,13 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { decryptSecret } from './secrets'
 import type { CreateShipmentInput, CreateShipmentResult, ShipmentStatus, TrackingResult } from './contracts'
+import type { Json } from '@/lib/types/database'
 
 export const ECOURIER_BASE_URL = 'https://backoffice.ecourier.com.bd/api'
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
 
 type Credentials = { apiKey: string; apiSecret: string; userId: string; baseUrl: string }
 
@@ -15,7 +20,7 @@ async function getCredentials(): Promise<Credentials> {
   return { apiKey: decryptSecret(data.encrypted_api_key), apiSecret: decryptSecret(data.encrypted_secret_key), userId: decryptSecret(data.encrypted_user_id), baseUrl: data.base_url || ECOURIER_BASE_URL }
 }
 
-async function request(path: string, body: Record<string, unknown>) {
+async function request(path: string, body: Record<string, unknown>): Promise<unknown> {
   const credentials = await getCredentials()
   const response = await fetch(`${credentials.baseUrl}${path}`, {
     method: 'POST',
@@ -30,15 +35,22 @@ async function request(path: string, body: Record<string, unknown>) {
     signal: AbortSignal.timeout(15000),
   })
   const text = await response.text()
-  let data: any = null
+  let data: unknown = null
   try { data = text ? JSON.parse(text) : null } catch { data = { raw: text } }
-  if (!response.ok || Number(data?.response_code ?? response.status) >= 400) throw new Error(`eCourier API ${response.status}: ${Array.isArray(data?.errors) ? data.errors.join(' ') : data?.message ?? 'Request failed'}`)
+  const parsed = asRecord(data)
+  if (!response.ok || Number(parsed.response_code ?? response.status) >= 400) {
+    const errors = Array.isArray(parsed.errors) ? parsed.errors.map(String).join(' ') : null
+    const message = typeof parsed.message === 'string' ? parsed.message : 'Request failed'
+    throw new Error(`eCourier API ${response.status}: ${errors || message}`)
+  }
   return data
 }
 
 export async function testECourierConnection() {
   const data = await request('/packages', {})
-  return { ok: Array.isArray(data) || Array.isArray(data?.message), packageCount: Array.isArray(data) ? data.length : Array.isArray(data?.message) ? data.message.length : 0 }
+  const parsed = asRecord(data)
+  const packages = Array.isArray(data) ? data : Array.isArray(parsed.message) ? parsed.message : []
+  return { ok: packages.length > 0, packageCount: packages.length }
 }
 
 function mapStatus(value: unknown): ShipmentStatus {
@@ -57,7 +69,7 @@ export async function createECourierOrder(input: CreateShipmentInput): Promise<C
   const codAmount = Math.max(0, Number(input.parcel.codAmount))
   const paymentMethod = codAmount > 0 ? 'COD' : 'POS'
   const address = [customer.address, customer.area, customer.district, customer.division].filter(Boolean).join(', ').slice(0, 40)
-  const result = await request('/order-place', {
+  const result = asRecord(await request('/order-place', {
     recipient_name: customer.name.slice(0, 250),
     recipient_mobile: customer.phone,
     recipient_city: customer.division || customer.district,
@@ -74,16 +86,16 @@ export async function createECourierOrder(input: CreateShipmentInput): Promise<C
     comments: input.parcel.itemDescription.slice(0, 255),
     number_of_item: items,
     actual_product_price: Math.round(Number(input.order.totalAmount ?? codAmount)),
-  })
-  const id = result?.ID ?? result?.id
+  }))
+  const id = result.ID ?? result.id
   if (!id) throw new Error('eCourier did not return an eCourier tracking ID.')
-  return { providerShipmentId: String(id), trackingNumber: String(id), labelReference: null, status: 'CREATED', raw: result }
+  return { providerShipmentId: String(id), trackingNumber: String(id), labelReference: null, status: 'CREATED', raw: result as Json }
 }
 
 export async function trackECourierShipment(trackingNumber: string): Promise<TrackingResult> {
-  const result = await request('/track', { ecr: trackingNumber })
-  const row = Array.isArray(result?.query_data) ? result.query_data[0] : null
-  const statuses = Array.isArray(row?.status) ? row.status : []
+  const result = asRecord(await request('/track', { ecr: trackingNumber }))
+  const row = asRecord(Array.isArray(result.query_data) ? result.query_data[0] : null)
+  const statuses = Array.isArray(row.status) ? row.status as unknown[][] : []
   const latest = statuses[0]
-  return { providerShipmentId: String(row?.REFID ?? trackingNumber), trackingNumber, status: mapStatus(latest?.[0]), statusText: latest?.[0] ? String(latest[0]) : null, occurredAt: latest?.[2] ? String(latest[2]) : null, raw: result }
+  return { providerShipmentId: String(row.REFID ?? trackingNumber), trackingNumber, status: mapStatus(latest?.[0]), statusText: latest?.[0] ? String(latest[0]) : null, occurredAt: latest?.[2] ? String(latest[2]) : null, raw: result as Json }
 }

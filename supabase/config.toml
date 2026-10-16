@@ -19,7 +19,7 @@ site_url = "http://localhost:3000"
 enabled = false
 
 [storage]
-enabled = false
+enabled = true
 
 [realtime]
 enabled = false
