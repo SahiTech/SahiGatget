@@ -3,6 +3,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { decryptSecret } from './secrets'
 import type { CreateShipmentInput, CreateShipmentResult, ShipmentStatus, TrackingResult } from './contracts'
+import type { Json } from '@/lib/types/database'
 
 export const ECOURIER_BASE_URL = 'https://backoffice.ecourier.com.bd/api'
 
@@ -88,7 +89,7 @@ export async function createECourierOrder(input: CreateShipmentInput): Promise<C
   }))
   const id = result.ID ?? result.id
   if (!id) throw new Error('eCourier did not return an eCourier tracking ID.')
-  return { providerShipmentId: String(id), trackingNumber: String(id), labelReference: null, status: 'CREATED', raw: result }
+  return { providerShipmentId: String(id), trackingNumber: String(id), labelReference: null, status: 'CREATED', raw: result as Json }
 }
 
 export async function trackECourierShipment(trackingNumber: string): Promise<TrackingResult> {
@@ -96,5 +97,5 @@ export async function trackECourierShipment(trackingNumber: string): Promise<Tra
   const row = asRecord(Array.isArray(result.query_data) ? result.query_data[0] : null)
   const statuses = Array.isArray(row.status) ? row.status as unknown[][] : []
   const latest = statuses[0]
-  return { providerShipmentId: String(row.REFID ?? trackingNumber), trackingNumber, status: mapStatus(latest?.[0]), statusText: latest?.[0] ? String(latest[0]) : null, occurredAt: latest?.[2] ? String(latest[2]) : null, raw: result }
+  return { providerShipmentId: String(row.REFID ?? trackingNumber), trackingNumber, status: mapStatus(latest?.[0]), statusText: latest?.[0] ? String(latest[0]) : null, occurredAt: latest?.[2] ? String(latest[2]) : null, raw: result as Json }
 }

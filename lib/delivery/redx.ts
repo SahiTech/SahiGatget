@@ -3,6 +3,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { decryptSecret } from './secrets'
 import type { CreateShipmentInput, CreateShipmentResult, ShipmentStatus, TrackingResult } from './contracts'
+import type { Json } from '@/lib/types/database'
 
 export const REDX_BASE_URL = 'https://openapi.redx.com.bd/v1.0.0-beta'
 
@@ -112,7 +113,7 @@ export async function createRedxParcel(input: CreateShipmentInput & { deliveryAr
   if (pickupStore?.id) payload.pickup_store_id = Number(pickupStore.id)
   const result = await redxRequest('/parcel', { method: 'POST', body: JSON.stringify(payload) })
   if (!result?.tracking_id) throw new Error('REDX did not return a tracking ID.')
-  return { providerShipmentId: String(result.tracking_id), trackingNumber: String(result.tracking_id), labelReference: null, status: 'CREATED', raw: { result, pickupStore } }
+  return { providerShipmentId: String(result.tracking_id), trackingNumber: String(result.tracking_id), labelReference: null, status: 'CREATED', raw: { result, pickupStore } as Json }
 }
 
 export async function trackRedxParcel(trackingNumber: string): Promise<TrackingResult> {
@@ -120,7 +121,7 @@ export async function trackRedxParcel(trackingNumber: string): Promise<TrackingR
   const tracking = recordArray<Record<string, unknown>>(result.tracking)
   const latest = tracking[tracking.length - 1]
   const latestText = `${latest?.status ?? ''} ${latest?.message_en ?? ''}`.trim()
-  return { providerShipmentId: trackingNumber, trackingNumber, status: mapStatus(latestText), statusText: latest?.message_en != null ? String(latest.message_en) : latest?.message_bn != null ? String(latest.message_bn) : null, occurredAt: latest?.time != null ? String(latest.time) : null, raw: result }
+  return { providerShipmentId: trackingNumber, trackingNumber, status: mapStatus(latestText), statusText: latest?.message_en != null ? String(latest.message_en) : latest?.message_bn != null ? String(latest.message_bn) : null, occurredAt: latest?.time != null ? String(latest.time) : null, raw: result as Json }
 }
 
 export async function getRedxParcelInfo(trackingNumber: string) {
@@ -128,13 +129,13 @@ export async function getRedxParcelInfo(trackingNumber: string) {
   return result?.parcel ?? null
 }
 
-export async function normalizeRedxWebhook(payload: unknown, requestUrl: string) {
+export async function normalizeRedxWebhook(payload: Json, requestUrl: string) {
   const event = asRecord(payload)
   const credentials = await getCredentials()
   if (!credentials.webhookToken) throw new Error('REDX webhook token is not configured.')
   const supplied = new URL(requestUrl).searchParams.get('token') ?? ''
   if (!supplied || supplied !== credentials.webhookToken) throw new Error('Invalid REDX webhook token.')
-  const providerShipmentId = event.tracking_number ? String(payload.tracking_number) : null
+  const providerShipmentId = event.tracking_number ? String(event.tracking_number) : null
   const providerEventId = `redx:${providerShipmentId ?? event.invoice_number ?? 'event'}:${event.timestamp ?? event.status ?? crypto.randomUUID()}`
-  return { provider: 'REDX' as const, providerEventId, providerShipmentId, trackingNumber: providerShipmentId, status: mapStatus(payload?.status), occurredAt: payload?.timestamp ? String(payload.timestamp) : null, payload }
+  return { provider: 'REDX' as const, providerEventId, providerShipmentId, trackingNumber: providerShipmentId, status: mapStatus(event.status), occurredAt: event.timestamp ? String(event.timestamp) : null, payload }
 }

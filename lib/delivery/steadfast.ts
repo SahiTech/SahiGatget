@@ -3,6 +3,7 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { decryptSecret } from './secrets'
 import type { CreateShipmentInput, CreateShipmentResult, ShipmentStatus, TrackingResult } from './contracts'
+import type { Json } from '@/lib/types/database'
 
 export const STEADFAST_BASE_URL = 'https://portal.packzy.com/api/v1'
 
@@ -65,15 +66,15 @@ export async function createSteadfastOrder(input: CreateShipmentInput): Promise<
   const result = await steadfastRequest('/create_order', { method: 'POST', body: JSON.stringify(payload) })
   const consignment = asRecord(result.consignment)
   if (!consignment?.consignment_id) throw new Error('Steadfast did not return a consignment ID.')
-  return { providerShipmentId: String(consignment.consignment_id), trackingNumber: consignment.tracking_code ? String(consignment.tracking_code) : null, labelReference: null, status: mapStatus(consignment.status), raw: result }
+  return { providerShipmentId: String(consignment.consignment_id), trackingNumber: consignment.tracking_code ? String(consignment.tracking_code) : null, labelReference: null, status: mapStatus(consignment.status), raw: result as Json }
 }
 
 export async function trackSteadfastShipment(trackingNumber: string): Promise<TrackingResult> {
   const result = await steadfastRequest(`/status_by_trackingcode/${encodeURIComponent(trackingNumber)}`)
-  return { providerShipmentId: String(result?.consignment_id ?? trackingNumber), trackingNumber, status: mapStatus(result?.delivery_status), statusText: result?.delivery_status ?? null, raw: result }
+  return { providerShipmentId: String(result?.consignment_id ?? trackingNumber), trackingNumber, status: mapStatus(result?.delivery_status), statusText: result.delivery_status != null ? String(result.delivery_status) : null, raw: result as Json }
 }
 
-export async function normalizeSteadfastWebhook(payload: unknown, headers: Headers) {
+export async function normalizeSteadfastWebhook(payload: Json, headers: Headers) {
   const event = asRecord(payload)
   const auth = headers.get('authorization') ?? ''
   const db = createAdminClient()
@@ -82,5 +83,5 @@ export async function normalizeSteadfastWebhook(payload: unknown, headers: Heade
   const expected = `Bearer ${decryptSecret(data.encrypted_webhook_token)}`
   if (auth !== expected) throw new Error('Invalid Steadfast webhook authorization.')
   const providerEventId = `${event.notification_type ?? 'event'}:${event.consignment_id ?? event.invoice ?? event.updated_at ?? crypto.randomUUID()}`
-  return { provider: 'STEADFAST' as const, providerEventId, providerShipmentId: event.consignment_id ? String(payload.consignment_id) : null, trackingNumber: event.tracking_code ? String(payload.tracking_code) : null, status: mapStatus(event.status), occurredAt: event.updated_at ? String(payload.updated_at) : null, payload }
+  return { provider: 'STEADFAST' as const, providerEventId, providerShipmentId: event.consignment_id ? String(event.consignment_id) : null, trackingNumber: event.tracking_code ? String(event.tracking_code) : null, status: mapStatus(event.status), occurredAt: event.updated_at ? String(event.updated_at) : null, payload }
 }
