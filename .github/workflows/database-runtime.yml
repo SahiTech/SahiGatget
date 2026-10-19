@@ -3,11 +3,12 @@ name: SahiGadget Database Runtime
 on:
   push:
     branches:
+      - main
       - audit/payment-bdgate-production
   pull_request:
     branches:
-      - audit/payment-bdgate-production
       - main
+      - audit/payment-bdgate-production
   workflow_dispatch:
 
 permissions:
